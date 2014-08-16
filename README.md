@@ -1,16 +1,73 @@
 Quant DSL
 =========
 
-Quant DSL is a Python implementation of the Quant DSL language.
+INCOMPLETE, UNDER DEVELOPMENT  -- NB A new Python package quantdsl will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)
+
+Quant DSL is a functional programming language, written in Python, that can generate and evaluate complex stochastic expressions of the value of derivative contracts.
+
+A paper defining the syntax and semantics of Quant DSL expressions was published in 2011.
+
+http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf
+
+More recently, the language has been expanded to support common elements of a functional programming language, so that long and complex expressions can be represented concisely, as was envisaged in Section 6 of the 2011 paper ("Future Development").
+
+Evaluation of an expression is optimised so that computational redundancy is eliminated and any branches can be executed in parallel. Computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. It can also be done in a single thread.
+
+A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep everything in memory.
+
+Large computations are possible with limited hardware, because the computation is firstly modelled as a network of partial expressions, the model is stored as a dependency graph, and then the model is progressively evaluated until the value of the original expression is known.
+
+As illustative examples of a Quant DSL module, please consider the following definition of an American option.
+
+```python
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def American(starts, ends, strike, underlying):
+    if starts >= ends:
+        Option(starts, strike, underlying, 0)
+    else:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+
+American(Date('2016-04-01'), Date('2016-10-01'), 9, Market('TTF'))
+```
+
+Here's a Swing option.
+
+```python
+def Swing(starts, ends, underlying, quantity):
+    if (quantity == 0) or (starts < ends):
+        return 0
+    else:
+        return Choice(
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                quantity - 1) + Fixing(starts, underlying),
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                quantity)
+        )
+
+Swing(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 2)
+```
+
+The rest of this article will try to explain what's going on. :)
 
 Installation
 ------------
 
-Install the `quantdsl` Python package.
+To install Quant DSl, simple install the `quantdsl` Python package.
+
+To avoid disturbing your system's site packages, it is recommended to install Quant DSL into a new virtual Python environment, using `virtualenv`.
 
 ```
 pip install quantdsl
 ```
+
+Quant DSl depends on NumPy and SciPy. On Linux systems these can now be automatically installed, normally without any problems.
+
+Windows users may not be able to install NumPy and SciPy because they do not have a compiler installed. If so, one solution would be to install PythonXY so that you have NumPy and SciPy, and then create a virtual environment with the `--system-site-packages` so that numpy and scipy will be available. If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY. Pehaps the simpler alternative is to install Quant DSL directly into your PythonXY installation, using `easy_install quantdsl` (or `pip` if it is available) and forget about virtual Python environments - you could always reinstall PythonXY if something goes wrong.
+
 
 Introduction
 ------------
