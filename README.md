@@ -3,15 +3,15 @@ Quant DSL
 
 *INCOMPLETE, UNDER DEVELOPMENT  -- NB A [new Python package](https://pypi.python.org/pypi/quantdsl) will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)*
 
-Quant DSL is a functional programming language, written in Python, that can generate and evaluate complex stochastic expressions of the value of derivative contracts.
+Quant DSL is a functional programming language, written in Python, that can be used to declare and evaluate stochastic expressions of the value of derivative instruments.
 
 A paper defining the [syntax and semantics of Quant DSL expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011.
 
-More recently, in 2014, the language was expanded to support common elements of a functional programming language, so that long and complex expressions can be represented concisely, as was envisaged in Section 6 of the 2011 paper ("Future Development").
-
-Evaluation of an expression is optimised so that computational redundancy is eliminated and any branches can be executed in parallel. Computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. It can also be done in a single thread.
+More recently, in 2014, the language was expanded to support common elements of a functional programming language, so that sophisticated expressions can be represented concisely, as was envisaged in Section 6 of the 2011 paper ("Future Development").
 
 A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory.
+
+Evaluation of an expression is optimised so that computational redundancy is eliminated and any branches can be executed in parallel. Computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. It can also be done in a single thread.
 
 Hence, large computations are possible with limited hardware, because the computation is firstly modelled as a network of partial expressions, the model is stored as a dependency graph, and then the model is progressively evaluated until the value of the original expression is known.
 
@@ -54,26 +54,15 @@ Here's a Storage option.
 
 ```python
 def Storage(starts, ends, underlying, inventory):
-    if (starts >= ends):
+    if (starts >= ends) or (inventory == 0):
         0
-    elif (inventory == 0):
-        Choice(
-            Swing(starts + TimeDelta('1d'), ends, underlying,
-                inventory),
-
-            Swing(starts + TimeDelta('1d'), ends, underlying,
-                inventory + 1) - Fixing(starts, underlying)
-        )
     else:
         Choice(
-            Swing(starts + TimeDelta('1d'), ends, underlying,
+            Storage(starts + TimeDelta('1d'), ends, underlying,
                 inventory - 1) + Fixing(starts, underlying),
-        
-            Swing(starts + TimeDelta('1d'), ends, underlying,
-                inventory),
                 
-            Swing(starts + TimeDelta('1d'), ends, underlying,
-                inventory + 1) - Fixing(starts, underlying),
+            Storage(starts + TimeDelta('1d'), ends, underlying,
+                inventory + 1) - Fixing(starts, underlying)
         )
 
 Storage(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 2)
