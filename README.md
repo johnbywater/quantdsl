@@ -22,23 +22,21 @@ def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
 def American(starts, ends, strike, underlying):
-    if starts >= ends:
-        Option(starts, strike, underlying, 0)
-    else:
+    if starts < ends:
         Option(starts, strike, underlying,
             American(starts + TimeDelta('1d'), ends, strike, underlying)
         )
+    else:
+        Option(starts, strike, underlying, 0)
 
-American(Date('2016-04-01'), Date('2016-10-01'), 9, Market('TTF'))
+American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('TTF'))
 ```
 
 Here's a Swing option.
 
 ```python
 def Swing(starts, ends, underlying, quantity):
-    if (quantity == 0) or (starts >= ends):
-        0
-    else:
+    if (quantity > 0) and (starts < ends):
         Choice(
             Swing(starts + TimeDelta('1d'), ends, underlying,
                 quantity - 1) + Fixing(starts, underlying),
@@ -46,8 +44,10 @@ def Swing(starts, ends, underlying, quantity):
             Swing(starts + TimeDelta('1d'), ends, underlying,
                 quantity)
         )
+    else:
+        0
 
-Swing(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 2)
+Swing(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 20)
 ```
 
 Here's a Storage option.
