@@ -1,7 +1,7 @@
 Quant DSL
 =========
 
-INCOMPLETE, UNDER DEVELOPMENT  -- NB A [new Python package](https://pypi.python.org/pypi/quantdsl) will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)
+*INCOMPLETE, UNDER DEVELOPMENT  -- NB A [new Python package](https://pypi.python.org/pypi/quantdsl) will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)*
 
 Quant DSL is a functional programming language, written in Python, that can generate and evaluate complex stochastic expressions of the value of derivative contracts.
 
