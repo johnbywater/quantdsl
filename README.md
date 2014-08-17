@@ -1,7 +1,7 @@
 Quant DSL
 =========
 
-INCOMPLETE, UNDER DEVELOPMENT  -- NB A new Python package quantdsl will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)
+INCOMPLETE, UNDER DEVELOPMENT  -- NB A [new Python package](https://pypi.python.org/pypi/quantdsl) will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)
 
 Quant DSL is a functional programming language, written in Python, that can generate and evaluate complex stochastic expressions of the value of derivative contracts.
 
@@ -21,7 +21,7 @@ As illustative examples of a Quant DSL module, please consider the following def
 
 ```python
 def Option(date, strike, underlying, alternative):
-    return Wait(date, Choice(underlying - strike, alternative))
+    Wait(date, Choice(underlying - strike, alternative))
 
 def American(starts, ends, strike, underlying):
     if starts >= ends:
@@ -38,17 +38,47 @@ Here's a Swing option.
 
 ```python
 def Swing(starts, ends, underlying, quantity):
-    if (quantity == 0) or (starts < ends):
-        return 0
+    if (quantity == 0) or (starts >= ends):
+        0
     else:
-        return Choice(
+        Choice(
             Swing(starts + TimeDelta('1d'), ends, underlying,
                 quantity - 1) + Fixing(starts, underlying),
+        
             Swing(starts + TimeDelta('1d'), ends, underlying,
                 quantity)
         )
 
 Swing(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 2)
+```
+
+Here's a Storage option.
+
+```python
+def Storage(starts, ends, underlying, inventory):
+    if (starts >= ends):
+        0
+    elif (inventory == 0):
+        Choice(
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                inventory),
+
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                inventory + 1) - Fixing(starts, underlying)
+        )
+    else:
+        Choice(
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                inventory - 1) + Fixing(starts, underlying),
+        
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                inventory),
+                
+            Swing(starts + TimeDelta('1d'), ends, underlying,
+                inventory + 1) - Fixing(starts, underlying),
+        )
+
+Storage(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 2)
 ```
 
 The rest of this article will try to explain what's going on. :)
