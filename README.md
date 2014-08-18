@@ -21,7 +21,7 @@ def American(starts, ends, strike, underlying):
     else:
         Option(starts, strike, underlying, 0)
 
-American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('TTF'))
+American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('NBP'))
 ```
 
 Evaluation of such DSL expressions is optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. The evaluation work can also be done in a single thread.
@@ -29,7 +29,7 @@ Evaluation of such DSL expressions is optimised so that computational redundancy
 Hence, large computations are possible with limited hardware, because the computation is firstly modelled as a network of partial expressions, the model is stored as a dependency graph, and then the model is progressively evaluated until the value of the original expression is known.
 
 
-Here's a Swing option.
+Here's a basic swing option.
 
 ```python
 def Swing(starts, ends, underlying, quantity):
@@ -47,12 +47,28 @@ def Swing(starts, ends, underlying, quantity):
 Swing(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 20)
 ```
 
-Here's a Storage option.
+Here's a simple gas storage model.
 
 ```python
-def Storage(starts, ends, underlying, inventory):
-    if (starts >= ends) or (inventory == 0):
+def Storage(starts, ends, underlying, inventory, lowerlimit, upperlimit):
+    if starts >= ends:
         0
+    elif inventory < lowerlimit + 1:
+        Wait(starts, Choice(
+            Storage(starts + TimeDelta('1d'), ends, underlying,
+                inventory),
+                
+            Storage(starts + TimeDelta('1d'), ends, underlying,
+                inventory + 1) - Fixing(starts, underlying)
+        )
+    elif inventory > upperlimit - 1:
+        Wait(starts, Choice(
+            Storage(starts + TimeDelta('1d'), ends, underlying,
+                inventory - 1) + Fixing(starts, underlying),
+                
+            Storage(starts + TimeDelta('1d'), ends, underlying,
+                inventory)
+        )
     else:
         Wait(starts, Choice(
             Storage(starts + TimeDelta('1d'), ends, underlying,
@@ -62,7 +78,7 @@ def Storage(starts, ends, underlying, inventory):
                 inventory + 1) - Fixing(starts, underlying)
         )
 
-Storage(Date('2016-04-01'), Date('2016-10-01'), Market('NBP'), 2)
+Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
 ```
 
 
