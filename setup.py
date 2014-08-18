@@ -1,25 +1,17 @@
 #!/usr/bin/env python
 import os
 import sys
-
-from setuptools import setup, find_packages
-
-here = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(here, 'src'))
-
+from setuptools import setup
 from quantdsl import __version__
 
-long_description = open('README.md').read()
+long_description = open('README').read()
 
 setup(
     name='quantdsl',
     version=__version__,
 
-    package_dir={'': 'src'},
-    packages=find_packages('src'),
-    scripts=scripts,
+    packages=['quantdsl'],
     # just use auto-include and specify special items in MANIFEST.in
-    include_package_data = True,
     zip_safe = False,
     install_requires = [
         'scipy',
@@ -27,18 +19,19 @@ setup(
     ],
     author='Appropriate Software Foundation',
     author_email='quant-support@appropriatesoftware.net',
-    license='MIT',
-    url='http://appropriatesoftware.net/quant',
+    license='BSD 3Clause',
+    url='https://github.com/johnbywater/quantdsl',
     description='Domain specific language for quantitative analytics in finance.',
     long_description = long_description,
     # Todo: Review these classifiers.
     classifiers = [
-        'Development Status :: 4 - Beta',
+        'Development Status :: 3 - Alpha',
         'Environment :: Console',
         'Intended Audience :: Developers',
         'Intended Audience :: Education',
         'Intended Audience :: Financial and Insurance Industry',
         'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Office/Business :: Financial',
