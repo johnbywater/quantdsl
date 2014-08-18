@@ -3,9 +3,9 @@ Quant DSL
 
 (*Incomplete and under development document. NB A [new Python package](https://pypi.python.org/pypi/quantdsl) will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)*)
 
-Quant DSL is a functional programming language, written in Python, that can be used to declare and evaluate stochastic models of derivative instruments. A paper defining the [syntax and semantics of Quant DSL expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011.
+Quant DSL is a functional programming language, written in Python, that can be used to declare and evaluate stochastic models of derivative instruments.
 
-More recently, in 2014, the language was expanded to support common elements of a functional programming language, so that sophisticated expressions can be represented concisely, as was envisaged in Section 6 of the 2011 paper ("Future Development"). Now, functions can be defined to construct fragments of Quant DSL, combining them into a single expression that can be stored, used as a model for large computations, and then evaluated under different conditions.
+A paper defining the [syntax and semantics of Quant DSL expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. An implementation was released as part of the `quant` Python package. More recently, in 2014, the language was expanded to support common elements of a functional programming language, as envisaged in Section 6 of the 2011 paper ("*Future Development*"). Now, functions can define variable fragments of Quant DSL, and combine them into a single expression that can be massive, stored, used as a model of the computation, evaluated under different conditions, and so on. The original Quant DSL code has been improved and factored into an independent Python package, licensed with the BSD "3 clause" licence.
 
 The Quant DSL continues to be a strict subset of the Python language syntax. As an illustative example of a Quant DSL module, please consider the following definition of an American option. There are two user defined functions, and an expression which states the specific terms of the option. The *Wait* and *Choice* codes are built-in elements of the language (see the 2011 paper for details).
 
