@@ -7,7 +7,7 @@ Quant DSL is a functional programming language, written in Python, that can be u
 
 A paper defining the [syntax and semantics of Quant DSL expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. An implementation was released as part of the `quant` Python package. More recently, in 2014, the language was expanded to support common elements of a functional programming language, as envisaged in Section 6 of the 2011 paper ("*Future Development*"). Now, functions can define variable fragments of Quant DSL, and combine them into a single expression that can be massive, stored, used as a model of the computation, evaluated under different conditions, and so on. The original Quant DSL code has been improved and factored into an independent Python package, licensed with the BSD "3 clause" licence.
 
-The Quant DSL continues to be a strict subset of the Python language syntax. As an illustative example of a Quant DSL module, please consider the following definition of an American option. There are two user defined functions, and an expression which states the specific terms of the option. The *Wait* and *Choice* codes are built-in elements of the language (see the 2011 paper for details).
+The Quant DSL continues to be a strict subset of the Python language syntax. As an illustative example of a Quant DSL module, please consider the following definition of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *TimeDelta*, and *Market* are built-in elements of the language.
 
 ```python
 def Option(date, strike, underlying, alternative):
@@ -24,10 +24,7 @@ def American(starts, ends, strike, underlying):
 American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('NBP'))
 ```
 
-Evaluation of such DSL expressions is optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. The evaluation work can also be done in a single thread.
-
-Hence, large computations are possible with limited hardware, because the computation is firstly modelled as a network of partial expressions, the model is stored as a dependency graph, and then the model is progressively evaluated until the value of the original expression is known.
-
+Evaluation of such DSL expressions is optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, until the value of the original expression is known, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. Alternatively, if the expression is small enough, the evaluation work can be completed entirely in memory using a single thread.
 
 Here's a basic swing option.
 
