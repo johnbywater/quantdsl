@@ -3,7 +3,7 @@ Quant DSL
 
 (*Incomplete and under development document. NB A [new Python package](https://pypi.python.org/pypi/quantdsl) will be released in a few days, so if you happen to see this page and are interested, please come back in a few days :)*)
 
-Quant DSL is a functional programming language, written in Python, that can be used to declare and evaluate stochastic models of derivative instruments.
+Quant DSL is a domain specific functional programming language for quantitative analytics. Quant DSL supports consice declaration and distributed evaluation of stochastic models of derivative financial instruments.
 
 A paper defining the [syntax and semantics of Quant DSL expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. An implementation was released as part of the `quant` Python package. More recently, in 2014, the language was expanded to support common elements of a functional programming language, as envisaged in Section 6 of the 2011 paper ("*Future Development*"). Now, functions can define variable fragments of Quant DSL, and combine them into a single expression that can be massive, stored, used as a model of the computation, evaluated under different conditions, and so on. The original Quant DSL code has been improved and factored into an independent Python package, licensed with the BSD "3 clause" licence.
 
