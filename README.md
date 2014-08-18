@@ -1,11 +1,11 @@
 Quant DSL
 =========
 
-[Quant DSL](https://pypi.python.org/pypi/quantdsl) is a domain specific functional programming language for quantitative analytics. Quant DSL supports consice declaration and distributed evaluation of stochastic models of derivative financial instruments.
+*Quant DSL* is a domain specific functional programming language for quantitative analytics. *Quant DSL* supports consice declaration and distributed evaluation of stochastic models of derivative financial instruments. *Quant DSL* is written in *Python*, released with the BSD licence, and is [available to download](https://pypi.python.org/pypi/quantdsl) from the Python Package Index.
 
-A paper defining the [syntax and semantics of Quant DSL expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. An implementation was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* Python package. More recently, in 2014, the language was expanded to support common elements of functional programming languages, to support the extensions envisaged in Section 6 of the 2011 paper ("*Future Development*"). Now, functions can define parameterised and recursive fragments of Quant DSL, and use them to generate a single primitive expression that can be very long, interpretted as a model of the computation, stored, assessed, evaluated under different conditions, reused, and so on. The original Quant DSL code has been improved and factored into an independent Python package, licensed with the BSD "3 clause" licence.
+A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. An implementation was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, the language was expanded to support common elements of functional programming languages, to support the extensions envisaged in Section 6 of the 2011 paper ("*Future Development*"). Now, functions can define parameterised and recursive fragments of *Quant DSL*, and use them to generate a single primitive expression that can be very long, interpretted as a model of the computation, stored, assessed, evaluated under different conditions, reused, and so on. The original *Quant DSL* code has been improved and factored into an independent *Python* package, and relicensed with the BSD licence.
 
-The Quant DSL continues to be a strict subset of the Python language syntax. As an illustative example of a Quant DSL module, please consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *TimeDelta*, and *Market* are built-in elements of *Quant DSL*.
+The *Quant DSL* continues to be a strict subset of the *Python* language syntax. As an illustative example of a *Quant DSL* module, please consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *TimeDelta*, and *Market* are built-in elements of *Quant DSL*.
 
 ```python
 def Option(date, strike, underlying, alternative):
@@ -22,7 +22,7 @@ def American(starts, ends, strike, underlying):
 American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('NBP'))
 ```
 
-Evaluation of Quant DSL expressions can be optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, until the value of the expression is known, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. Alternatively, the evaluation work can be completed entirely in memory using a single thread.
+Evaluation of *Quant DSL* expressions can be optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, until the value of the expression is known, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. Alternatively, the evaluation work can be completed entirely in memory using a single thread.
 
 Here's a basic swing option.
 
@@ -80,23 +80,23 @@ Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
 Installation
 ------------
 
-To install Quant DSl, install the `quantdsl` Python package.
+To install *Quant DSl*, install the `quantdsl` *Python* package.
 
 ```
 pip install quantdsl
 ```
 
-If you are operating behind a corporate firewall, then you may need to download the distribution file and then use the path to the downloaded file instead of the just name of the package.  
+If you are operating behind a corporate firewall, then you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) and then use the path to the downloaded file instead of the package name.
 
 ```
 pip install C:\Downloads\quantdsl-0.0.0.tar.gz
 ```
 
-To avoid disturbing your system's site packages, it is recommended to install Quant DSL into a new virtual Python environment, using *[Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)*.
+To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual *Python* environment, using *[Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)*.
 
 *Quant DSl* depends on *NumPy* and *SciPy*. On *Linux* systems these should be automatically installed as dependencies.
 
-*Windows* users may not be able to install *NumPy* and *SciPy* because they do not have a compiler installed. If so, one solution would be to install the *[Python(x,y)](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2)* distribution of *Python*, so that you have *NumPy* *SciPy*, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that *NumPy* and *SciPy* will be available in your virtual environment. If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY. If you get bogged dow, the simpler alternative is to install Quant DSL directly into your PythonXY installation, using `easy_install quantdsl` (or `pip install quantdsl` if `pip` is available).
+*Windows* users may not be able to install *NumPy* and *SciPy* because they do not have a compiler installed. If so, one solution would be to install the *[PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2)* distribution of *Python*, so that you have *NumPy* *SciPy*, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that *NumPy* and *SciPy* will be available in your virtual environment. If you are using *PythonXY* v2.6, you will need to install virtualenv with the `easy_install` program that comes with *PythonXY*. If you get bogged dow, the simpler alternative is to install *Quant DSL* directly into your *PythonXY* installation, using `easy_install quantdsl` (or `pip install quantdsl` if `pip` is available).
 
 
 Getting Started
