@@ -2,14 +2,14 @@
 import os
 import sys
 from setuptools import setup
-from quantdsl import __version__
 
 long_description = open('README').read()
+
+from quantdsl import __version__
 
 setup(
     name='quantdsl',
     version=__version__,
-
     packages=['quantdsl'],
     # just use auto-include and specify special items in MANIFEST.in
     zip_safe = False,

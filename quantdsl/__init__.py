@@ -14,7 +14,7 @@ try:
 except ImportError:
     pytz = None
 
-__version__ = "0.0.1"
+__version__ = '0.0.2'
 
 # Todo: Stop Date being an Expression, and make BinOp accept Date (and TimeDelta) Expression? No because there's no end to it. Raise type mismatch errors at run time.
 # Todo: Make the "boundary" object between the valuation and calibration be a PriceSimulation object that takes a list of (market name, spot, vol) and creates the brownian diffusions for a list of dates for each market across a draw of paths. Can be a simple "local" in memory, and later an object with same interface that puts/gets data to/from a network connection.
