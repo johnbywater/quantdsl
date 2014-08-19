@@ -1,13 +1,23 @@
 Quant DSL
 =========
 
-*Quant DSL* is a functional programming language for stochastic calculus. *Quant DSL* provides for rapid modelling and distributed execution of models of derivative instruments. *Quant DSL* is written in *Python*, and is [available to download](https://pypi.python.org/pypi/quantdsl) from the Python Package Index.
+*Quant DSL* is a functional programming language for stochastic calculus. *Quant DSL* can be used for modelling derivative instruments. *Quant DSL* is written in Python, and is [available to download](https://pypi.python.org/pypi/quantdsl) from the Python Package Index.
 
-A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation in Python was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that complex models could be expressed concisely. At this time, the original *Quant DSL* code was factored into an separate *Python* package, and released with the BSD licence.
+The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, such as Brownian diffusion (*Market*), least-squares Monte Carlo (*Choice*), and time value of money calculations (*Wait*). These primitive elements are supplemented with a set of binary operators (*+*, *-*, ***, */*, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to produce a present value of the modelled instrument.
 
-*Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions, that can involve calls to other functions. Primitive *Quant DSL* expressions generated in this way can be highly extensive, much more than is possible by hand. Such expressions can be used as an object model of the computational steps, represented as a dependency graph, stored and reused, evaluated under different conditions, and so on.
+A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation in Python of the 2011 *Quant DSL* expression language was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that more extensive models could be expressed concisely. At this time, the original *Quant DSL* code was factored into this Python package, and released with the BSD licence.
 
-The *Quant DSL* syntax continues to be a strict subset of the *Python* language syntax. As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *TimeDelta*, *Date* and *Market* are the primitive elements of *Quant DSL*.
+As a result of the recent developments, *Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions, that may involve other calls to functions. Because we can only evaluate a primitive expression, *Quant DSL* source strings which contain function definitions must be compiled into a single primitive expression. Primitive *Quant DSL* expressions generated in this way can be highly extensive, much more extensive than the trivial expressions it is only possible to write by hand. Such compiled expressions constitute an object model of the computational steps, and can be represented or persisted as a dependency graph. They can be evaluated under different underlying conditions, with the results reused from unaffected branches. They can be used to measure and predict compuational load, form the basis for tracking progress through a long calculation, and make possible retrying a stalled computation.
+
+The *Quant DSL* syntax continues to be a strict subset of the Python language syntax. There are various restrictions, which may lead to parse- and compile-time exceptions. Here is a summary of the restrictions:
+* a module is restricted to have any number of function definitions, and one expression;
+* there are no assignments, loops, comprehensions, or generators;
+* the only valid names in a function body are the names of the call arguments, plus the names of the other functions;
+* a function body and the sections of an 'if' clause can only have one statement;
+* a statement is either an expression or an 'if' clause;
+* the test compare expression of an 'if' clause cannot contain any of the primitive elements.
+
+As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *TimeDelta*, *Date* and *Market* are the primitive elements of *Quant DSL*.
 
 ```python
 def Option(date, strike, underlying, alternative):
@@ -82,7 +92,7 @@ Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
 Installation
 ------------
 
-To install *Quant DSl*, install the `quantdsl` *Python* package.
+To install *Quant DSl*, install the `quantdsl` Python package.
 
 ```
 pip install quantdsl
@@ -94,11 +104,11 @@ If you are operating behind a corporate firewall, then you may need to [download
 pip install C:\Downloads\quantdsl-0.0.0.tar.gz
 ```
 
-To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual *Python* environment, using *[Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)*.
+To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual Python environment, using *[Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)*.
 
 *Quant DSl* depends on *NumPy* and *SciPy*. On *Linux* systems these should be automatically installed as dependencies.
 
-*Windows* users may not be able to install *NumPy* and *SciPy* because they do not have a compiler installed. If so, one solution would be to install the *[PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2)* distribution of *Python*, so that you have *NumPy* and *SciPy*, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that *NumPy* and *SciPy* will be available in your virtual environment. (If you are using *PythonXY* v2.6, you will need to install virtualenv with the `easy_install` program that comes with *PythonXY*.) If you get bogged dow, the simpler alternative is to install *Quant DSL* directly into your *PythonXY* installation, using `pip install quantdsl` (or `easy_install quantdsl` if *Pip* is not available).
+*Windows* users may not be able to install *NumPy* and *SciPy* because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have *NumPy* and *SciPy*, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that *NumPy* and *SciPy* will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get bogged dow, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` (or `easy_install quantdsl` if *Pip* is not available).
 
 
 Getting Started
