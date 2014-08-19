@@ -14,7 +14,7 @@ try:
 except ImportError:
     pytz = None
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 
 # Todo: Stop Date being an Expression, and make BinOp accept Date (and TimeDelta) Expression? No because there's no end to it. Raise type mismatch errors at run time.
 # Todo: Anyway, identify when type mismatches will occur - can't multiply a date by a number, can't add a date to a date or to a number, can't add a number to a timedelta. Etc?
