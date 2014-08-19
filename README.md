@@ -3,11 +3,11 @@ Quant DSL
 
 *Quant DSL* is a functional programming language for stochastic calculus. *Quant DSL* can be used for modelling derivative instruments. *Quant DSL* is written in Python and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
-The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, such as the least-squares Monte Carlo approach (*Choice*), time value of money calculations (*Wait*), and Brownian diffusion (*Market*). These primitive elements are supplemented with a set of binary operators (*+*, *-*, ***, */*, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to produce a present value of the modelled instrument.
+The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, for example the least-squares Monte Carlo approach (coded as "*Choice*" in *Quant DSL*), time value of money calculations ("*Wait*"), and Brownian diffusion ("*Market*"). These primitive elements are supplemented with a set of binary operators (*+*, *-*, ***, */*, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to produce a present value from the model.
 
 A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation in Python of the 2011 *Quant DSL* expression language was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that more extensive models could be expressed concisely. At this time, the original *Quant DSL* code was factored into a new Python package, and released with the BSD licence.
 
-As a result of the recent developments, *Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions, that may involve other calls to functions. Because only primitive *Quant DSL* expressions can be evaluated directly, *Quant DSL* modules which contain function definitions as well as an expression must be compiled into a single primitive expression before the value of the module's expression can be obtained. Primitive *Quant DSL* expressions generated in this way can be much more extensive, relative to the short expressions it is possible to write by hand. Such compiled expressions constitute a step-wise object model of the computation, and can be constituted and persisted as a dependency graph ready for parallel and distributed execution. The compiled expressions can be evaluated under different underlying conditions, with results from unaffected branches being reused and not recalculated. The computational model can be used to measure and predict compuational load, form the basis for tracking progress through a long calculation, and make possible retrying a stalled computation.
+As a result of the recent developments, *Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions - expressions which may involve further calls to user-defined functions. Because only primitive *Quant DSL* expressions can be evaluated directly, *Quant DSL* modules which contain function definitions as well as an expression must be compiled into a single primitive expression before the value of the module's expression can be obtained. Primitive *Quant DSL* expressions generated in this way can be much more extensive, relative to the short expressions it is possible to write by hand. Such compiled expressions constitute a step-wise object model of the computation, and can be constituted and persisted as a dependency graph ready for parallel and distributed execution. The compiled expressions can be evaluated under different underlying conditions, with results from unaffected branches being reused and not recalculated. The computational model can be used to measure and predict compuational load, form the basis for tracking progress through a long calculation, and make possible retrying a stalled computation.
 
 The *Quant DSL* syntax continues to be a strict subset of the Python language syntax. There are various restrictions, which may lead to parse- and compile-time exceptions. Here is a basic summary of the restrictions:
 * a module is restricted to have any number of function definitions, and one expression;
@@ -17,7 +17,7 @@ The *Quant DSL* syntax continues to be a strict subset of the Python language sy
 * a statement is either an expression or an 'if' clause;
 * the test compare expression of an 'if' clause cannot contain any of the primitive elements.
 
-As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *TimeDelta*, *Date* and *Market* are the primitive elements of *Quant DSL*.
+As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market* are primitive elements of *Quant DSL*. (*Date* and *TimeDelta* are constant value objects of *Quant DSL*, and so are the integers.)
 
 ```python
 def Option(date, strike, underlying, alternative):
@@ -92,7 +92,7 @@ Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
 Installation
 ------------
 
-To install *Quant DSl*, install the `quantdsl` Python package.
+To install *Quant DSL*, install the `quantdsl` Python package.
 
 ```
 pip install quantdsl
