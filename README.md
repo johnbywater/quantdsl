@@ -1,23 +1,32 @@
 Quant DSL
 =========
 
-*Quant DSL* is a functional programming language for stochastic calculus. *Quant DSL* can be used for modelling derivative instruments. *Quant DSL* is written in Python and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
+***Domain specific language for quantitative analytics in finance.***
 
-The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, for example the least-squares Monte Carlo approach (coded as "*Choice*" in *Quant DSL*), time value of money calculations ("*Wait*"), and Brownian diffusion ("*Market*"). These primitive elements are supplemented with a set of binary operators (addition, subtraction, multiplication, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to produce a present value from the model.
+*Quant DSL* is a functional programming language for stochastic calculus. *Quant DSL* is designed for modelling derivative financial instruments. *Quant DSL* is written in Python and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
-A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation in Python of the 2011 *Quant DSL* expression language was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that more extensive models could be expressed concisely. At this time, the original *Quant DSL* code was factored into a new Python package, and released with the BSD licence.
+The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, for example the least-squares Monte Carlo approach (coded as "*Choice*" in *Quant DSL*), time value of money calculations ("*Wait*"), and Brownian diffusion ("*Market*"). These primitive elements are supplemented with a set of binary operators (addition, subtraction, multiplication, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to estimate the present value of the modelled instrument.
 
-As a result of the recent developments, *Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions - expressions which may involve further calls to user-defined functions. Because only primitive *Quant DSL* expressions can be evaluated directly, *Quant DSL* modules which contain function definitions as well as an expression must be compiled into a single primitive expression before the value of the module's expression can be obtained. Primitive *Quant DSL* expressions generated in this way can be much more extensive, relative to the short expressions it is possible to write by hand. Such compiled expressions constitute a step-wise object model of the computation, and can be constituted and persisted as a dependency graph ready for parallel and distributed execution. The compiled expressions can be evaluated under different underlying conditions, with results from unaffected branches being reused and not recalculated. The computational model can be used to measure and predict compuational load, form the basis for tracking progress through a long calculation, and make possible retrying a stalled computation.
+A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation of the 2011 *Quant DSL* expression language was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that more extensive models could be expressed well. At this time, the original *Quant DSL* code was factored into a new Python package, and released with the BSD licence (this package).
 
-The *Quant DSL* syntax continues to be a strict subset of the Python language syntax. There are various restrictions, which may lead to parse- and compile-time exceptions. Here is a basic summary of the restrictions:
-* a module is restricted to have any number of function definitions, and one expression;
+As a result, *Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions - expressions which may be a function of call arguments, which involve further calls to user-defined functions, and which may be situated inside an 'if' clause. Because only primitive *Quant DSL* expressions can be evaluated directly, *Quant DSL* modules which contain an expression that depends on function definitions can now be compiled into a single primitive expression, so that the value of the model can be obtained.
+
+Primitive *Quant DSL* expressions generated in this way can be much more extensive, relative to the short expressions it is possible to write by hand. Such compiled expressions constitute a step-wise object model of the computation, and can be constituted and persisted as a dependency graph ready for parallel and distributed execution. The compiled expressions can be evaluated under a variety of underlying conditions, with results from unaffected branches being reused (and not recalculated). The computational model can be used to measure and predict compuational load, form the basis for tracking progress through a long calculation, and it is possible to retry a stalled computation.
+
+Evaluation of *Quant DSL* expressions can be optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, until the value of the expression is known, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. Alternatively, the evaluation work can be completed entirely in memory using a single thread.
+
+The *Quant DSL* syntax continues to be a strict subset of the Python language syntax. There are various restrictions, which can lead to parse- and compile-time syntax errors. Here is a basic summary of the restrictions:
+* a module is restricted to have any number of function definitions, and one expression only;
 * there are no assignments, loops, comprehensions, or generators;
-* the only valid names in a function body are the names of the call arguments, plus the names of the other functions;
+* the only valid names in a function body are the names of the call arguments, plus the names of the other functions, plus the built-in elements of the language;
 * a function body and the sections of an 'if' clause can only have one statement;
-* a statement is either an expression or an 'if' clause;
+* a statement is either an expression or an 'if' clause (binary and unary operators are supported);
+* all 'if' clauses must end with en 'else' expression ('elif' is supported).
 * the test compare expression of an 'if' clause cannot contain any of the primitive elements.
 
-As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market* are primitive elements of *Quant DSL*. (*Date* and *TimeDelta* are constant value objects of *Quant DSL*, and so are the integers.)
+There are also some slight changes to the semantics of a function: in particular the return value of a function is  not the result of evaluting the expressions and returning a numeric value, but rather it is the result of selecting an expression by evaluating the test compare expression of 'if' statements and then compiling the selected expression into a primitive expression by making any function calls that are declared and substituting them with their return value.
+
+As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market* are primitive elements of *Quant DSL* (*Date* and *TimeDelta* are constant value objects of *Quant DSL*, and so are the integers.)
 
 ```python
 def Option(date, strike, underlying, alternative):
@@ -33,8 +42,6 @@ def American(starts, ends, strike, underlying):
 
 American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('NBP'))
 ```
-
-Evaluation of *Quant DSL* expressions can be optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, until the value of the expression is known, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. Alternatively, the evaluation work can be completed entirely in memory using a single thread.
 
 Here's a basic swing option.
 
