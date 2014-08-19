@@ -17,6 +17,7 @@ except ImportError:
 __version__ = '0.0.2'
 
 # Todo: Stop Date being an Expression, and make BinOp accept Date (and TimeDelta) Expression? No because there's no end to it. Raise type mismatch errors at run time.
+# Todo: Anyway, identify when type mismatches will occur - can't multiply a date by a number, can't add a date to a date or to a number, can't add a number to a timedelta. Etc?
 # Todo: Make the "boundary" object between the valuation and calibration be a PriceSimulation object that takes a list of (market name, spot, vol) and creates the brownian diffusions for a list of dates for each market across a draw of paths. Can be a simple "local" in memory, and later an object with same interface that puts/gets data to/from a network connection.
 # Todo: Create a one-factor DSL price simulation object from the DslMonteCarlo pricer's getAllRvs() method.
 # Todo: A convenience module-level parse() method which uses the DslParser class.
@@ -34,6 +35,7 @@ __version__ = '0.0.2'
 # Todo: Make sure this works with Python 3.
 # Todo: Support list comprehensions, for things like a strip of options?
 # Todo: Allow a dict (DslNamespace) of DSL classes to be passed in to the parse method, which will allow user defined DSL classes.
+# Todo: Use function arg annotation to declare types of DSL function args (Python 3 only).
 
 
 def parse(dslSource):
@@ -656,6 +658,12 @@ class And(BoolOp):
 
 class BinOp(DslExpression):
 
+    opchar = ''
+
+    @abstractmethod
+    def op(self, left, right):
+        pass
+
     def __str__(self, indent=0):
         if self.opchar:
             def makeStr(dslExpr):
@@ -697,11 +705,54 @@ class BinOp(DslExpression):
             raise QuantDslSyntaxError("unable to %s" % self.__class__.__name__.lower(), "%s %s: %s" % (left, right, e),
                                  node=self.node)
 
-    @abstractmethod
-    def op(self, left, right):
-        pass
 
-    opchar = ''
+class Add(BinOp):
+    opchar = '+'
+
+    def op(self, left, right):
+        return left + right
+
+
+class Sub(BinOp):
+    opchar = '-'
+
+    def op(self, left, right):
+        return left - right
+
+
+class Mult(BinOp):
+    opchar = '*'
+
+    def op(self, left, right):
+        return left * right
+
+
+class Div(BinOp):
+    opchar = '/'
+
+    def op(self, left, right):
+        return left / right
+
+
+class Pow(BinOp):
+    opchar = '**'
+
+    def op(self, left, right):
+        return left ** right
+
+
+class Mod(BinOp):
+    opchar = '%'
+
+    def op(self, left, right):
+        return left % right
+
+
+class FloorDiv(BinOp):
+    opchar = '//'
+
+    def op(self, left, right):
+        return left // right
 
 
 class Max(BinOp):
@@ -730,55 +781,6 @@ class Max(BinOp):
             b = numpy.array([b] * len(a))
         c = numpy.array([a, b])
         return c.max(axis=0)
-
-
-class Add(BinOp):
-    def op(self, left, right):
-        return left + right
-
-    opchar = '+'
-
-
-class Sub(BinOp):
-    def op(self, left, right):
-        return left - right
-
-    opchar = '-'
-
-
-class Mult(BinOp):
-    def op(self, left, right):
-        return left * right
-
-    opchar = '*'
-
-
-class Div(BinOp):
-    def op(self, left, right):
-        return left / right
-
-    opchar = '/'
-
-
-class Pow(BinOp):
-    def op(self, left, right):
-        return left ** right
-
-    opchar = '**'
-
-
-class Mod(BinOp):
-    def op(self, left, right):
-        return left % right
-
-    opchar = '%'
-
-
-class FloorDiv(BinOp):
-    def op(self, left, right):
-        return left // right
-
-    opchar = '//'
 
 
 class Market(DslExpression):
