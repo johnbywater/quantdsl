@@ -567,7 +567,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
 #            'image': MockImage(MockPriceProcess()),
             'interestRate': 0,
             'presentTime': datetime.datetime(2011, 1, 1, tzinfo=utc),
-            'allRvs': {
+            'brownianMotions': {
                 '#1': dict([(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10])) for i in range(0, 30)])
 
             },
@@ -659,15 +659,25 @@ class DslTestCase(unittest.TestCase):
         lower = expected - tolerance
         assert lower <= estimated <= upper, "Estimated '%s' not close enough to expected '%s' (tolerance '%s')." % (estimated, expected, tolerance)
 
-    def calcValue(self, dslSource, observationDate):
+    def calcValue(self, dslSource, observationTime):
         # Todo: Rename 'allRvs' to 'simulatedPrices'?
+        evaluationKwds = DslNamespace({
+            'observationTime': observationTime,
+            'interestRate': '2.5',
+            'marketCalibration': {
+                '#1-LAST-PRICE': 10,
+                '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
+                '#2-LAST-PRICE': 10,
+                '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            },
+            'pathCount': 500000,
+        })
+        return eval(dslSource, evaluationKwds=evaluationKwds)
         dslExpr = compile(dslSource)
-        priceSimulator = PriceSimulator()
-        allRvs = priceSimulator.getAllRvs(dslExpr, observationDate, pathCount=500000)
-        namespace = DslNamespace({
-            'allRvs': allRvs,
-            'observationTime': observationDate,
-            'presentTime': observationDate,
+
+        evaluationKwds = DslNamespace({
+            'observationTime': observationTime,
+            'presentTime': observationTime,
             'interestRate': '2.5',
             'calibration': {
                 '#1-LAST-PRICE': 10,
@@ -675,9 +685,10 @@ class DslTestCase(unittest.TestCase):
                 '#2-LAST-PRICE': 10,
                 '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
             },
+            'allRvs': PriceSimulator().getAllRvs(dslExpr, observationTime, pathCount=500000),
         })
         assert isinstance(dslExpr, DslExpression)
-        value = dslExpr.evaluate(**namespace)
+        value = dslExpr.evaluate(**evaluationKwds)
         if hasattr(value, 'mean'):
             value = value.mean()
         return value

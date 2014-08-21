@@ -10,7 +10,6 @@ import multiprocessing
 import Queue as queue
 import re
 import scipy
-from quant.dom.market import Image
 
 try:
     import pytz
@@ -22,7 +21,7 @@ __version__ = '0.0.3'
 # Todo: Stop Date being an Expression, and make BinOp accept Date (and TimeDelta) Expression? No because there's no end to it. Raise type mismatch errors at run time.
 # Todo: Anyway, identify when type mismatches will occur - can't multiply a date by a number, can't add a date to a date or to a number, can't add a number to a timedelta. Etc?
 # Todo: Make the "boundary" object between the valuation and calibration be a PriceSimulation object that takes a list of (market name, spot, vol) and creates the brownian diffusions for a list of dates for each market across a draw of paths. Can be a simple "local" in memory, and later an object with same interface that puts/gets data to/from a network connection.
-# Todo: Create a one-factor DSL price simulation object from the DslMonteCarlo pricer's getAllRvs() method.
+# Todo: Create a one-factor DSL price simulation object from the DslMonteCarlo pricer's getbrownianMotions() method.
 # Todo: A convenience module-level parse() method which uses the DslParser class.
 # Todo: Make a module treat an expression in the same way, regardless of whether functions have been defined. Lazy variable substitution, or don't allow variables in module level expressions?
 # Todo: Change Name to reduce to itself when it isn't available in the evaluation kwds? It will have a node, so we can say which variable never found a definition. Could be followed by checking stubbed exprs don't have any Name objects (that aren't Stubs). Perhaps stop a Stub being a Name for this reason? Perhaps have a base class with the "name resolving" behaviour, and then subclass Variable (from the program) and Stub (for the execution).
@@ -41,14 +40,14 @@ __version__ = '0.0.3'
 # Todo: Use function arg annotation to declare types of DSL function args (Python 3 only).
 
 
-def parse(dslSource):
+def parse(dslSource, dslClasses=None):
     """
     Returns a DSL module, created according to the given DSL source module.
     """
-    return DslParser().parse(dslSource)
+    return DslParser().parse(dslSource, dslClasses=dslClasses)
 
 
-def compile(dslSource, isParallel=None, **compileKwds):
+def compile(dslSource, isParallel=None, dslClasses=None, compileKwds=None, **extraCompileKwds):
     """
     Returns a DSL expression, created according to the given DSL source module.
 
@@ -62,15 +61,20 @@ def compile(dslSource, isParallel=None, **compileKwds):
     into a function def object. Calling .apply() on a function def object will return a DSL
     expression object, which can be evaluated by calling its .evaluate() method.
     """
-    # Create the DSL module object.
-    dslModule = parse(dslSource)
-    dslLocals = DslNamespace()
-    dslGlobals = DslNamespace(**compileKwds)
-    # Compile the module into a single expression.
-    return dslModule.compile(dslLocals, dslGlobals, isParallel=isParallel)
+    if compileKwds is None:
+        compileKwds = DslNamespace()
+    assert isinstance(compileKwds, dict)
+    compileKwds.update(extraCompileKwds)
+
+    # Parse the source into a DSL module object.
+    dslModule = parse(dslSource, dslClasses=dslClasses)
+
+    # Compile the module into a single (primitive) expression.
+    return dslModule.compile(DslNamespace(), compileKwds, isParallel=isParallel)
 
 
-def eval(dslSource, isParallel=None, compileKwds=None, **evaluationKwds):
+def eval(dslSource, isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
+         priceSimulatorClass=None, **extraEvaluationKwds):
     """
     Returns the result of evaluating a compiled module (an expression, or a user defined function).
 
@@ -79,18 +83,62 @@ def eval(dslSource, isParallel=None, compileKwds=None, **evaluationKwds):
     A function def will evaluate to a DSL expression, will may then be evaluated (more than one
     function def without an expression is an error).
     """
-    if compileKwds is None:
-        compileKwds = {}
-    dslObj = compile(dslSource, isParallel=isParallel, **compileKwds)
-    return dslObj.evaluate(**evaluationKwds)
+    if evaluationKwds is None:
+        evaluationKwds = DslNamespace()
+    assert isinstance(evaluationKwds, dict)
+    evaluationKwds.update(extraEvaluationKwds)
+
+    # Compile the source into a primitive DSL expression.
+    dslExpr = compile(dslSource, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
+
+    assert isinstance(dslExpr, DslExpression)
+
+    # Fix up the evaluationKwds with Brownian motions, if necessary.
+    if dslExpr.hasInstances(dslType=Market):
+
+        # In this case, evaluationKwds must have 'observationTime' and 'pathCount'.
+        observationTime = evaluationKwds['observationTime']
+        assert isinstance(observationTime, datetime.datetime)
+
+        # Initialise presentTime as observationTime.
+        evaluationKwds['presentTime'] = observationTime
+
+        # Check pathCount.
+        pathCount = evaluationKwds['pathCount']
+        assert isinstance(pathCount, int)
+
+        # Check calibration for market dynamics.
+        marketCalibration = evaluationKwds['marketCalibration']
+        assert isinstance(marketCalibration, dict)
+
+        # Construct the Brownian motions.
+        if not 'brownianMotions' in evaluationKwds:
+            if not priceSimulatorClass:
+                priceSimulatorClass = PriceSimulator
+            priceSimulator = priceSimulatorClass()
+            brownianMotions = priceSimulator.getBrownianMotions(dslExpr, observationTime, pathCount)
+            evaluationKwds['brownianMotions'] = brownianMotions
+
+    assert isinstance(dslExpr, DslExpression)
+
+    # Evaluate the primitive DSL expression.
+    value = dslExpr.evaluate(**evaluationKwds)
+    if hasattr(value, 'mean'):
+        value = value.mean()
+    return value
 
 
 class DslParser(object):
 
-    def parse(self, dslSource):
+    def parse(self, dslSource, dslClasses=None):
         """
         Creates a DSL Module object from a DSL source text.
         """
+        self.dslClasses = defaultDslClasses.copy()
+        if dslClasses:
+            assert isinstance(dslClasses, dict)
+            self.dslClasses.update(dslClasses)
+
         if not isinstance(dslSource, basestring):
             raise QuantDslError("Can't parse non-string object", dslSource)
 
@@ -249,11 +297,11 @@ class DslParser(object):
         defined function.
         """
         if node.keywords:
-            raise QuantDslSyntaxError("Calling with keywords is not supported (args only).")
+            raise QuantDslSyntaxError("Calling with keywords is not currently supported (positional args only).")
         if node.starargs:
-            raise QuantDslSyntaxError("Calling with starargs is not supported (args only).")
+            raise QuantDslSyntaxError("Calling with starargs is not currently supported (positional args only).")
         if node.kwargs:
-            raise QuantDslSyntaxError("Calling with kwargs is not supported (args only).")
+            raise QuantDslSyntaxError("Calling with kwargs is not currently supported (positional args only).")
 
         # Collect the call arg expressions (whose values will be passed into the call when it is made).
         callArgExprs = [self.visitAstNode(arg) for arg in node.args]
@@ -264,16 +312,17 @@ class DslParser(object):
         calledNodeName = calledNode.id
 
         # Construct a DSL object for this call.
-        if calledNodeName in dslClasses:
+        try:
             # Resolve the name with a new instance of a DSL class.
-            dslClass = dslClasses[calledNodeName]
-            assert issubclass(dslClass, DslObject)
-            return dslClass(node=node, *callArgExprs)
-        else:
+            dslClass = self.dslClasses[calledNodeName]
+        except KeyError:
             # Resolve as a FunctionCall, and expect
             # to resolve the name to a function def later.
             dslArgs = [Name(calledNodeName, node=calledNode), callArgExprs]
             return FunctionCall(node=node, *dslArgs)
+        else:
+            assert issubclass(dslClass, DslObject)
+            return dslClass(node=node, *callArgExprs)
 
     def visitFunctionDef(self, node):
         """
@@ -813,7 +862,7 @@ class Market(DslExpression):
                 node=self.node
             )
         try:
-            calibration = kwds['calibration']
+            calibration = kwds['marketCalibration']
         except KeyError:
             raise QuantDslError(
                 "Can't evaluate Market '%s' without 'calibration' in context variables" % self.name,
@@ -844,20 +893,20 @@ class Market(DslExpression):
             value = lastPrice
         else:
             try:
-                allRvs = kwds['allRvs']
+                brownianMotions = kwds['brownianMotions']
             except KeyError:
                 raise QuantDslSyntaxError(
-                    "Can't evaluate Market '%s' without 'allRvs' in context variables" % self.name,
+                    "Can't evaluate Market '%s' without 'brownianMotions' in context variables" % self.name,
                     ", ".join(kwds.keys()),
                     node=self.node
                 )
 
             try:
-                marketRvs = allRvs[self.name]
+                marketRvs = brownianMotions[self.name]
             except KeyError:
                 raise QuantDslSyntaxError(
                     "Market '%s' not available in rvs" % self.name,
-                    ", ".join(allRvs.keys()),
+                    ", ".join(brownianMotions.keys()),
                     node=self.node
                 )
 
@@ -1007,14 +1056,14 @@ class Choice(DslExpression):
         # has already been evaluated with these args.
         if not hasattr(self, 'resultsCache'):
             self.resultsCache = {}
-        kwdsHash = hash((
-            # Erm, this hash is a bit crappy
-            # Todo: Use a DslNamepace object instead, and make it capable of generating the hash.
-#            id(kwds['image']),
-            id(kwds['allRvs']),
-            str(kwds['presentTime']),
-            kwds['interestRate'],
-        ))
+        cacheKeyKwdItems = [(k, hash(tuple(sorted(v))) if isinstance(v, dict) else v) for (k, v) in kwds.items()]
+        kwdsHash = hash(tuple(sorted(cacheKeyKwdItems)))
+        #     # Erm, this hash is a bit crappy
+        #     # Todo: Use a DslNamepace object instead, and make it capable of generating the hash.
+        #     id(kwds['brownianMotions']),
+        #     str(kwds['presentTime']),
+        #     kwds['interestRate'],
+        # ))
         if kwdsHash not in self.resultsCache:
             # Run the least-squares monte-carlo routine.
             presentTime = kwds['presentTime']
@@ -1039,10 +1088,13 @@ class LongstaffSchwartz(object):
         self.statesByTime = None
 
     def evaluate(self, **kwds):
-        allRvs = kwds['allRvs']
-        if len(allRvs) == 0:
+        try:
+            brownianMotions = kwds['brownianMotions']
+        except KeyError:
+            raise QuantDslSystemError("'brownianMotions' not in evaluation kwds", kwds.keys(), node=None)
+        if len(brownianMotions) == 0:
             raise QuantDslSystemError('no rvs', str(kwds))
-        firstMarketRvs = allRvs.values()[0]
+        firstMarketRvs = brownianMotions.values()[0]
         allStates = self.getStates()
         allStates.reverse()
         valueOfBeingIn = {}
@@ -1060,7 +1112,7 @@ class LongstaffSchwartz(object):
                     dslMarkets = subsequentState.dslObject.findInstances(Market)
                     marketNames = set([m.name for m in dslMarkets])
                     for marketName in marketNames:
-                        marketRvs = allRvs[marketName]
+                        marketRvs = brownianMotions[marketName]
                         try:
                             marketRv = marketRvs[state.time]
                         except KeyError, inst:
@@ -1649,6 +1701,43 @@ class Compare(DslExpression):
         return True
 
 
+class Underlying(DslObject):
+
+    def validate(self, args):
+        self.assertArgsLen(args, 1)
+
+    @property
+    def expr(self):
+        return self._args[0]
+
+    def evaluate(self, **_):
+        return self.expr
+
+
+defaultDslClasses = {
+    'Add': Add,
+    'Choice': Choice,
+    'Date': Date,
+    'Div': Div,
+    'Fixing': Fixing,
+    'Number': Number,
+    'Market': Market,
+    'Max': Max,
+    'Mul': Mult,
+    'Settlement': Settlement,
+    'String': String,
+    'Sub': Sub,
+    'UnarySub': UnarySub,
+    'Wait': Wait,
+    'On': On,
+    'Name': Name,
+    'TimeDelta': TimeDelta,
+    'Underlying': Underlying,
+    'Stub': Stub,
+}
+
+
+
 class DslNamespace(dict):
 
     def copy(self):
@@ -1857,43 +1946,6 @@ class ExpressionStack(object):
             raise QuantDslSystemError("root value not found", errorData)
 
 
-class Underlying(DslObject):
-
-    def validate(self, args):
-        self.assertArgsLen(args, 1)
-
-    @property
-    def expr(self):
-        return self._args[0]
-
-    def evaluate(self, **_):
-        return self.expr
-
-
-dslClasses = {
-    'Add': Add,
-    'Choice': Choice,
-    'Date': Date,
-    'Div': Div,
-    'Fixing': Fixing,
-    'Number': Number,
-    'Market': Market,
-    'Max': Max,
-    'Mul': Mult,
-    'Settlement': Settlement,
-    'String': String,
-    'Sub': Sub,
-    'UnarySub': UnarySub,
-    'Wait': Wait,
-    'On': On,
-    'Name': Name,
-    'TimeDelta': TimeDelta,
-    'Underlying': Underlying,
-    'Stub': Stub,
-}
-
-
-
 from collections import namedtuple
 
 Registry = namedtuple('Registry', ['results', 'calls', 'functions'])
@@ -2093,7 +2145,7 @@ class QuantDslSystemError(QuantDslError):
 
 class PriceSimulator(object):
 
-    def getAllRvs(self, dslObject, startDate, pathCount):
+    def getBrownianMotions(self, dslObject, startDate, pathCount):
         assert isinstance(dslObject, DslObject), type(dslObject)
         assert isinstance(startDate, datetime.datetime), type(startDate)
         assert isinstance(pathCount, int), type(pathCount)
@@ -2112,7 +2164,7 @@ class PriceSimulator(object):
         fixingDates = sorted(list(fixingDates))
 
         # Diffuse random variables through each date for each market.
-        allRvs = {}
+        brownianMotions = {}
         for marketName in marketNames:
             marketRvs = {}
             startRv = scipy.zeros(pathCount)
@@ -2124,8 +2176,8 @@ class PriceSimulator(object):
                 marketRvs[fixingDate] = endRv
                 startDate = fixingDate
                 startRv = endRv
-            allRvs[marketName] = marketRvs
-        return allRvs
+            brownianMotions[marketName] = marketRvs
+        return brownianMotions
 
 
 def getDurationYears(startDate, endDate, daysPerYear=365):
