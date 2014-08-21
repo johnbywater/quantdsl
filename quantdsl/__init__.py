@@ -9,6 +9,9 @@ from itertools import chain
 import multiprocessing
 import Queue as queue
 import re
+import scipy
+from quant.dom.market import Image
+
 try:
     import pytz
 except ImportError:
@@ -474,9 +477,8 @@ class DslExpression(DslObject):
         pass
 
     def discount(self, value, date, **kwds):
-        image = kwds['image']
         r = float(kwds['interestRate']) / 100
-        T = image.priceProcess.getDurationYears(kwds['presentTime'], date)
+        T = getDurationYears(kwds['presentTime'], date)
         return value * math.exp(- r * T)
 
 
@@ -787,7 +789,6 @@ class Market(DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=1)
         self.assertArgsPosn(args, posn=0, requiredType=(String, Name))
-        # Todo: Check the market can actually be found.
 
     @property
     def name(self):
@@ -796,60 +797,102 @@ class Market(DslExpression):
     def evaluate(self, **kwds):
         # Todo: Improve on having various ways of checking variables are defined.
         try:
-            presentTime = kwds['presentTime']
+            observationTime = kwds['observationTime']
         except KeyError:
             raise QuantDslSyntaxError(
-                "Can't evaluate Market '%s' without 'presentTime' in context variables." % self.name,
+                "Can't evaluate Market '%s' without 'observationTime' in context variables." % self.name,
                 ", ".join(kwds.keys()),
                 node=self.node
             )
         try:
-            image = kwds['image']
+            presentTime = kwds['presentTime']
         except KeyError:
-            raise QuantDslSyntaxError("Can't evaluate Market without 'image' in context variables.")
-        lastPrice = self.getLastPrice(image)
-        if presentTime == image.observationTime:
+            raise QuantDslSyntaxError(
+                "Can't evaluate Market '%s' without 'presentTime' in context variables" % self.name,
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+        try:
+            calibration = kwds['calibration']
+        except KeyError:
+            raise QuantDslError(
+                "Can't evaluate Market '%s' without 'calibration' in context variables" % self.name,
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+
+        LAST_PRICE = '%s-LAST-PRICE' % self.name
+        try:
+            lastPrice = calibration[LAST_PRICE]
+        except KeyError:
+            raise QuantDslError(
+                "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, LAST_PRICE),
+                ", ".join(calibration.keys()),
+                node=self.node
+            )
+        ACTUAL_HISTORICAL_VOLATILITY = '%s-ACTUAL-HISTORICAL-VOLATILITY' % self.name
+        try:
+            actualHistoricalVolatility = calibration[ACTUAL_HISTORICAL_VOLATILITY]
+        except KeyError:
+            raise QuantDslError(
+                "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, actualHistoricalVolatility),
+                ", ".join(calibration.keys()),
+                node=self.node
+            )
+
+        if presentTime == observationTime:
             value = lastPrice
         else:
             try:
                 allRvs = kwds['allRvs']
             except KeyError:
-                raise QuantDslSyntaxError("Can't evaluate Market without 'allRvs' in context variables.")
-            domainObject = self.getDomainObject(image)
-            if domainObject not in allRvs:
-                raise QuantDslSystemError, "Market '%s' not available in rvs: %s" % (domainObject, allRvs.keys())
+                raise QuantDslSyntaxError(
+                    "Can't evaluate Market '%s' without 'allRvs' in context variables" % self.name,
+                    ", ".join(kwds.keys()),
+                    node=self.node
+                )
 
-            marketRvs = allRvs[domainObject]
-            if presentTime not in marketRvs:
+            try:
+                marketRvs = allRvs[self.name]
+            except KeyError:
+                raise QuantDslSyntaxError(
+                    "Market '%s' not available in rvs" % self.name,
+                    ", ".join(allRvs.keys()),
+                    node=self.node
+                )
+
+            try:
+                marketRv = marketRvs[presentTime]
+            except KeyError:
                 raise Exception, "Present time %s not in market rvs: %s" % (presentTime, marketRvs.keys())
-            rv = marketRvs[presentTime]
-            sigma = self.getSigma(image)
+
+            sigma = actualHistoricalVolatility / 100
             import scipy
-            T = image.priceProcess.getDurationYears(image.observationTime, presentTime)
-            value = lastPrice * scipy.exp(sigma * rv - 0.5 * sigma * sigma * T)
+            T = getDurationYears(observationTime, presentTime)
+            value = lastPrice * scipy.exp(sigma * marketRv - 0.5 * sigma * sigma * T)
         return value
 
-    def getLastPrice(self, image):
-        return self.getMetricValue(image, 'last-price')
-
-    def getSigma(self, image):
-        volatility = self.getMetricValue(image, 'actual-historical-volatility')
-        return float(volatility) / 100
-
-    def getMetricValue(self, image, metricName):
-        return image.getMetricValue(metricName, self.getDomainObject(image))
-
-    def getDomainObject(self, image):
-        if not hasattr(self, 'domainObject'):
-            self.domainObject = None
-            marketRef = self._args[0].evaluate()
-            if marketRef:
-                if marketRef.startswith('#'):
-                    marketId = marketRef[1:]
-                    self.domainObject = image.registry.markets.findSingleDomainObject(id=marketId)
-            if not self.domainObject:
-                raise Exception, "Market '%s' could not be found." % marketRef
-        return self.domainObject
+    # def getLastPrice(self, image):
+    #     return self.getMetricValue(image, 'last-price')
+    #
+    # def getSigma(self, image):
+    #     volatility = self.getMetricValue(image, 'actual-historical-volatility')
+    #     return float(volatility) / 100
+    #
+    # def getMetricValue(self, image, metricName):
+    #     return image.getMetricValue(metricName, self.getDomainObject(image))
+    #
+    # def getDomainObject(self, image):
+    #     if not hasattr(self, 'domainObject'):
+    #         self.domainObject = None
+    #         marketRef = self.name
+    #         if marketRef:
+    #             if marketRef.startswith('#'):
+    #                 marketId = marketRef[1:]
+    #                 self.domainObject = image.registry.markets.findSingleDomainObject(id=marketId)
+    #         if not self.domainObject:
+    #             raise Exception, "Market '%s' could not be found." % marketRef
+    #     return self.domainObject
 
 
 class Settlement(DslExpression):
@@ -956,7 +999,7 @@ class Choice(DslExpression):
             self.resultsCache = {}
         kwdsHash = hash((
             # Erm, this hash is a bit crappy
-            id(kwds['image']),
+#            id(kwds['image']),
             id(kwds['allRvs']),
             str(kwds['presentTime']),
             kwds['interestRate'],
@@ -986,7 +1029,6 @@ class LongstaffSchwartz(object):
 
     def evaluate(self, **kwds):
         allRvs = kwds['allRvs']
-        image = kwds['image']
         if len(allRvs) == 0:
             raise QuantDslSystemError('no rvs', str(kwds))
         firstMarketRvs = allRvs.values()[0]
@@ -1002,12 +1044,12 @@ class LongstaffSchwartz(object):
                 conditionalExpectedValues = []
                 expectedContinuationValues = []
                 underlyingValue = firstMarketRvs[state.time]
-                #plotCount = 3000
                 for subsequentState in state.subsequentStates:
                     regressionVariables = []
-                    markets = subsequentState.dslObject.findInstances(Market)
-                    for market in markets:
-                        marketRvs = allRvs[market.getDomainObject(image)]
+                    dslMarkets = subsequentState.dslObject.findInstances(Market)
+                    marketNames = set([m.name for m in dslMarkets])
+                    for marketName in marketNames:
+                        marketRvs = allRvs[marketName]
                         try:
                             marketRv = marketRvs[state.time]
                         except KeyError, inst:
@@ -1039,7 +1081,12 @@ class LongstaffSchwartz(object):
             elif lenSubsequentStates == 0:
                 stateValue = state.dslObject.evaluate(**kwds)
                 if isinstance(stateValue, (int, float)):
-                    underlyingValue = firstMarketRvs[state.time]
+                    try:
+                        underlyingValue = firstMarketRvs[state.time]
+                    except KeyError, inst:
+                        msg = "Couldn't find time '%s' in random variables. Times are: %s" % (
+                            state.time, sorted(firstMarketRvs.keys()))
+                        raise Exception(msg)
                     pathCount = len(underlyingValue)
                     if stateValue == 0:
                         stateValue = scipy.zeros(pathCount)
@@ -1153,11 +1200,11 @@ class LeastSquares(object):
         return d.getA1()
 
     def solve(self, a, b):
-        import scipy
+        import scipy.linalg
         try:
             c,resid,rank,sigma = scipy.linalg.lstsq(a, b)
         except Exception, inst:
-            msg = "Couldn't solve a and b: ", (a, b)
+            msg = "Couldn't solve a and b: %s %s: %s" % (a, b, inst)
             raise Exception, msg
         return c
 
@@ -1893,6 +1940,7 @@ class DependencyGraphRunner(object):
             self.resultsDict = registry.results
         for callRequirementId in self.leafIds:
             self.executionQueue.put(callRequirementId)
+        pool = None
         if self.isMultiprocessing:
             pool = multiprocessing.Pool(multiprocessing.cpu_count() - 1)
         try:
@@ -1915,24 +1963,27 @@ class DependencyGraphRunner(object):
 
 def executeCallRequirement(args):
     """
-    Executes the call requirement, roduces a value from the stubbed expr and creates a result..
+    Executes the call requirement, produces a value from the stubbed expr and creates a result..
     """
     try:
         # Get call requirement and modelled function objects.
         callRequirementId, evaluationKwds, resultsRegister, executionQueue = args
         callRequirement = registry.calls[callRequirementId]
 
-        assert isinstance(callRequirement, CallRequirement), "Call requirement object is not a CallRequirement: %s" % callRequirement
+        assert isinstance(callRequirement, CallRequirement), "Call requirement object is not a CallRequirement" \
+                                                             ": %s" % callRequirement
         if not callRequirement.isReady(resultsRegister=resultsRegister):
-            raise QuantDslSystemError, "Call requirement '%s' is not actually ready! It shouldn't have got here without all required results being available. Is the results register stale?" % callRequirement.id
+            raise QuantDslSystemError("Call requirement '%s' is not actually ready! It shouldn't have got here" \
+                                      " without all required results being available. Is the results register" \
+                                      " stale?" % callRequirement.id)
 
-        # Evaluate the stubbedExprStr.
+        # Evaluate the stubbed expr str.
         try:
             stubbedModule = parse(callRequirement.stubbedExprStr)
         except QuantDslSyntaxError:
             raise
 
-        assert isinstance(stubbedModule, Module), "Parsed stubbed expr string is not an module: %s" % stubbedExpr
+        assert isinstance(stubbedModule, Module), "Parsed stubbed expr string is not an module: %s" % stubbedModule
 
         dslNamespace = DslNamespace()
         for stubId in callRequirement.requiredCallIds:
@@ -1941,7 +1992,8 @@ def executeCallRequirement(args):
             dslNamespace[stubId] = Number(stubResult.value)
 
         simpleExpr = stubbedModule.compile(dslLocals=dslNamespace, dslGlobals={})
-        assert isinstance(simpleExpr, DslExpression), "Reduced parsed stubbed expr string is not an expression: %s" % type(simpleExpr)
+        assert isinstance(simpleExpr, DslExpression), "Reduced parsed stubbed expr string is not an " \
+                                                      "expression: %s" % type(simpleExpr)
         resultValue = simpleExpr.evaluate(**evaluationKwds)
         handleResult(callRequirementId, resultValue, resultsRegister, executionQueue)
         return "OK"
@@ -1950,6 +2002,7 @@ def executeCallRequirement(args):
         msg = traceback.format_exc()
         msg += str(e)
         raise Exception(msg)
+
 
 def handleResult(callRequirementId, resultValue, resultsDict, executionQueue):
     # Create result object and check if subscribers are ready to be executed.
@@ -2001,6 +2054,52 @@ class QuantDslSystemError(QuantDslError):
     """
 
 
+class PriceSimulator(object):
+
+    def getAllRvs(self, dslObject, startDate, pathCount):
+        assert isinstance(dslObject, DslObject), type(dslObject)
+        assert isinstance(startDate, datetime.datetime), type(startDate)
+        assert isinstance(pathCount, int), type(pathCount)
+
+        # Find all unique market names.
+        marketNames = set()
+        for dslMarket in dslObject.findInstances(dslType=Market):
+            assert isinstance(dslMarket, Market)
+            marketNames.add(dslMarket.name)
+
+        # Find all unique fixing dates.
+        fixingDates = set()
+        for dslFixing in dslObject.findInstances(dslType=Fixing):
+            assert isinstance(dslFixing, Fixing)
+            fixingDates.add(dslFixing.date)
+        fixingDates = sorted(list(fixingDates))
+
+        # Diffuse random variables through each date for each market.
+        allRvs = {}
+        for marketName in marketNames:
+            marketRvs = {}
+            startRv = scipy.zeros(pathCount)
+            marketRvs[startDate] = startRv
+            for fixingDate in fixingDates:
+                draws = scipy.random.standard_normal(pathCount)
+                T = getDurationYears(startDate, fixingDate)
+                endRv = startRv + scipy.sqrt(T) * draws
+                marketRvs[fixingDate] = endRv
+                startDate = fixingDate
+                startRv = endRv
+            allRvs[marketName] = marketRvs
+        return allRvs
+
+
+def getDurationYears(startDate, endDate, daysPerYear=365):
+    try:
+        timeDelta = endDate - startDate
+    except TypeError, inst:
+        raise TypeError("%s: start: %s end: %s" % (inst, startDate, endDate))
+    return timeDelta.days / daysPerYear
+
+
+
 ####### Plotting codes #####################################
 
 # FROM top of file
@@ -2014,6 +2113,8 @@ class QuantDslSystemError(QuantDslError):
 # FROM Least Squares
 #if len(regressionVariables):
 #    conditionalExpectedValue = LeastSquares(regressionVariables, expectedContinuationValue).fit()
+
+                #plotCount = 3000
 
                         # if isPlotting:
                         #     data = scipy.array([underlyingValue[:plotCount], conditionalExpectedValue[:plotCount], expectedContinuationValue[:plotCount]])
