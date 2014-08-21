@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractmethod
 import unittest
 import datetime
 import sys
@@ -626,13 +627,14 @@ class TestLeastSquares(unittest.TestCase):
 class DslTestCase(unittest.TestCase):
 
     def assertValuation(self, dslSource=None, expectedValue=None, expectedDelta=None, expectedGamma=None,
-            expectedVega=None, toleranceValue=0.02, toleranceDelta = 0.1, toleranceGamma=0.1):
+            toleranceValue=0.02, toleranceDelta = 0.1, toleranceGamma=0.1):
 
         # Check option value.
         observationDate = datetime.datetime(2011, 1, 1, tzinfo=utc)
         estimatedValue = self.calcValue(dslSource, observationDate)
         self.assertTolerance(estimatedValue, expectedValue, toleranceValue)
 
+        # Todo: Reinstate the delta tests.
         return
         # Check deltas.
         markets = self.pricer.getMarkets()
@@ -651,7 +653,6 @@ class DslTestCase(unittest.TestCase):
         #expectedGamma = round(self.expectedGamma, self.DECIMALS)
         #msg = "Value: %s  Expected: %s" % (roundedGamma, expectedGamma)
         #self.assertEqual(roundedGamma, expectedGamma, msg)
-
 
     def assertTolerance(self, estimated, expected, tolerance):
         upper = expected + tolerance
@@ -681,44 +682,45 @@ class DslTestCase(unittest.TestCase):
             value = value.mean()
         return value
 
+
 class TestDslMarket(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Market('#1')"
         self.assertValuation(specification, 10, 1, 0)
 
 
 class TestDslFixing(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Fixing(Date('2012-01-01'), Market('#1'))"
         self.assertValuation(specification, 10, 1, 0)
 
 
 class TestDslWait(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Wait(Date('2012-01-01'), Market('#1'))"
         self.assertValuation(specification, 9.753, 0.975, 0)
 
 
 class TestDslSettlement(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Settlement(Date('2012-01-01'), Market('#1'))"
         self.assertValuation(specification, 9.753, 0.975, 0)
 
 
 class TestDslChoice(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Fixing(Date('2012-01-01'), Choice( Market('#1') - 9, 0))"
         self.assertValuation(specification, 2.416, 0.677, 0.07)
 
 
 class TestDslMax(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Fixing(Date('2012-01-01'), Max(Market('#1'), Market('#2')))"
         #self.assertValuation(specification, 12.766, 0.636, 0)
         self.assertValuation(specification, 11.320, 0.636, 0)
@@ -726,35 +728,35 @@ class TestDslMax(DslTestCase):
 
 class TestDslAdd(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "10 + Market('#2')"
         self.assertValuation(specification, 20, 1, 0)
 
 
 class TestDslSubtract(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Market('#1') - 10"
         self.assertValuation(specification, 0, 1, 0)
 
 
 class TestDslMultiply(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Market('#1') * Market('#2')"
         self.assertValuation(specification, 100, 10, 0)
 
 
 class TestDslDivide(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Market('#1') / 10"
         self.assertValuation(specification, 1, 0.1, 0)
 
 
 class TestDslIdenticalFixings(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Fixing(Date('2012-01-01'), Market('#1')) - Fixing(Date('2012-01-01'), Market('#1'))
 """
@@ -763,7 +765,7 @@ Fixing(Date('2012-01-01'), Market('#1')) - Fixing(Date('2012-01-01'), Market('#1
 
 class TestDslBrownianIncrements(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Wait(
     Date('2012-03-15'),
@@ -796,7 +798,7 @@ Wait(
 # Todo: Find out why TestDslUncorrelatedMarkets sometimes evaluates to 1 (rather than 0). Lack of randomness on machine?
 class TestDslUncorrelatedMarkets(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Max(
     Fixing(
@@ -819,7 +821,7 @@ Max(
 
 class TestDslFutures(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Wait( Date('2012-01-01'),
     Market('#1') - 9
@@ -829,14 +831,14 @@ Wait( Date('2012-01-01'),
 
 class TestDslEuropean(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = "Wait(Date('2012-01-01'), Choice(Market('#1') - 9, 0))"
         self.assertValuation(specification, 2.356, 0.660, 0.068)
 
 
 class TestDslBermudan(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Fixing( Date('2011-06-01'), Choice( Market('#1') - 9,
     Fixing( Date('2012-01-01'), Choice( Market('#1') - 9, 0))
@@ -847,7 +849,7 @@ Fixing( Date('2011-06-01'), Choice( Market('#1') - 9,
 
 class TestDslSumContracts(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Fixing(
     Date('2011-06-01'),
@@ -880,7 +882,7 @@ Fixing(
 
 class TestDslAddition(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 Fixing( Date('2012-01-01'),
     Max(Market('#1') - 9, 0) + Market('#1') - 9
@@ -891,7 +893,7 @@ Fixing( Date('2012-01-01'),
 
 class TestDslFunctionDefSwing(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 def Swing(starts, ends, underlying, quantity):
     if (quantity != 0) and (starts < ends):
@@ -909,7 +911,7 @@ Swing(Date('2012-01-01'), Date('2012-01-03'), Market('#1'), 2)
 
 class TestDslFunctionDefOption(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 def Option(date, strike, x, y):
     return Wait(date, Choice(x - strike, y))
@@ -920,7 +922,7 @@ Option(Date('2012-01-01'), 9, Underlying(Market('#1')), 0)
 
 class TestDslFunctionDefEuropean(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 def Option(date, strike, underlying, alternative):
     return Wait(date, Choice(underlying - strike, alternative))
@@ -935,7 +937,7 @@ European(Date('2012-01-01'), 9, Market('#1'))
 
 class TestDslFunctionDefAmerican(DslTestCase):
 
-    def testPricerValuation(self):
+    def testValuation(self):
         specification = """
 def Option(date, strike, underlying, alternative):
     return Wait(date, Choice(underlying - strike, alternative))

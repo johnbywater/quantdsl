@@ -457,7 +457,7 @@ class DslObject(object):
                         for dslObj in arg.findInstances(dslType):
                             yield dslObj
 
-    def reduce(self, dslLocals, dslGlobals, pendingCallStack=None):
+    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=None):
         """
         Reduces by reducing all args, and then using those args
         to create a new instance of self.
@@ -465,7 +465,7 @@ class DslObject(object):
         newDslArgs = []
         for dslArg in self._args:
             if isinstance(dslArg, DslObject):
-                dslArg = dslArg.reduce(dslLocals, dslGlobals, pendingCallStack=pendingCallStack)
+                dslArg = dslArg.reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
             newDslArgs.append(dslArg)
         return self.__class__(node=self.node, *newDslArgs)
 
@@ -895,34 +895,44 @@ class Market(DslExpression):
     #     return self.domainObject
 
 
-class Settlement(DslExpression):
+class DatedDslObject(DslObject):
+
+    @property
+    def date(self):
+        if not hasattr(self, '_date'):
+            date = self._args[0]
+            if isinstance(date, Name):
+                raise QuantDslSyntaxError("date value name '%s' must be resolved to a datetime before it can be used" % date.name, node=self.node)
+            if isinstance(date, datetime.datetime):
+                pass
+            if isinstance(date, basestring):
+                date = String(date)
+            if isinstance(date, String):
+                date = Date(date, node=date.node)
+            if isinstance(date, (Date, BinOp)):
+                date = date.evaluate()
+            if not isinstance(date, datetime.datetime):
+                raise QuantDslSyntaxError("date value should be a datetime.datetime by now, but it's a %s" % date, node=self.node)
+            self._date = date
+        return self._date
+
+
+class Settlement(DatedDslObject, DslExpression):
     """
     Discounts value of expression to 'presentTime'.
     """
 
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=2)
-        try:
-            self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
-            self.assertArgsPosn(args, posn=0, requiredType=Date)
-            self.posExpr = 1
-            self.posDate = 0
-        except:
-            # Old format (still used in the tests).
-            # Todo: Change the tests to new format. :-)
-            self.assertArgsPosn(args, posn=1, requiredType=Date)
-            self.assertArgsPosn(args, posn=0, requiredType=DslExpression)
-            self.posDate = 1
-            self.posExpr = 0
+        self.assertArgsPosn(args, posn=0, requiredType=(String, Date, Name,BinOp))
+        self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
 
     def evaluate(self, **kwds):
-        newkwds = kwds.copy()
-        value = self._args[self.posExpr].evaluate(**newkwds)
-        date = self._args[self.posDate].evaluate(**newkwds)
-        return self.discount(value, date, **kwds)
+        value = self._args[1].evaluate(**kwds)
+        return self.discount(value, self.date, **kwds)
 
 
-class Fixing(DslExpression):
+class Fixing(DatedDslObject, DslExpression):
     """
     A fixing defines the 'presentTime' used for evaluating its expression.
     """
@@ -937,34 +947,34 @@ class Fixing(DslExpression):
 
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=(String, Date, DslExpression))
+        self.assertArgsPosn(args, posn=0, requiredType=(String, Date, Name, BinOp))
         self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
-
-    @property
-    def date(self):
-        if not hasattr(self, '_date'):
-            date = self._args[0]
-            if isinstance(date, datetime.datetime):
-                pass
-            if isinstance(date, basestring):
-                date = String(date)
-            if isinstance(date, String):
-                date = Date(date, node=date.node)
-            if isinstance(date, (Date, BinOp)):
-                date = date.evaluate()
-            if not isinstance(date, datetime.datetime):
-                raise QuantDslSyntaxError("date value should be a datetime.datetime by now: %s" % date, node=self.node)
-            self._date = date
-        return self._date
 
     @property
     def expr(self):
         return self._args[1]
 
+    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=None):
+        # Figure out the effectivePresentTime from the fixing date, which might still be a Name.
+        # Todo: It might also be a date expression, and so might the
+        fixingDate = self._args[0]
+        if isinstance(fixingDate, datetime.datetime):
+            pass
+        if isinstance(fixingDate, basestring):
+            fixingDate = String(fixingDate)
+        if isinstance(fixingDate, String):
+            fixingDate = Date(fixingDate, node=fixingDate.node)
+        if isinstance(fixingDate, (Date, BinOp, Name)):
+            fixingDate = fixingDate.evaluate(**dslLocals)
+        if not isinstance(fixingDate, datetime.datetime):
+            raise QuantDslSyntaxError("fixing date value should be a datetime.datetime by now, but it's a %s" % fixingDate, node=self.node)
+        effectivePresentTime = fixingDate
+        return super(Fixing, self).reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+
     def evaluate(self, **kwds):
-        newkwds = kwds.copy()
-        newkwds['presentTime'] = self.date
-        return self.expr.evaluate(**newkwds)
+        kwds = kwds.copy()
+        kwds['presentTime'] = self.date
+        return self.expr.evaluate(**kwds)
 
 
 class On(Fixing):
@@ -999,6 +1009,7 @@ class Choice(DslExpression):
             self.resultsCache = {}
         kwdsHash = hash((
             # Erm, this hash is a bit crappy
+            # Todo: Use a DslNamepace object instead, and make it capable of generating the hash.
 #            id(kwds['image']),
             id(kwds['allRvs']),
             str(kwds['presentTime']),
@@ -1228,13 +1239,13 @@ class FunctionCall(DslExpression):
     def callArgExprs(self):
         return self._args[1]
 
-    def reduce(self, dslLocals, dslGlobals, pendingCallStack=False):
+    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=False):
         """
         Reduces function call to result of evaluating function def with function call args.
         """
 
         # Replace functionDef names with things in kwds.
-        functionDef = self.functionDefName.reduce(dslLocals, dslGlobals, pendingCallStack=pendingCallStack)
+        functionDef = self.functionDefName.reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
 
         # Function def should have changed from a Name to a FunctionDef.
         assert isinstance(functionDef, FunctionDef)
@@ -1265,7 +1276,7 @@ class FunctionCall(DslExpression):
                 callArgValue = callArgExpr
             else:
                 # Substitute names, etc.
-                callArgExpr = callArgExpr.reduce(dslLocals, dslGlobals, pendingCallStack=pendingCallStack)
+                callArgExpr = callArgExpr.reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
                 # Decide whether to evaluate, or just pass the expression into the function call.
                 if isinstance(callArgExpr, Underlying):
                     # It's explicitly wrapped as an "underlying", so unwrap it as expected.
@@ -1282,7 +1293,7 @@ class FunctionCall(DslExpression):
             newDslLocals[callArgDef.name] = callArgValue
 
         # Evaluate the function def with the dict of call arg values.
-        dslExpr = functionDef.apply(dslGlobals, pendingCallStack=pendingCallStack, isDestacking=False, **newDslLocals)
+        dslExpr = functionDef.apply(dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack, isDestacking=False, **newDslLocals)
 
         # The result of this function call (stubbed or otherwise) should be a DSL expression.
         assert isinstance(dslExpr, DslExpression)
@@ -1345,7 +1356,7 @@ class FunctionDef(DslObject):
                 raise QuantDslSyntaxError('expected call arg not found',
                                      "arg '%s' not in call arg namespace %s" % (callArgName, dslLocals.keys()))
 
-    def apply(self, dslGlobals=None, pendingCallStack=None, isDestacking=False, **dslLocals):
+    def apply(self, dslGlobals=None, effectivePresentTime=None, pendingCallStack=None, isDestacking=False, **dslLocals):
         # It's a function call, so create a new namespace "context".
         if dslGlobals is None:
             dslGlobals = DslNamespace()
@@ -1358,6 +1369,8 @@ class FunctionDef(DslObject):
         self.validateCallArgs(dslLocals)
 
         # Create the cache key.
+        callCacheKeyDict = dslLocals.copy()
+        callCacheKeyDict["__effectivePresentTime__"] = effectivePresentTime
         callCacheKey = self.createHash(dslLocals)
 
         # Check the call cache, to see whether this function has already been evaluated with these args.
@@ -1374,8 +1387,13 @@ class FunctionDef(DslObject):
 
             # Put the function call on the call stack, with the stub ID.
             assert isinstance(pendingCallStack, FunctionDefCallStack)
-            pendingCallStack.put(stubId=stubId, stackedCall=self, stackedLocals=dslLocals.copy(), stackedGlobals=dslGlobals.copy())
-
+            pendingCallStack.put(
+                stubId=stubId,
+                stackedCall=self,
+                stackedLocals=dslLocals.copy(),
+                stackedGlobals=dslGlobals.copy(),
+                effectivePresentTime=effectivePresentTime
+            )
             # Return the stub so that the containing DSL can be fully evaluated
             # once the stacked function call has been evaluated.
             dslExpr = dslStub
@@ -1390,7 +1408,7 @@ class FunctionDef(DslObject):
             newDslGlobals[self.name] = self
 
             # Reduce the selected expression.
-            dslExpr = selectedExpression.reduce(dslLocals, newDslGlobals, pendingCallStack=pendingCallStack)
+            dslExpr = selectedExpression.reduce(dslLocals, newDslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
 
         # Cache the result.
         if not isDestacking:
@@ -1463,7 +1481,7 @@ class Name(DslExpression):
         elif isinstance(name, String):
             return name.evaluate()
 
-    def reduce(self, dslLocals, dslGlobals, pendingCallStack=False):
+    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=False):
         """
         Replace name with named value in context (kwds).
         """
@@ -1640,19 +1658,22 @@ class DslNamespace(dict):
 
 class FunctionDefCallStack(queue.Queue):
 
-    def put(self, stubId, stackedCall, stackedLocals, stackedGlobals):
+    def put(self, stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime):
         assert isinstance(stubId, basestring), type(stubId)
         assert isinstance(stackedCall, FunctionDef), type(stackedCall)
         assert isinstance(stackedLocals, DslNamespace), type(stackedLocals)
         assert isinstance(stackedGlobals, DslNamespace), type(stackedGlobals)
-        queue.Queue.put(self, (stubId, stackedCall, stackedLocals, stackedGlobals))
+        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
+        queue.Queue.put(self, (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime))
+
 
 class StubbedExpressionStack(queue.LifoQueue):
 
-    def put(self, stubId, stubbedExpr):
+    def put(self, stubId, stubbedExpr, effectivePresentTime):
         assert isinstance(stubId, basestring), type(stubId)
         assert isinstance(stubbedExpr, DslExpression), type(stubbedExpr)
-        queue.LifoQueue.put(self, (stubId, stubbedExpr))
+        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
+        queue.LifoQueue.put(self, (stubId, stubbedExpr, effectivePresentTime))
 
 
 class Module(DslObject):
@@ -1721,27 +1742,35 @@ class Module(DslObject):
                     # Of course if the module's expression doesn't have a function call, there
                     # will just be one expression on the stack of "stubbed" expressions, and it will
                     # not have any stubs.
-                    stubbedExpr = dslExpr.reduce(dslLocals, DslNamespace(dslGlobals), pendingCallStack=pendingCallStack)
+                    stubbedExpr = dslExpr.reduce(
+                        dslLocals,
+                        DslNamespace(dslGlobals),
+                        pendingCallStack=pendingCallStack
+                    )
 
                     # Create the root stub ID, this will allow the final result to be retrieved.
                     self.rootStubId = str(createUuid())
 
                     # Put the module expression (now stubbed) on the stack.
-                    stubbedExprs.put(stubId=self.rootStubId, stubbedExpr=stubbedExpr)
+                    stubbedExprs.put(self.rootStubId, stubbedExpr, None)
 
                     # Continue by looping over any pending calls that have resulted from the module's expression.
                     while not pendingCallStack.empty():
                         # Get the stacked call info.
-                        (stubId, stackedCall, stackedLocals, stackedGlobals) = pendingCallStack.get()
+                        (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime) = pendingCallStack.get()
 
                         # Check we've got a function def.
                         assert isinstance(stackedCall, FunctionDef), type(stackedCall)
 
                         # Apply the stacked call values to the called function def.
-                        stubbedExpr = stackedCall.apply(stackedGlobals, pendingCallStack=pendingCallStack, isDestacking=True, **stackedLocals)
+                        stubbedExpr = stackedCall.apply(stackedGlobals,
+                                                        effectivePresentTime,
+                                                        pendingCallStack=pendingCallStack,
+                                                        isDestacking=True,
+                                                        **stackedLocals)
 
                         # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
-                        stubbedExprs.put(stubId, stubbedExpr)
+                        stubbedExprs.put(stubId, stubbedExpr, effectivePresentTime)
 
                     # Create an expression stack DSL object from the stack of stubbed expressions.
                     dslObj = ExpressionStack(self.rootStubId, stubbedExprs)
@@ -1780,7 +1809,7 @@ class ExpressionStack(object):
         leafIds = []
         callRequirementIds = []
         while not self.stubbedExprs.empty():
-            stubId, stubbedExpr = self.stubbedExprs.get()
+            stubId, stubbedExpr, effectivePresentTime = self.stubbedExprs.get()
             assert isinstance(stubbedExpr, DslExpression)
 
             callRequirementIds.append(stubId)
@@ -1790,12 +1819,11 @@ class ExpressionStack(object):
 
             # Stubbed expr has names that need to be replaced with results of other stubbed exprs.
             stubbedExprStr = str(stubbedExpr)
-            createCallRequirement(stubId, stubbedExprStr, requiredStubIds)
+            createCallRequirement(stubId, stubbedExprStr, requiredStubIds, effectivePresentTime)
 
             if not requiredStubIds:
                 # Keep a track of the leaves of the dependency graph (stubbed exprs that don't depend on anything).
                 leafIds.append(stubId)
-
 
         assert self.rootStubId in callRequirementIds
 
@@ -1873,9 +1901,9 @@ Registry = namedtuple('Registry', ['results', 'calls', 'functions'])
 registry = Registry({}, {}, {})
 
 
-def createCallRequirement(id, stubbedExprStr, requiredStubIds):
+def createCallRequirement(id, stubbedExprStr, requiredStubIds, effectivePresentTime):
     # Create the domain object.
-    callRequirement = CallRequirement(id, stubbedExprStr, requiredStubIds)
+    callRequirement = CallRequirement(id, stubbedExprStr, requiredStubIds, effectivePresentTime)
 
     # Register the object with the registry.
     registry.calls[callRequirement.id] = callRequirement
@@ -1896,10 +1924,11 @@ def createUuid():
 class DomainObject(object): pass
 
 class CallRequirement(DomainObject):
-    def __init__(self, id, stubbedExprStr, requiredCallIds):
+    def __init__(self, id, stubbedExprStr, requiredCallIds, effectivePresentTime):
         self.id = id
         self.stubbedExprStr = stubbedExprStr
         self.requiredCallIds = requiredCallIds
+        self.effectivePresentTime = effectivePresentTime
         self.subscribers = []
         # Todo: Validate.
 
@@ -1966,8 +1995,10 @@ def executeCallRequirement(args):
     Executes the call requirement, produces a value from the stubbed expr and creates a result..
     """
     try:
-        # Get call requirement and modelled function objects.
+        # Get call requirement ID and modelled function objects.
         callRequirementId, evaluationKwds, resultsRegister, executionQueue = args
+
+        # Get the call requirement object (it has the stubbedExpr and effectivePresentTime).
         callRequirement = registry.calls[callRequirementId]
 
         assert isinstance(callRequirement, CallRequirement), "Call requirement object is not a CallRequirement" \
@@ -1976,6 +2007,10 @@ def executeCallRequirement(args):
             raise QuantDslSystemError("Call requirement '%s' is not actually ready! It shouldn't have got here" \
                                       " without all required results being available. Is the results register" \
                                       " stale?" % callRequirement.id)
+
+        # If necessary, overwrite the effectivePresentTime as the presentTime in the evaluationKwds.
+        if callRequirement.effectivePresentTime:
+            evaluationKwds['presentTime'] = callRequirement.effectivePresentTime
 
         # Evaluate the stubbed expr str.
         try:
@@ -2028,7 +2063,9 @@ class QuantDslError(Exception):
         self.lineno = getattr(node, "lineno", None)
 
     def __repr__(self):
-        msg = "%s: %s" % (self.error, self.descr)
+        msg = self.error
+        if self.descr:
+            msg += ": %s" % self.descr
         if self.lineno:
             msg += " (line %d)" % (self.lineno)
         return msg
