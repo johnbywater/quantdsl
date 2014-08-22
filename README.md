@@ -3,7 +3,7 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance.***
 
-*Quant DSL* is a functional programming language for stochastic calculus. *Quant DSL* is designed for modelling derivative financial instruments. *Quant DSL* is written in Python and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
+*Quant DSL* is a functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
 The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, for example the least-squares Monte Carlo approach (coded as "*Choice*" in *Quant DSL*), time value of money calculations ("*Wait*"), and Brownian diffusion ("*Market*"). These primitive elements are supplemented with a set of binary operators (addition, subtraction, multiplication, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to estimate the present value of the modelled instrument.
 
