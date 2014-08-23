@@ -32,7 +32,7 @@ marketCalibration = {
     'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
 }
 
-quantdsl.eval(dslSource, marketCalibration=calibration, interestRate=2.5, pathCount=500000)
+quantdsl.eval(dslSource, marketCalibration=marketCalibration, interestRate=2.5, pathCount=500000)
 ```
 
 
