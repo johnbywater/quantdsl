@@ -3,13 +3,49 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance.***
 
-*Quant DSL* is a functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
+*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, works with Python, looks like Python, and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
-The core of *Quant DSL* is a set of primitive elements which encapsulate common mathematical operations of stochastic models, for example the least-squares Monte Carlo approach (coded as "*Choice*" in *Quant DSL*), time value of money calculations ("*Wait*"), and Brownian diffusion ("*Market*"). These primitive elements are supplemented with a set of binary operators (addition, subtraction, multiplication, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to estimate the present value of the modelled instrument.
+Here is an example of a *Quant DSL* module that models an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market* are primitive elements of *Quant DSL* (*Date* and *TimeDelta* are constant value objects of *Quant DSL*, and so are the integers.)
 
-A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation of the 2011 *Quant DSL* expression language was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package. More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that more extensive models could be expressed well. At this time, the original *Quant DSL* code was factored into a new Python package, and released with the BSD licence (this package).
+```python
+def American(starts, ends, strike, underlying):
+    if starts < ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        Option(starts, strike, underlying, 0)
 
-As a result, *Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions - expressions which may be a function of call arguments, which involve further calls to user-defined functions, and which may be situated inside an 'if' clause. Because only primitive *Quant DSL* expressions can be evaluated directly, *Quant DSL* modules which contain an expression that depends on function definitions can now be compiled into a single primitive expression, so that the value of the model can be obtained.
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('NBP'))
+```
+
+*Quant DSL* source strings can be evaluated like this:
+
+```python
+import quantdsl
+
+marketCalibration = {
+    'NBP-LAST-PRICE': 10,
+    'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+}
+
+quantdsl.eval(dslSource, marketCalibration=calibration, interestRate=2.5, pathCount=500000)
+```
+
+
+Overview of the Language
+------------------------
+
+The core of *Quant DSL* is a set of primitive elements which encapsulate common elements of stochastic models, for example the least-squares Monte Carlo approach (coded as "*Choice*" in *Quant DSL*), Brownian motions ("*Market*"), and time value of money calculations ("*Wait*").
+
+The primitive elements are supplemented with a set of binary operators (addition, subtraction, multiplication, etc.) and composed into probablistic expressions of value. The *Quant DSL* expressions are parsed into a *Quant DSL* object tree, which can be evaluated to generate an estimated value of the modelled contract terms. A paper defining the [syntax and semantics of *Quant DSL* expressions](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf) was published in 2011. (Proofs for the mathematical semantics are included in that paper.) An implementation of the 2011 *Quant DSL* expression language was released as part of the *[Quant](https://pypi.python.org/pypi/quant)* package.
+
+More recently, in 2014, *Quant DSL* was expanded to involve common elements of functional programming languages, so that more extensive models could be expressed concisely. At this time, the original *Quant DSL* code was factored into a new Python package, and released with the BSD licence (this package).
+
+*Quant DSL* expressions can now involve calls to user-defined functions. In turn, *Quant DSL* functions can define parameterized and conditional *Quant DSL* expressions - expressions which may be a function of call arguments, which involve further calls to user-defined functions, and which may be situated inside an 'if' clause. Because only primitive *Quant DSL* expressions can be evaluated directly, *Quant DSL* modules which contain an expression that depends on function definitions can now be compiled into a single primitive expression, so that the value of the model can be obtained.
 
 Primitive *Quant DSL* expressions generated in this way can be much more extensive, relative to the short expressions it is possible to write by hand. Such compiled expressions constitute a step-wise object model of the computation, and can be constituted and persisted as a dependency graph ready for parallel and distributed execution. The compiled expressions can be evaluated under a variety of underlying conditions, with results from unaffected branches being reused (and not recalculated). The computational model can be used to measure and predict compuational load, form the basis for tracking progress through a long calculation, and it is possible to retry a stalled computation.
 
@@ -25,23 +61,6 @@ The *Quant DSL* syntax continues to be a strict subset of the Python language sy
 * the test compare expression of an 'if' clause cannot contain any of the primitive elements.
 
 There are also some slight changes to the semantics of a function: in particular the return value of a function is  not the result of evaluting the expressions and returning a numeric value, but rather it is the result of selecting an expression by evaluating the test compare expression of 'if' statements and then compiling the selected expression into a primitive expression by making any function calls that are declared and substituting them with their return value.
-
-As an illustative example of a *Quant DSL* module, consider the following definition of an American option. You can see two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market* are primitive elements of *Quant DSL* (*Date* and *TimeDelta* are constant value objects of *Quant DSL*, and so are the integers.)
-
-```python
-def Option(date, strike, underlying, alternative):
-    Wait(date, Choice(underlying - strike, alternative))
-
-def American(starts, ends, strike, underlying):
-    if starts < ends:
-        Option(starts, strike, underlying,
-            American(starts + TimeDelta('1d'), ends, strike, underlying)
-        )
-    else:
-        Option(starts, strike, underlying, 0)
-
-American(Date('2016-04-01'), Date('2016-10-01'), 15, Market('NBP'))
-```
 
 Here's a basic swing option.
 
@@ -94,6 +113,11 @@ def Storage(starts, ends, underlying, inventory, lowerlimit, upperlimit):
 
 Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
 ```
+
+Acknowledgments
+---------------
+
+*Quant DSL* was inspired by the paper *[Composing contracts: an adventure in financial engineering (functional pearl)](http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.ps.gz)* by Simon Peyton Jones and others. The idea of using a dependency graph, to help with parallel and distributed execution of the value process was inspired by a [talk about dependency graphs by Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). *Quant DSL* makes lots of use of SciPy and NumPy, and the Python AST.
 
 
 Installation
