@@ -93,7 +93,7 @@ def Storage(starts, ends, underlying, inventory, lowerlimit, upperlimit):
                 
             Storage(starts + TimeDelta('1d'), ends, underlying,
                 inventory + 1) - Fixing(starts, underlying)
-        )
+        ))
     elif inventory > upperlimit - 1:
         Wait(starts, Choice(
             Storage(starts + TimeDelta('1d'), ends, underlying,
@@ -101,7 +101,7 @@ def Storage(starts, ends, underlying, inventory, lowerlimit, upperlimit):
                 
             Storage(starts + TimeDelta('1d'), ends, underlying,
                 inventory)
-        )
+        ))
     else:
         Wait(starts, Choice(
             Storage(starts + TimeDelta('1d'), ends, underlying,
@@ -109,7 +109,7 @@ def Storage(starts, ends, underlying, inventory, lowerlimit, upperlimit):
                 
             Storage(starts + TimeDelta('1d'), ends, underlying,
                 inventory + 1) - Fixing(starts, underlying)
-        )
+        ))
 
 Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
 ```
