@@ -89,26 +89,26 @@ def Storage(starts, ends, underlying, inventory, lowerlimit, upperlimit):
     elif inventory < lowerlimit + 1:
         Wait(starts, Choice(
             Storage(starts + TimeDelta('1d'), ends, underlying,
-                inventory),
+                inventory, lowerlimit, upperlimit),
                 
             Storage(starts + TimeDelta('1d'), ends, underlying,
-                inventory + 1) - Fixing(starts, underlying)
+                inventory + 1, lowerlimit, upperlimit) - Fixing(starts, underlying)
         ))
     elif inventory > upperlimit - 1:
         Wait(starts, Choice(
             Storage(starts + TimeDelta('1d'), ends, underlying,
-                inventory - 1) + Fixing(starts, underlying),
+                inventory - 1, lowerlimit, upperlimit) + Fixing(starts, underlying),
                 
             Storage(starts + TimeDelta('1d'), ends, underlying,
-                inventory)
+                inventory, lowerlimit, upperlimit)
         ))
     else:
         Wait(starts, Choice(
             Storage(starts + TimeDelta('1d'), ends, underlying,
-                inventory - 1) + Fixing(starts, underlying),
+                inventory - 1, lowerlimit, upperlimit) + Fixing(starts, underlying),
                 
             Storage(starts + TimeDelta('1d'), ends, underlying,
-                inventory + 1) - Fixing(starts, underlying)
+                inventory + 1, lowerlimit, upperlimit) - Fixing(starts, underlying)
         ))
 
 Storage(Date('2016-04-01'), Date('2017-04-01'), Market('NBP'), 200, 100, 5000)
@@ -135,11 +135,11 @@ If you are operating behind a corporate firewall, then you may need to [download
 pip install C:\Downloads\quantdsl-0.0.0.tar.gz
 ```
 
-To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual Python environment, using *[Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/)*.
+To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 
-*Quant DSl* depends on *NumPy* and *SciPy*. On *Linux* systems these should be automatically installed as dependencies.
+*Quant DSl* depends on NumPy and SciPy. On Linux systems these should be automatically installed as dependencies.
 
-*Windows* users may not be able to install *NumPy* and *SciPy* because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have *NumPy* and *SciPy*, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that *NumPy* and *SciPy* will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get bogged dow, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` (or `easy_install quantdsl` if *Pip* is not available).
+Windows users may not be able to install NumPy and SciPy because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have NumPy and SciPy, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that NumPy and SciPy will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get bogged dow, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` (or `easy_install quantdsl` if Pip is not available).
 
 
 Getting Started
