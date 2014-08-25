@@ -391,7 +391,7 @@ sqr(3)
         self.assertEqual(dslExpr.evaluate(), 9)
 
         dslValue = eval(dslSource)
-        self.assertEqual(dslValue, 9)
+        self.assertEqual(dslValue['mean'], 9)
 
         # Expression with two function defs.
         dslSource = """
@@ -410,7 +410,7 @@ mul(3, 3)
         self.assertEqual(dslExpr.evaluate(), 9)
 
         dslValue = eval(dslSource)
-        self.assertEqual(dslValue, 9)
+        self.assertEqual(dslValue['mean'], 9)
 
 
     def test_parallel_fib(self):
@@ -438,7 +438,7 @@ fib(%d)
         self.assertIsInstance(dslExpr, ExpressionStack)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = dslExpr.stubbedExprs.qsize()
+        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
 
         # Evaluate the stack.
         dslValue = dslExpr.evaluate()
@@ -477,7 +477,7 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
         self.assertIsInstance(dslExpr, ExpressionStack)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = dslExpr.stubbedExprs.qsize()
+        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
 
         # Evaluate the stack.
         image = mock.Mock()
@@ -517,7 +517,7 @@ Swing(Date('2012-01-01'), Date('2012-01-03'), 10, 500)
         dslExpr = compile(dslSource, isParallel=True)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = dslExpr.stubbedExprs.qsize()
+        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
 
         # Evaluate the stack.
         image = mock.Mock()
@@ -557,7 +557,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
         assert isinstance(dslExpr, ExpressionStack)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = dslExpr.stubbedExprs.qsize()
+        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
 
         # Create a mock valuation environment.
         # image = mock.Mock()
@@ -669,10 +669,22 @@ class DslTestCase(unittest.TestCase):
                 '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
                 '#2-LAST-PRICE': 10,
                 '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
+                '#1-#2-CORRELATION': 0.0,
+                'NBP-LAST-PRICE': 10,
+                'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+                'TTF-LAST-PRICE': 11,
+                'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
+                'BRENT-LAST-PRICE': 90,
+                'BRENT-ACTUAL-HISTORICAL-VOLATILITY': 60,
+                'NBP-TTF-CORRELATION': 0.4,
+                'BRENT-TTF-CORRELATION': 0.5,
+                'BRENT-NBP-CORRELATION': 0.3,
             },
             'pathCount': 500000,
         })
-        return eval(dslSource, evaluationKwds=evaluationKwds)
+        return eval(dslSource, evaluationKwds=evaluationKwds)['mean']
+
+
         dslExpr = compile(dslSource)
 
         evaluationKwds = DslNamespace({
@@ -733,8 +745,8 @@ class TestDslMax(DslTestCase):
 
     def testValuation(self):
         specification = "Fixing(Date('2012-01-01'), Max(Market('#1'), Market('#2')))"
-        #self.assertValuation(specification, 12.766, 0.636, 0)
-        self.assertValuation(specification, 11.320, 0.636, 0)
+        self.assertValuation(specification, 12.766, 0.636, 0)
+        #self.assertValuation(specification, 11.320, 0.636, 0)
 
 
 class TestDslAdd(DslTestCase):
@@ -806,7 +818,6 @@ Wait(
         self.assertValuation(specification, 0, 0, 0)
 
 
-# Todo: Find out why TestDslUncorrelatedMarkets sometimes evaluates to 1 (rather than 0). Lack of randomness on machine?
 class TestDslUncorrelatedMarkets(DslTestCase):
 
     def testValuation(self):
@@ -828,6 +839,29 @@ Max(
     ), 0
 )"""
         self.assertValuation(specification, 0, 0, 0, 0.04, 0.2, 0.2)  # Todo: Figure out why the delta sometimes evaluates to 1 for a period of time and then
+
+
+class TestDslCorrelatedMarkets(DslTestCase):
+
+    def testValuation(self):
+        specification = """
+Max(
+    Fixing(
+        Date('2012-01-01'),
+        Market('TTF')
+    ) *
+    Fixing(
+        Date('2012-01-01'),
+        Market('NBP')
+    ) / 10.0,
+    0.0
+) - Max(
+    Fixing(
+        Date('2013-01-01'),
+        Market('TTF')
+    ), 0
+)"""
+        self.assertValuation(specification, 0.92, 0, 0, 0.15, 0.2, 0.2)
 
 
 class TestDslFutures(DslTestCase):
@@ -960,4 +994,3 @@ def American(starts, ends, strike, underlying, step):
 American(Date('2012-01-01'), Date('2012-01-3'), 9, Market('#1'), TimeDelta('1d'))
 """
         self.assertValuation(specification, 2.356, 0.660, 0.068, 0.04, 0.2, 0.2)
-

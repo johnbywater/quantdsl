@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+
+def main(SOURCE_URL, CALIBRATION_URL):
+    import quantdsl
+    import sys
+    import datetime
+    import os
+
+#    if len(sys.argv) > 2 or '--help' in sys.argv or '-h' in sys.argv:
+#        print """Usage: quantdsl [DSL_SOURCE | DSL_SOURCE_URL] [--calibration CALIBRATION_URL]
+#
+#    If no argument is given, DSL source code is read from STDIN. Argument can be
+#    a URL or DSL source code.
+#
+#    Environment variable which affect this script:
+#
+#      QUANTDSL_PATH_COUNT - Number of paths in Monte Carlo simulations.
+#
+#      QUANTDSL_MUTLIPROCESSING_POOL_SIZE - Number of workers in multiprocessing pool.
+#
+#    """
+#        sys.exit(1)
+#
+    def getResource(url):
+        if url.startswith('file://'):
+            return open(url[7:]).read()
+        elif url.startswith('http://'):
+            import requests
+            return requests.get(url)
+
+    dslSource = getResource(SOURCE_URL)
+    marketCalibrationJson = getResource(CALIBRATION_URL)
+    import json
+    try:
+        marketCalibration = json.loads(marketCalibrationJson)
+    except Exception, e:
+        msg = "Unable to load JSON from %s: %s: %s" % (CALIBRATION_URL, e, marketCalibrationJson)
+        raise ValueError(msg)
+
+    observationTime = datetime.datetime.now().replace(tzinfo=quantdsl.utc)
+
+    pathCount = int(os.environ.get('QUANTDSL_PATH_COUNT', 50000))
+
+    try:
+        result = quantdsl.eval(dslSource,
+            filename=SOURCE_URL,
+            isParallel=True,
+            marketCalibration=marketCalibration,
+            interestRate=2.5,
+            pathCount=pathCount,
+            observationTime=observationTime,
+            isMultiprocessing=True,
+            isVerbose=True,
+        )
+    except quantdsl.QuantDslError, e:
+        print "Failed to eval DSL source:"
+        print dslSource
+        print
+        print "Error:", e
+        print
+    else:
+        print
+        print "Result:"
+        print "    mean: %.4f" % result['mean']
+        print "    stderr: %.4f" % result['stderr']
+        print
+
+if __name__ == '__main__':
+    import argh
+    argh.dispatch_command(main)

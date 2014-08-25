@@ -3,7 +3,7 @@ import os
 import sys
 from setuptools import setup
 
-long_description = open('README').read()
+long_description = open('README.md').read()
 
 from quantdsl import __version__
 
@@ -16,14 +16,21 @@ setup(
     install_requires = [
         'scipy',
         'numpy',
+        'argh',
+        'requests',
     ],
-    author='Appropriate Software Foundation',
-    author_email='quant-support@appropriatesoftware.net',
-    license='BSD 3Clause',
+    scripts = [
+        os.path.join('scripts', 'quantdsl'),
+    ],
+    extras_require = {
+        'test':  ["Mock"],
+    },
+    author='John Bywater',
+    author_email='john.bywater@appropriatesoftware.net',
+    license='BSD',
     url='https://github.com/johnbywater/quantdsl',
     description='Domain specific language for quantitative analytics in finance.',
     long_description = long_description,
-    # Todo: Review these classifiers.
     classifiers = [
         'Development Status :: 3 - Alpha',
         'Environment :: Console',

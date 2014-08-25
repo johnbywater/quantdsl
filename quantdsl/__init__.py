@@ -9,8 +9,9 @@ from itertools import chain
 import multiprocessing
 import Queue as queue
 import re
+import itertools
 import scipy
-
+import os
 try:
     import pytz
 except ImportError:
@@ -18,36 +19,36 @@ except ImportError:
 
 __version__ = '0.0.3'
 
-# Todo: Stop Date being an Expression, and make BinOp accept Date (and TimeDelta) Expression? No because there's no end to it. Raise type mismatch errors at run time.
+# Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
+# Todo: Move calculation of value based on brownian motion from Market object, so that its evaluation method simply looks up value of random variable for that market at that present time.
+# Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
+# Todo: Check whether it's better to regress on uncorrelated brownian motions, rather than correlated ones.
+# Todo: Develop multi-factor model (e.g. Schwartz-Smith)?
+# Todo: Develop closures, function defs within function defs may help to reduce call argument complexity.
+# Todo: Make stats available on number of call requirements, number of leaves in dependency graph. And depth of graph? Predicting cost of each node would be possible (but complicated for LongstaffSchwartz cos the LeastSqaures routine is run different numbers of times (spot the formula).
+# Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
+# Todo: Optimize network traffic by creating a single message containing all data required to evaluate a stubbed expression.
+# Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
+# Todo: Clean up the str, repr, pprint stuff?
+# Todo: Make this works with Python 3.
+# Todo: Use function arg annotation to declare types of DSL function args (will only work with Python 3).
+# Todo: Support list comprehensions, for things like a strip of options?
+# Todo: Support plotting.
+
+# Todo: Raise Quant DSL-specific type mismatch errors at run time (ie e.g. handle situation where datetime and string can't be added).
 # Todo: Anyway, identify when type mismatches will occur - can't multiply a date by a number, can't add a date to a date or to a number, can't add a number to a timedelta. Etc?
-# Todo: Make the "boundary" object between the valuation and calibration be a PriceSimulation object that takes a list of (market name, spot, vol) and creates the brownian diffusions for a list of dates for each market across a draw of paths. Can be a simple "local" in memory, and later an object with same interface that puts/gets data to/from a network connection.
-# Todo: Create a one-factor DSL price simulation object from the DslMonteCarlo pricer's getbrownianMotions() method.
-# Todo: A convenience module-level parse() method which uses the DslParser class.
-# Todo: Make a module treat an expression in the same way, regardless of whether functions have been defined. Lazy variable substitution, or don't allow variables in module level expressions?
-# Todo: Change Name to reduce to itself when it isn't available in the evaluation kwds? It will have a node, so we can say which variable never found a definition. Could be followed by checking stubbed exprs don't have any Name objects (that aren't Stubs). Perhaps stop a Stub being a Name for this reason? Perhaps have a base class with the "name resolving" behaviour, and then subclass Variable (from the program) and Stub (for the execution).
-# Todo: Hence resolve more clearly which expressions are functions of time t that return numerical values, which are functions of DSL objects that return DSL expressions.
-# Todo: Figure how to support user defined functions of time, such as a better Choice?
 # Todo: (Long one) Go through all ways of writing broken DSL source code, and make sure there are sensible errors.
 # Todo: Figure out how to identify and catch when a loop will be started, perhaps by limiting the number of FunctionDef.apply() calls in one DslParser.parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
-# Todo: Make stats available on number of call requirements, number of leaves in dependency graph. And depth of graph?
-# Todo: Support plotting.
-# Todo: Function decorators to indicate how the function should be compiled (e.g. whether to stub or not).as
-# Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
-# Todo: Clean up the str, repr, pprint stuff?
-# Todo: Make sure this works with Python 3.
-# Todo: Support list comprehensions, for things like a strip of options?
-# Todo: Allow a dict (DslNamespace) of DSL classes to be passed in to the parse method, which will allow user defined DSL classes.
-# Todo: Use function arg annotation to declare types of DSL function args (Python 3 only).
+# Todo: Figure out behaviour for observationTime > any fixing date, currently leads to a complex numbers (square root of negative time delta).
 
-
-def parse(dslSource, dslClasses=None):
+def parse(dslSource, filename='<unknown>', dslClasses=None):
     """
     Returns a DSL module, created according to the given DSL source module.
     """
-    return DslParser().parse(dslSource, dslClasses=dslClasses)
+    return DslParser().parse(dslSource, filename=filename, dslClasses=dslClasses)
 
 
-def compile(dslSource, isParallel=None, dslClasses=None, compileKwds=None, **extraCompileKwds):
+def compile(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, **extraCompileKwds):
     """
     Returns a DSL expression, created according to the given DSL source module.
 
@@ -67,14 +68,14 @@ def compile(dslSource, isParallel=None, dslClasses=None, compileKwds=None, **ext
     compileKwds.update(extraCompileKwds)
 
     # Parse the source into a DSL module object.
-    dslModule = parse(dslSource, dslClasses=dslClasses)
+    dslModule = parse(dslSource, filename=filename, dslClasses=dslClasses)
 
     # Compile the module into a single (primitive) expression.
     return dslModule.compile(DslNamespace(), compileKwds, isParallel=isParallel)
 
 
-def eval(dslSource, isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
-         priceSimulatorClass=None, **extraEvaluationKwds):
+def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
+         priceSimulatorClass=None, isVerbose=False, **extraEvaluationKwds):
     """
     Returns the result of evaluating a compiled module (an expression, or a user defined function).
 
@@ -88,10 +89,24 @@ def eval(dslSource, isParallel=None, dslClasses=None, compileKwds=None, evaluati
     assert isinstance(evaluationKwds, dict)
     evaluationKwds.update(extraEvaluationKwds)
 
-    # Compile the source into a primitive DSL expression.
-    dslExpr = compile(dslSource, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
+    if isVerbose:
+        print "Compiling DSL source:"
+        print
+        print dslSource
 
-    assert isinstance(dslExpr, DslExpression)
+    # Compile the source into a primitive DSL expression.
+    dslExpr = compile(dslSource, filename=filename, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
+
+    assert isinstance(dslExpr, (DslExpression, ExpressionStack)), type(dslExpr)
+
+    if isVerbose:
+        if isinstance(dslExpr, ExpressionStack):
+            lenDslExpr = len(dslExpr)
+
+            print "Compiled DSL source into %d partial expressions (root ID: %s)." % (lenDslExpr, dslExpr.rootStubId)
+            print
+            #for stubId, stubbedExpr, _ in dslExpr.stubbedExprs:
+            #    print stubId, stubbedExpr
 
     # Fix up the evaluationKwds with Brownian motions, if necessary.
     if dslExpr.hasInstances(dslType=Market):
@@ -107,30 +122,104 @@ def eval(dslSource, isParallel=None, dslClasses=None, compileKwds=None, evaluati
         pathCount = evaluationKwds['pathCount']
         assert isinstance(pathCount, int)
 
+        if isVerbose:
+            print "Path count: %d" % pathCount
+            print
         # Check calibration for market dynamics.
         marketCalibration = evaluationKwds['marketCalibration']
         assert isinstance(marketCalibration, dict)
 
         # Construct the Brownian motions.
         if not 'brownianMotions' in evaluationKwds:
+
+            if isVerbose:
+                print "Finding all market names and fixing dates..."
+                print
+            # Find all unique market names.
+            marketNames = set()
+            for dslMarket in dslExpr.findInstances(dslType=Market):
+                assert isinstance(dslMarket, Market)
+                marketNames.add(dslMarket.name)
+
+            # Find all unique fixing dates.
+            fixingDates = set()
+            for dslFixing in dslExpr.findInstances(dslType=Fixing):
+                assert isinstance(dslFixing, Fixing)
+                fixingDates.add(dslFixing.date)
+            fixingDates = sorted(list(fixingDates))
+
+            if isVerbose:
+                print "Computing Brownian motions for market names ('%s') from observation time '%s' through fixing dates: '%s'." % (
+                    "', '".join(marketNames),
+                    "%04d-%02d-%02d" % (observationTime.year, observationTime.month, observationTime.day),
+                    # Todo: Only print first and last few, if there are loads.
+                    "', '".join(["%04d-%02d-%02d" % (d.year, d.month, d.day) for d in fixingDates]),
+                )
+                print
+
             if not priceSimulatorClass:
                 priceSimulatorClass = PriceSimulator
             priceSimulator = priceSimulatorClass()
-            brownianMotions = priceSimulator.getBrownianMotions(dslExpr, observationTime, pathCount)
+            brownianMotions = priceSimulator.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
             evaluationKwds['brownianMotions'] = brownianMotions
 
-    assert isinstance(dslExpr, DslExpression)
+    if isVerbose:
+        print "Evaluating %d partial expressions, please wait..." % lenDslExpr
+        for stubbedExprData in dslExpr.stubbedExprs:
+            print stubbedExprData[0], stubbedExprData[1]
+
+    if isinstance(dslExpr, ExpressionStack):
+        # Start progress display thread.
+        import threading
+        import time
+        import sys
+        def showProgress():
+            start = datetime.datetime.now()
+            progress = 0
+            print
+            while progress < 100:
+                time.sleep(0.2)
+                # Avoid race condition.
+                if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultsDict'):
+                    progress = 100.0 * len(dslExpr.runner.resultsDict) / lenDslExpr
+                    sys.stdout.write("\rProgress: %01.2f%%" % progress)
+                    sys.stdout.flush()
+                else:
+                    time.sleep(0.5)
+            duration = datetime.datetime.now() - start
+
+            sys.stdout.write("\rDuration: %s\n" % duration)
+            sys.stdout.flush()
+
+        thread = threading.Thread(target=showProgress)
+        thread.start()
 
     # Evaluate the primitive DSL expression.
     value = dslExpr.evaluate(**evaluationKwds)
-    if hasattr(value, 'mean'):
-        value = value.mean()
-    return value
+
+    if isinstance(dslExpr, ExpressionStack):
+        # Join with progress display thread.
+        thread.join(timeout=3)
+
+    # Prepare the result.
+    if isinstance(value, scipy.ndarray):
+        mean = value.mean()
+        stderr = value.std() / math.sqrt(pathCount)
+    else:
+        mean = value
+        stderr = 0
+    # Todo: Make this a proper object class.
+    dslResult = {
+        'mean': mean,
+        'stderr': stderr
+    }
+
+    return dslResult
 
 
 class DslParser(object):
 
-    def parse(self, dslSource, dslClasses=None):
+    def parse(self, dslSource, filename='<unknown>', dslClasses=None):
         """
         Creates a DSL Module object from a DSL source text.
         """
@@ -145,9 +234,9 @@ class DslParser(object):
         assert isinstance(dslSource, basestring)
         try:
             # Parse as Python source code, into a Python abstract syntax tree.
-            astModule = ast.parse(dslSource, mode='exec')
+            astModule = ast.parse(dslSource, filename=filename, mode='exec')
         except SyntaxError, e:
-            raise QuantDslSyntaxError("DSL source code is not valid Python syntax", e)
+            raise QuantDslSyntaxError("DSL source code is not valid Python code", e)
 
         # Generate Quant DSL from Python AST.
         return self.visitAstNode(astModule)
@@ -333,8 +422,9 @@ class DslParser(object):
         name = node.name
         callArgDefs = [FunctionArg(arg.id, '') for arg in node.args.args]
         assert len(node.body) == 1, "Function defs with more than one body statement are not supported at the moment."
+        decoratorNames = [astName.id for astName in node.decorator_list]
         body = self.visitAstNode(node.body[0])
-        dslArgs = [name, callArgDefs, body]
+        dslArgs = [name, callArgDefs, body, decoratorNames]
         functionDef = FunctionDef(node=node, *dslArgs)
         return functionDef
 
@@ -667,7 +757,6 @@ class UnarySub(UnaryOp):
 
 
 
-
 class BoolOp(DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=1)
@@ -869,6 +958,8 @@ class Market(DslExpression):
                 ", ".join(kwds.keys()),
                 node=self.node
             )
+
+        # Todo: Move this price construction into the PriceSimulator, and make Market values available by (name, date).
 
         LAST_PRICE = '%s-LAST-PRICE' % self.name
         try:
@@ -1365,7 +1456,10 @@ class FunctionDef(DslObject):
 
     def __str__(self, indent=0):
         indentSpaces = 4 * ' '
-        msg = "def %s(%s):\n" % (self.name, ", ".join(self.callArgNames))
+        msg = ""
+        for decoratorName in self.decoratorNames:
+            msg += "@" + decoratorName + "\n"
+        msg += "def %s(%s):\n" % (self.name, ", ".join(self.callArgNames))
         if isinstance(self.body, DslObject):
             try:
                 msg += indentSpaces + self.body.__str__(indent=indent+1)
@@ -1382,7 +1476,7 @@ class FunctionDef(DslObject):
         self.enclosedNamespace = DslNamespace()
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=3)
+        self.assertArgsLen(args, requiredLen=4)
 
     @property
     def name(self):
@@ -1401,6 +1495,10 @@ class FunctionDef(DslObject):
     @property
     def body(self):
         return self._args[2]
+
+    @property
+    def decoratorNames(self):
+        return self._args[3]
 
     def validateCallArgs(self, dslLocals):
         for callArgName in self.callArgNames:
@@ -1429,7 +1527,7 @@ class FunctionDef(DslObject):
         if not isDestacking and callCacheKey in self.callCache:
             return self.callCache[callCacheKey]
 
-        if pendingCallStack and not isDestacking:
+        if pendingCallStack and not isDestacking and not 'nostub' in self.decoratorNames:
             # Just stack the call expression and return a stub.
             assert isinstance(pendingCallStack, queue.Queue)
 
@@ -1562,7 +1660,7 @@ class Name(DslExpression):
         except KeyError:
             raise QuantDslNameError(
                 "'%s' is not defined. Current frame defines" % self.name,
-                kwds.keys(),
+                kwds.keys() or "None",
                 node=self.node
             )
 
@@ -1862,7 +1960,10 @@ class Module(DslObject):
                         stubbedExprs.put(stubId, stubbedExpr, effectivePresentTime)
 
                     # Create an expression stack DSL object from the stack of stubbed expressions.
-                    dslObj = ExpressionStack(self.rootStubId, stubbedExprs)
+                    stubbedExprsArray = []
+                    while not stubbedExprs.empty():
+                        stubbedExprsArray.append(stubbedExprs.get())
+                    dslObj = ExpressionStack(self.rootStubId, stubbedExprsArray)
                 else:
                     # Compile the module expression as and for a single threaded recursive operation (faster but not
                     # distributed, so also limited in space and perhaps time). For smaller computations only.
@@ -1889,16 +1990,31 @@ class ExpressionStack(object):
 
     def __init__(self, rootStubId, stubbedExprs):
         self.rootStubId = rootStubId
-        assert isinstance(stubbedExprs, queue.Queue)
-        assert not stubbedExprs.empty(), "Stack of stubbed expressions is empty!"
+        assert isinstance(stubbedExprs, list)
+        assert len(stubbedExprs), "Stubbed expressions is empty!"
         self.stubbedExprs = stubbedExprs
 
+    def __len__(self):
+        return len(self.stubbedExprs)
+
+    def hasInstances(self, dslType):
+        for _, stubbedExpr, _ in self.stubbedExprs:
+            if stubbedExpr.hasInstances(dslType=dslType):
+                return True
+        return False
+
+    def findInstances(self, dslType):
+        instances = []
+        for _, stubbedExpr, _ in self.stubbedExprs:
+            [instances.append(i) for i in stubbedExpr.findInstances(dslType=dslType)]
+        return instances
+
     def evaluate(self, isMultiprocessing=False, **kwds):
-        assert not self.stubbedExprs.empty()
+        assert len(self.stubbedExprs)
         leafIds = []
         callRequirementIds = []
-        while not self.stubbedExprs.empty():
-            stubId, stubbedExpr, effectivePresentTime = self.stubbedExprs.get()
+        for stubId, stubbedExpr, effectivePresentTime in self.stubbedExprs:
+
             assert isinstance(stubbedExpr, DslExpression)
 
             callRequirementIds.append(stubId)
@@ -1928,16 +2044,16 @@ class ExpressionStack(object):
                 assert requiredCallId not in callRequirement.subscribers, "Circular references."  # Circle of 2, anyway.
 
         # Run the dependency graph.
-        runner = DependencyGraphRunner(self.rootStubId, leafIds, isMultiprocessing)
-        runner.run(**kwds)
+        self.runner = DependencyGraphRunner(self.rootStubId, leafIds, isMultiprocessing)
+        self.runner.run(**kwds)
 
-        assert self.rootStubId in runner.resultsDict, "Root ID not in runner results."
+        assert self.rootStubId in self.runner.resultsDict, "Root ID not in runner results."
         if isMultiprocessing:
             # At the moment, the multiprocessing code creates it's own results dict.
-            [registry.results.__setitem__(key, value) for key, value in runner.resultsDict.items()]
+            [registry.results.__setitem__(key, value) for key, value in self.runner.resultsDict.items()]
 
         # Debug and testing info.
-        self._runnerCallCount = runner.callCount
+        self._runnerCallCount = self.runner.callCount
 
         try:
             return registry.results[self.rootStubId].value
@@ -2023,7 +2139,8 @@ class DependencyGraphRunner(object):
             self.executionQueue.put(callRequirementId)
         pool = None
         if self.isMultiprocessing:
-            pool = multiprocessing.Pool(multiprocessing.cpu_count() - 1)
+            poolSize = os.environ.get('QUANTDSL_MULTIPROCESSING_POOL_SIZE', None)
+            pool = multiprocessing.Pool(processes=poolSize)
         try:
             while not self.executionQueue.empty():
                 if self.isMultiprocessing:
@@ -2145,39 +2262,92 @@ class QuantDslSystemError(QuantDslError):
 
 class PriceSimulator(object):
 
-    def getBrownianMotions(self, dslObject, startDate, pathCount):
-        assert isinstance(dslObject, DslObject), type(dslObject)
+    def getBrownianMotions(self, marketNames, fixingDates, startDate, pathCount, marketCalibration):
         assert isinstance(startDate, datetime.datetime), type(startDate)
         assert isinstance(pathCount, int), type(pathCount)
 
-        # Find all unique market names.
-        marketNames = set()
-        for dslMarket in dslObject.findInstances(dslType=Market):
-            assert isinstance(dslMarket, Market)
-            marketNames.add(dslMarket.name)
+        import scipy
 
-        # Find all unique fixing dates.
-        fixingDates = set()
-        for dslFixing in dslObject.findInstances(dslType=Fixing):
-            assert isinstance(dslFixing, Fixing)
-            fixingDates.add(dslFixing.date)
-        fixingDates = sorted(list(fixingDates))
+        marketNames = list(marketNames)
+        allDates = [startDate] + sorted(fixingDates)
 
-        # Diffuse random variables through each date for each market.
-        brownianMotions = {}
-        for marketName in marketNames:
-            marketRvs = {}
-            startRv = scipy.zeros(pathCount)
-            marketRvs[startDate] = startRv
-            for fixingDate in fixingDates:
+        lenMarketNames = len(marketNames)
+        lenAllDates = len(allDates)
+
+        # Diffuse random variables through each date for each market (uncorrelated increments).
+        import scipy
+        brownianMotions = scipy.zeros((lenMarketNames, lenAllDates, pathCount))
+        for i in range(lenMarketNames):
+            _startDate = allDates[0]
+            startRv = brownianMotions[i][0]
+            for j in range(lenAllDates - 1):
+                fixingDate = allDates[j + 1]
                 draws = scipy.random.standard_normal(pathCount)
-                T = getDurationYears(startDate, fixingDate)
+                T = getDurationYears(_startDate, fixingDate)
+                if T < 0:
+                    raise QuantDslError("Can't sqrt negative numbers: %s. (Contract starts before observation time?)" % T)
                 endRv = startRv + scipy.sqrt(T) * draws
-                marketRvs[fixingDate] = endRv
-                startDate = fixingDate
+                try:
+                    brownianMotions[i][j + 1] = endRv
+                except ValueError, e:
+                    raise ValueError, "Can't set endRv in brownianMotions: %s" % e
+                _startDate = fixingDate
                 startRv = endRv
-            brownianMotions[marketName] = marketRvs
-        return brownianMotions
+
+        # Read the market calibration data.
+        correlations = {}
+        for marketNamePairs in itertools.combinations(marketNames, 2):
+            marketNamePairs = tuple(sorted(marketNamePairs))
+            calibrationName = "%s-%s-CORRELATION" % marketNamePairs
+            try:
+                correlation = marketCalibration[calibrationName]
+            except KeyError, e:
+                msg = "Can't find correlation between '%s' and '%s': '%s' not defined in market calibration: %s" % (
+                    marketNamePairs[0],
+                    marketNamePairs[1],
+                    marketCalibration.keys(),
+                    e
+                )
+                raise QuantDslError(msg)
+            else:
+                correlations[marketNamePairs] = correlation
+
+        correlationMatrix = scipy.zeros((lenMarketNames, lenMarketNames))
+        for i in range(lenMarketNames):
+            for j in range(lenMarketNames):
+                if marketNames[i] == marketNames[j]:
+                    correlation = 1
+                else:
+                    key = tuple(sorted([marketNames[i], marketNames[j]]))
+                    correlation = correlations[key]
+                correlationMatrix[i][j] = correlation
+
+        import scipy.linalg
+        from numpy.linalg import LinAlgError
+        try:
+            U = scipy.linalg.cholesky(correlationMatrix)
+        except LinAlgError, e:
+            raise QuantDslError("Couldn't do Cholesky decomposition with correlation matrix: %s: %s" % (correlationMatrix, e))
+
+        # Correlated increments from uncorrelated increments.
+        # Todo: This seems to work, but I would feel better if there was a test making sure this implementation of 'R . U' is correct.
+        brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works?
+        try:
+            brownianMotionsCorrelated = brownianMotions.dot(U)
+        except Exception, e:
+            msg = "Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: %s, %s" % (brownianMotions, U)
+            raise QuantDslError(msg)
+        brownianMotionsCorrelated = brownianMotionsCorrelated.transpose() # Put markets back on the first dimension.
+
+        brownianMotionsDict = {}
+        for i, marketName in enumerate(marketNames):
+            marketRvs = {}
+            for j, fixingDate in enumerate(allDates):
+                rv = brownianMotionsCorrelated[i][j]
+                marketRvs[fixingDate] = rv
+            brownianMotionsDict[marketName] = marketRvs
+
+        return brownianMotionsDict
 
 
 def getDurationYears(startDate, endDate, daysPerYear=365):
