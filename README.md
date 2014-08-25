@@ -40,7 +40,7 @@ The command line program `quantdsl` (which is installed with the *Quant DSL* Pyt
 With American option DSL in a file called 'myamerican.quantdsl' and the above market calibration parameters in a file called 'mycalibration.json', the following command will print the value of the contract.
 
 ```Shell
-$ quantdsl myamerican.quantdsl -c mycalibration.json --path-count=50000
+$ quantdsl --calibration-url mycalibration.json --path-count=50000  myamerican.quantdsl 
 
 Compiling DSL source:
 """
