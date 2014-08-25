@@ -11,7 +11,9 @@ import Queue as queue
 import re
 import itertools
 import scipy
-import os
+import time
+import sys
+import threading
 try:
     import pytz
 except ImportError:
@@ -40,6 +42,10 @@ __version__ = '0.0.3'
 # Todo: (Long one) Go through all ways of writing broken DSL source code, and make sure there are sensible errors.
 # Todo: Figure out how to identify and catch when a loop will be started, perhaps by limiting the number of FunctionDef.apply() calls in one DslParser.parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
 # Todo: Figure out behaviour for observationTime > any fixing date, currently leads to a complex numbers (square root of negative time delta).
+
+# Todo: Review the test coverage of the code.
+# Todo: Review the separation of concerns between the various test cases.
+# Todo: Move these todos to an issue tracker.
 
 def parse(dslSource, filename='<unknown>', dslClasses=None):
     """
@@ -92,10 +98,21 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     if isVerbose:
         print "Compiling DSL source:"
         print
-        print dslSource
+        print '"""'
+        print dslSource.strip()
+        print '"""'
+        print
 
     # Compile the source into a primitive DSL expression.
+    startCompile = datetime.datetime.now()
+
     dslExpr = compile(dslSource, filename=filename, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
+
+    durationCompile = datetime.datetime.now() - startCompile
+
+    if isVerbose:
+        print "Duration of compilation: %s" % durationCompile
+        print
 
     assert isinstance(dslExpr, (DslExpression, ExpressionStack)), type(dslExpr)
 
@@ -163,20 +180,19 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             brownianMotions = priceSimulator.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
             evaluationKwds['brownianMotions'] = brownianMotions
 
-    if isVerbose:
-        print "Evaluating %d partial expressions, please wait..." % lenDslExpr
-        for stubbedExprData in dslExpr.stubbedExprs:
-            print stubbedExprData[0], stubbedExprData[1]
 
     if isinstance(dslExpr, ExpressionStack):
-        # Start progress display thread.
-        import threading
-        import time
-        import sys
-        def showProgress():
-            start = datetime.datetime.now()
-            progress = 0
+        if isVerbose:
+            print "Expression stack:"
+            for stubbedExprData in dslExpr.stubbedExprs:
+                print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
             print
+
+            print "Evaluating %d partial expressions, please wait..." % lenDslExpr
+            print
+        # Start progress display thread.
+        def showProgress():
+            progress = 0
             while progress < 100:
                 time.sleep(0.2)
                 # Avoid race condition.
@@ -186,20 +202,24 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                     sys.stdout.flush()
                 else:
                     time.sleep(0.5)
-            duration = datetime.datetime.now() - start
-
-            sys.stdout.write("\rDuration: %s\n" % duration)
+            sys.stdout.write("\r")
             sys.stdout.flush()
 
         thread = threading.Thread(target=showProgress)
         thread.start()
 
     # Evaluate the primitive DSL expression.
+    startEval = datetime.datetime.now()
     value = dslExpr.evaluate(**evaluationKwds)
+    durationEval = datetime.datetime.now() - startEval
 
     if isinstance(dslExpr, ExpressionStack):
         # Join with progress display thread.
         thread.join(timeout=3)
+
+    if isVerbose:
+        print "Duration of evaluation: %s" % durationEval
+        print
 
     # Prepare the result.
     if isinstance(value, scipy.ndarray):
@@ -2009,7 +2029,7 @@ class ExpressionStack(object):
             [instances.append(i) for i in stubbedExpr.findInstances(dslType=dslType)]
         return instances
 
-    def evaluate(self, isMultiprocessing=False, **kwds):
+    def evaluate(self, isMultiprocessing=False, poolSize=None, **kwds):
         assert len(self.stubbedExprs)
         leafIds = []
         callRequirementIds = []
@@ -2044,7 +2064,7 @@ class ExpressionStack(object):
                 assert requiredCallId not in callRequirement.subscribers, "Circular references."  # Circle of 2, anyway.
 
         # Run the dependency graph.
-        self.runner = DependencyGraphRunner(self.rootStubId, leafIds, isMultiprocessing)
+        self.runner = DependencyGraphRunner(self.rootStubId, leafIds, isMultiprocessing, poolSize=poolSize)
         self.runner.run(**kwds)
 
         assert self.rootStubId in self.runner.resultsDict, "Root ID not in runner results."
@@ -2119,11 +2139,12 @@ class Result(DomainObject):
 
 class DependencyGraphRunner(object):
 
-    def __init__(self, rootCallRequirementId, leafIds, isMultiprocessing):
+    def __init__(self, rootCallRequirementId, leafIds, isMultiprocessing, poolSize=None):
         self.rootCallRequirementId = rootCallRequirementId
         self.leafIds = leafIds
         self.isMultiprocessing = isMultiprocessing
         self.registry = registry
+        self.poolSize = poolSize
 
     def run(self, **kwds):
         self.runKwds = kwds
@@ -2139,8 +2160,7 @@ class DependencyGraphRunner(object):
             self.executionQueue.put(callRequirementId)
         pool = None
         if self.isMultiprocessing:
-            poolSize = os.environ.get('QUANTDSL_MULTIPROCESSING_POOL_SIZE', None)
-            pool = multiprocessing.Pool(processes=poolSize)
+            pool = multiprocessing.Pool(processes=self.poolSize)
         try:
             while not self.executionQueue.empty():
                 if self.isMultiprocessing:
