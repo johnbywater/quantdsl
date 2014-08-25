@@ -5,7 +5,7 @@ Quant DSL
 
 *Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, works with Python, looks like Python, and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
-Here is an example of a *Quant DSL* models of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market*, *Date* and *TimeDelta* are primitive elements of *Quant DSL*.
+Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. (The terms *Wait*, *Choice* and *Market*, *Date* and *TimeDelta* are primitive elements of the language.)
 
 ```python
 def American(starts, ends, strike, underlying):
@@ -23,7 +23,7 @@ def Option(date, strike, underlying, alternative):
 American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
 ```
 
-If *Quant DSL* source code involves Market objects, market calibration parameters are required. For example, for a one-factor "Black Scholes" price process, calibration parameters for two markets 'NBP' and 'TTF' look like this:
+If *Quant DSL* source code involves *Market* objects, market calibration parameters are required. For example, for a one-factor "Black Scholes" price process, calibration parameters for two markets 'NBP' and 'TTF' look like this:
 
 ```JSON
 {
@@ -111,6 +111,8 @@ Result:
     mean: 2.2910
     stderr: 0.0143
 ```
+
+The one-factor price process can be replaced with more sophisticated models of market dynamics.
 
 Installation
 ------------
