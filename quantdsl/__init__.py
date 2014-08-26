@@ -22,22 +22,19 @@ except ImportError:
 
 __version__ = '0.0.3'
 
-# Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
-# Todo: Move calculation of value based on brownian motion from Market object, so that its evaluation method simply looks up value of random variable for that market at that present time.
 # Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
 # Todo: Make price process by configurable on command line, with option for stating which Python class to use?
 # Todo: Check whether it's okay to regress on correlated brownian motions, rather than uncorrelated ones (if so, no need to keep the uncorrelated once correlated are generated).
 # Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
 # Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
-# Todo: Develop a GUI that shows the graph being evaluated, allowing results to be examined.
+# Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
+# Todo: Develop a GUI that shows the graph being evaluated, allowing results to be examined, allows models to be developed.
 # Todo: Make stats available on number of call requirements, number of leaves in dependency graph, depth of graph?
 # Todo: Prediction of cost of evaluating an expression, cost of network data requests, could calibrate by running sample stubbed expressions (perhaps complicated for LongstaffSchwartz cos the LeastSqaures routine is run different numbers of times).
-# Todo: Unsubscribe from results, and delete intermediate result when there are zero subscriptions?
+# Todo: Unsubscribe from results, and delete intermediate result when there are zero subscriptions (or subscribe to consumers)?
 # Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
 # Todo: Develop multi-factor model (e.g. Schwartz-Smith)?
 # Todo: Develop natural language "skin" for Quant DSL expressions (something like how Gherkin syntax maps to functions?)?
-
-# Todo: Separate Quant DSL classes from Parser which could actually support a totally different functional DSL.
 
 # Todo: Introduce support for "import" statements, so that a library of Quant DSL can be developed (so e.g. Option can be shared). Need to have a path system? And a packaging and distribution system? Perhaps just make them Python modules? Perhaps just start with everything in one QUANTDSL_SOURCE_PATH?
 
@@ -165,6 +162,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             if isVerbose:
                 print "Finding all market names and fixing dates..."
                 print
+
             # Find all unique market names.
             marketNames = set()
             for dslMarket in dslExpr.findInstances(dslType=Market):
@@ -200,10 +198,30 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             except Exception, e:
                 raise QuantDslError("Can't find price process class '%s' in module '%s': %s" % (priceProcessClassName, priceProcessModuleName, e))
 
-            brownianMotions = priceProcessClass().getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
-            evaluationKwds['brownianMotions'] = brownianMotions
+            assert issubclass(priceProcessClass, PriceProcess)
 
-            # Also compute market prices, so the Market object doesn't do this.
+            priceProcess = priceProcessClass()
+
+            # allBrownianMotions = priceProcess.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
+            # evaluationKwds['brownianMotions'] = allBrownianMotions
+            #
+            # # Also compute market prices, so the Market object doesn't do this.
+            # allMarketPrices = {}
+            # for (marketName, brownianMotions) in allBrownianMotions.items():
+            #     actualHistoricalVolatility = marketCalibration['%s-ACTUAL-HISTORICAL-VOLATILITY' % marketName.upper()]
+            #     lastPrice = marketCalibration['%s-LAST-PRICE' % marketName.upper()]
+            #     marketPrices = {}
+            #
+            #     for (fixingDate, brownianRv) in brownianMotions.items():
+            #         sigma = actualHistoricalVolatility / 100
+            #         T = getDurationYears(observationTime, fixingDate)
+            #         marketRv = lastPrice * scipy.exp(sigma * brownianRv - 0.5 * sigma * sigma * T)
+            #         marketPrices[fixingDate] = marketRv
+            #
+            #     allMarketPrices[marketName] = marketPrices
+
+        allMarketPrices = priceProcess.simulateFuturePrices(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
+        evaluationKwds['allMarketPrices'] = allMarketPrices
 
 
     if isinstance(dslExpr, ExpressionStack):
@@ -981,7 +999,7 @@ class Market(DslExpression):
     def name(self):
         return self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
 
-    def _evaluate(self, **kwds):
+    def evaluate(self, **kwds):
         try:
             presentTime = kwds['presentTime']
         except KeyError:
@@ -993,7 +1011,7 @@ class Market(DslExpression):
         try:
             allMarketPrices = kwds['allMarketPrices']
         except KeyError:
-            raise QuantDslSyntaxError(
+            raise QuantDslError(
                 "Can't evaluate Market '%s' without 'allMarketPrices' in context variables" % self.name,
                 ", ".join(kwds.keys()),
                 node=self.node
@@ -1002,8 +1020,8 @@ class Market(DslExpression):
         try:
             marketPrices = allMarketPrices[self.name]
         except KeyError:
-            raise QuantDslSyntaxError(
-                "Market '%s' not found in 'allMarketPrices'" % self.name,
+            raise QuantDslError(
+                "Can't evaluate Market '%s' without market name in 'allMarketPrices'" % self.name,
                 ", ".join(allMarketPrices.keys()),
                 node=self.node
             )
@@ -1011,90 +1029,94 @@ class Market(DslExpression):
         try:
             marketPrice = marketPrices[presentTime]
         except KeyError:
-            raise Exception, "Present time %s not in market prices: %s" % (presentTime, marketPrices.keys())
+            raise QuantDslError(
+                "Can't evaluate Market '%s' without present time '%s in market prices" % (self.name, presentTime),
+                ", ".join(marketPrices.keys()),
+                node=self.node
+            )
 
         return marketPrice
 
-    def evaluate(self, **kwds):
-        # Todo: Improve on having various ways of checking variables are defined.
-        try:
-            observationTime = kwds['observationTime']
-        except KeyError:
-            raise QuantDslSyntaxError(
-                "Can't evaluate Market '%s' without 'observationTime' in context variables." % self.name,
-                ", ".join(kwds.keys()),
-                node=self.node
-            )
-        try:
-            presentTime = kwds['presentTime']
-        except KeyError:
-            raise QuantDslSyntaxError(
-                "Can't evaluate Market '%s' without 'presentTime' in context variables" % self.name,
-                ", ".join(kwds.keys()),
-                node=self.node
-            )
-        try:
-            calibration = kwds['marketCalibration']
-        except KeyError:
-            raise QuantDslError(
-                "Can't evaluate Market '%s' without 'calibration' in context variables" % self.name,
-                ", ".join(kwds.keys()),
-                node=self.node
-            )
-
-        # Todo: Move this price construction into the BlackScholesPriceProcess, and make Market values available by (name, date).
-
-        LAST_PRICE = '%s-LAST-PRICE' % self.name
-        try:
-            lastPrice = calibration[LAST_PRICE]
-        except KeyError:
-            raise QuantDslError(
-                "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, LAST_PRICE),
-                ", ".join(calibration.keys()),
-                node=self.node
-            )
-        ACTUAL_HISTORICAL_VOLATILITY = '%s-ACTUAL-HISTORICAL-VOLATILITY' % self.name
-        try:
-            actualHistoricalVolatility = calibration[ACTUAL_HISTORICAL_VOLATILITY]
-        except KeyError:
-            raise QuantDslError(
-                "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, actualHistoricalVolatility),
-                ", ".join(calibration.keys()),
-                node=self.node
-            )
-
-        if presentTime == observationTime:
-            value = lastPrice
-        else:
-            try:
-                brownianMotions = kwds['brownianMotions']
-            except KeyError:
-                raise QuantDslSyntaxError(
-                    "Can't evaluate Market '%s' without 'brownianMotions' in context variables" % self.name,
-                    ", ".join(kwds.keys()),
-                    node=self.node
-                )
-
-            try:
-                marketRvs = brownianMotions[self.name]
-            except KeyError:
-                raise QuantDslSyntaxError(
-                    "Market '%s' not available in rvs" % self.name,
-                    ", ".join(brownianMotions.keys()),
-                    node=self.node
-                )
-
-            try:
-                marketRv = marketRvs[presentTime]
-            except KeyError:
-                raise Exception, "Present time %s not in market rvs: %s" % (presentTime, marketRvs.keys())
-
-            sigma = actualHistoricalVolatility / 100
-            import scipy
-            T = getDurationYears(observationTime, presentTime)
-            value = lastPrice * scipy.exp(sigma * marketRv - 0.5 * sigma * sigma * T)
-        return value
-
+    # def _evaluate(self, **kwds):
+    #     # Todo: Improve on having various ways of checking variables are defined.
+    #     try:
+    #         observationTime = kwds['observationTime']
+    #     except KeyError:
+    #         raise QuantDslSyntaxError(
+    #             "Can't evaluate Market '%s' without 'observationTime' in context variables." % self.name,
+    #             ", ".join(kwds.keys()),
+    #             node=self.node
+    #         )
+    #     try:
+    #         presentTime = kwds['presentTime']
+    #     except KeyError:
+    #         raise QuantDslSyntaxError(
+    #             "Can't evaluate Market '%s' without 'presentTime' in context variables" % self.name,
+    #             ", ".join(kwds.keys()),
+    #             node=self.node
+    #         )
+    #     try:
+    #         calibration = kwds['marketCalibration']
+    #     except KeyError:
+    #         raise QuantDslError(
+    #             "Can't evaluate Market '%s' without 'calibration' in context variables" % self.name,
+    #             ", ".join(kwds.keys()),
+    #             node=self.node
+    #         )
+    #
+    #     # Todo: Move this price construction into the BlackScholesPriceProcess, and make Market values available by (name, date).
+    #
+    #     LAST_PRICE = '%s-LAST-PRICE' % self.name
+    #     try:
+    #         lastPrice = calibration[LAST_PRICE]
+    #     except KeyError:
+    #         raise QuantDslError(
+    #             "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, LAST_PRICE),
+    #             ", ".join(calibration.keys()),
+    #             node=self.node
+    #         )
+    #     ACTUAL_HISTORICAL_VOLATILITY = '%s-ACTUAL-HISTORICAL-VOLATILITY' % self.name
+    #     try:
+    #         actualHistoricalVolatility = calibration[ACTUAL_HISTORICAL_VOLATILITY]
+    #     except KeyError:
+    #         raise QuantDslError(
+    #             "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, actualHistoricalVolatility),
+    #             ", ".join(calibration.keys()),
+    #             node=self.node
+    #         )
+    #
+    #     if presentTime == observationTime:
+    #         value = lastPrice
+    #     else:
+    #         try:
+    #             brownianMotions = kwds['brownianMotions']
+    #         except KeyError:
+    #             raise QuantDslSyntaxError(
+    #                 "Can't evaluate Market '%s' without 'brownianMotions' in context variables" % self.name,
+    #                 ", ".join(kwds.keys()),
+    #                 node=self.node
+    #             )
+    #
+    #         try:
+    #             marketRvs = brownianMotions[self.name]
+    #         except KeyError:
+    #             raise QuantDslSyntaxError(
+    #                 "Market '%s' not available in rvs" % self.name,
+    #                 ", ".join(brownianMotions.keys()),
+    #                 node=self.node
+    #             )
+    #
+    #         try:
+    #             marketRv = marketRvs[presentTime]
+    #         except KeyError:
+    #             raise Exception, "Present time %s not in market rvs: %s" % (presentTime, marketRvs.keys())
+    #
+    #         sigma = actualHistoricalVolatility / 100
+    #         import scipy
+    #         T = getDurationYears(observationTime, presentTime)
+    #         value = lastPrice * scipy.exp(sigma * marketRv - 0.5 * sigma * sigma * T)
+    #     return value
+    #
     # def getLastPrice(self, image):
     #     return self.getMetricValue(image, 'last-price')
     #
@@ -1263,9 +1285,11 @@ class LongstaffSchwartz(object):
 
     def evaluate(self, **kwds):
         try:
-            brownianMotions = kwds['brownianMotions']
+            #brownianMotions = kwds['brownianMotions']
+            brownianMotions = kwds['allMarketPrices']
         except KeyError:
-            raise QuantDslSystemError("'brownianMotions' not in evaluation kwds", kwds.keys(), node=None)
+            #raise QuantDslSystemError("'brownianMotions' not in evaluation kwds", kwds.keys(), node=None)
+            raise QuantDslSystemError("'allMarketPrices' not in evaluation kwds", kwds.keys(), node=None)
         if len(brownianMotions) == 0:
             raise QuantDslSystemError('no rvs', str(kwds))
         firstMarketRvs = brownianMotions.values()[0]
@@ -2361,17 +2385,42 @@ class QuantDslSystemError(QuantDslError):
     Exception class for DSL system errors.
     """
 
+class PriceProcess(object):
 
-class BlackScholesPriceProcess(object):
+    __metaclass__ = ABCMeta
 
-    def getBrownianMotions(self, marketNames, fixingDates, startDate, pathCount, marketCalibration):
-        assert isinstance(startDate, datetime.datetime), type(startDate)
+    @abstractmethod
+    def simulateFuturePrices(self, marketNames, fixingDates, observationTime, pathCount, marketCalibration):
+        """
+        Returns dict (keyed by market name) of dicts (keyed by fixing date) with correlated random future prices.
+        """
+
+class BlackScholesPriceProcess(PriceProcess):
+
+    def simulateFuturePrices(self, marketNames, fixingDates, observationTime, pathCount, marketCalibration):
+        allBrownianMotions = self.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
+        # Also compute market prices, so the Market object doesn't do this.
+        allMarketPrices = {}
+        for (marketName, brownianMotions) in allBrownianMotions.items():
+            actualHistoricalVolatility = marketCalibration['%s-ACTUAL-HISTORICAL-VOLATILITY' % marketName.upper()]
+            lastPrice = marketCalibration['%s-LAST-PRICE' % marketName.upper()]
+            marketPrices = {}
+
+            for (fixingDate, brownianRv) in brownianMotions.items():
+                sigma = actualHistoricalVolatility / 100
+                T = getDurationYears(observationTime, fixingDate)
+                marketRv = lastPrice * scipy.exp(sigma * brownianRv - 0.5 * sigma * sigma * T)
+                marketPrices[fixingDate] = marketRv
+
+            allMarketPrices[marketName] = marketPrices
+        return allMarketPrices
+
+    def getBrownianMotions(self, marketNames, fixingDates, observationTime, pathCount, marketCalibration):
+        assert isinstance(observationTime, datetime.datetime), type(observationTime)
         assert isinstance(pathCount, int), type(pathCount)
 
-        import scipy
-
         marketNames = list(marketNames)
-        allDates = [startDate] + sorted(fixingDates)
+        allDates = [observationTime] + sorted(fixingDates)
 
         lenMarketNames = len(marketNames)
         lenAllDates = len(allDates)
@@ -2387,7 +2436,7 @@ class BlackScholesPriceProcess(object):
                 draws = scipy.random.standard_normal(pathCount)
                 T = getDurationYears(_startDate, fixingDate)
                 if T < 0:
-                    raise QuantDslError("Can't sqrt negative numbers: %s. (Contract starts before observation time?)" % T)
+                    raise QuantDslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
                 endRv = startRv + scipy.sqrt(T) * draws
                 try:
                     brownianMotions[i][j + 1] = endRv
