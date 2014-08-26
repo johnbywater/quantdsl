@@ -10,6 +10,7 @@ import multiprocessing
 import Queue as queue
 import re
 import itertools
+import mock
 import scipy
 import time
 import sys
@@ -24,13 +25,25 @@ __version__ = '0.0.3'
 # Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
 # Todo: Move calculation of value based on brownian motion from Market object, so that its evaluation method simply looks up value of random variable for that market at that present time.
 # Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
-# Todo: Check whether it's better to regress on uncorrelated brownian motions, rather than correlated ones.
+# Todo: Make price process by configurable on command line, with option for stating which Python class to use?
+# Todo: Check whether it's okay to regress on correlated brownian motions, rather than uncorrelated ones (if so, no need to keep the uncorrelated once correlated are generated).
+# Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
+# Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
+# Todo: Develop a GUI that shows the graph being evaluated, allowing results to be examined.
+# Todo: Make stats available on number of call requirements, number of leaves in dependency graph, depth of graph?
+# Todo: Prediction of cost of evaluating an expression, cost of network data requests, could calibrate by running sample stubbed expressions (perhaps complicated for LongstaffSchwartz cos the LeastSqaures routine is run different numbers of times).
+# Todo: Unsubscribe from results, and delete intermediate result when there are zero subscriptions?
+# Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
 # Todo: Develop multi-factor model (e.g. Schwartz-Smith)?
+# Todo: Develop natural language "skin" for Quant DSL expressions (something like how Gherkin syntax maps to functions?)?
+
+# Todo: Separate Quant DSL classes from Parser which could actually support a totally different functional DSL.
+
+# Todo: Introduce support for "import" statements, so that a library of Quant DSL can be developed (so e.g. Option can be shared). Need to have a path system? And a packaging and distribution system? Perhaps just make them Python modules? Perhaps just start with everything in one QUANTDSL_SOURCE_PATH?
+
 # Todo: Develop closures, function defs within function defs may help to reduce call argument complexity.
-# Todo: Make stats available on number of call requirements, number of leaves in dependency graph. And depth of graph? Predicting cost of each node would be possible (but complicated for LongstaffSchwartz cos the LeastSqaures routine is run different numbers of times (spot the formula).
 # Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
 # Todo: Optimize network traffic by creating a single message containing all data required to evaluate a stubbed expression.
-# Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
 # Todo: Clean up the str, repr, pprint stuff?
 # Todo: Make this works with Python 3.
 # Todo: Use function arg annotation to declare types of DSL function args (will only work with Python 3).
@@ -301,7 +314,7 @@ class DslParser(object):
         """
         assert isinstance(node, ast.Module)
         body = [self.visitAstNode(n) for n in node.body]
-        return Module(body, node=node)
+        return self.dslClasses['Module'](body, node=node)
 
     def visitExpr(self, node):
         """
@@ -322,7 +335,7 @@ class DslParser(object):
         Returns a DSL Number object, with the number value.
         """
         assert isinstance(node, ast.Num)
-        return Number(node.n, node=node)
+        return self.dslClasses['Number'](node.n, node=node)
 
     def visitStr(self, node):
         """
@@ -331,7 +344,7 @@ class DslParser(object):
         Returns a DSL String object, with the string value.
         """
         assert isinstance(node, ast.Str)
-        return String(node.s, node=node)
+        return self.dslClasses['String'](node.s, node=node)
 
     def visitUnaryOp(self, node):
         """
@@ -342,7 +355,7 @@ class DslParser(object):
         assert isinstance(node, ast.UnaryOp)
         args = [self.visitAstNode(node.operand)]
         if isinstance(node.op, ast.USub):
-            dslUnaryOpClass = UnarySub
+            dslUnaryOpClass = self.dslClasses['UnarySub']
         else:
             raise QuantDslSyntaxError("Unsupported unary operator token: %s" % node.op)
         return dslUnaryOpClass(node=node, *args)
@@ -355,13 +368,13 @@ class DslParser(object):
         """
         assert isinstance(node, ast.BinOp)
         typeMap = {
-            ast.Add: Add,
-            ast.Sub: Sub,
-            ast.Mult: Mult,
-            ast.Div: Div,
-            ast.Pow: Pow,
-            ast.Mod: Mod,
-            ast.FloorDiv: FloorDiv,
+            ast.Add: self.dslClasses['Add'],
+            ast.Sub: self.dslClasses['Sub'],
+            ast.Mult: self.dslClasses['Mult'],
+            ast.Div: self.dslClasses['Div'],
+            ast.Pow: self.dslClasses['Pow'],
+            ast.Mod: self.dslClasses['Mod'],
+            ast.FloorDiv: self.dslClasses['FloorDiv'],
         }
         try:
             dslClass = typeMap[type(node.op)]
@@ -378,8 +391,8 @@ class DslParser(object):
         """
         assert isinstance(node, ast.BoolOp)
         typeMap = {
-            ast.And: And,
-            ast.Or: Or,
+            ast.And: self.dslClasses['And'],
+            ast.Or: self.dslClasses['Or'],
         }
         try:
             dslClass = typeMap[type(node.op)]
@@ -396,7 +409,7 @@ class DslParser(object):
 
         Returns a DSL Name object, along with the name's string.
         """
-        return Name(node.id, node=node)
+        return self.dslClasses['Name'](node.id, node=node)
 
     def visitCall(self, node):
         """
@@ -428,7 +441,7 @@ class DslParser(object):
             # Resolve as a FunctionCall, and expect
             # to resolve the name to a function def later.
             dslArgs = [Name(calledNodeName, node=calledNode), callArgExprs]
-            return FunctionCall(node=node, *dslArgs)
+            return self.dslClasses['FunctionCall'](node=node, *dslArgs)
         else:
             assert issubclass(dslClass, DslObject)
             return dslClass(node=node, *callArgExprs)
@@ -445,7 +458,7 @@ class DslParser(object):
         decoratorNames = [astName.id for astName in node.decorator_list]
         body = self.visitAstNode(node.body[0])
         dslArgs = [name, callArgDefs, body, decoratorNames]
-        functionDef = FunctionDef(node=node, *dslArgs)
+        functionDef = self.dslClasses['FunctionDef'](node=node, *dslArgs)
         return functionDef
 
     def visitIfExp(self, node):
@@ -459,7 +472,7 @@ class DslParser(object):
         body = self.visitAstNode(node.body)
         orelse = self.visitAstNode(node.orelse)
         args = [test, body, orelse]
-        return IfExp(node=node, *args)
+        return self.dslClasses['IfExp'](node=node, *args)
 
     def visitIf(self, node):
         """
@@ -475,7 +488,7 @@ class DslParser(object):
             node.orelse) == 1, "If statements with more than one orelse statement are not supported at the moment."
         orelse = self.visitAstNode(node.orelse[0])
         args = [test, body, orelse]
-        return If(node=node, *args)
+        return self.dslClasses['If'](node=node, *args)
 
     def visitCompare(self, node):
         """
@@ -488,7 +501,7 @@ class DslParser(object):
         opNames = [o.__class__.__name__ for o in node.ops]
         comparators = [self.visitAstNode(c) for c in node.comparators]
         args = [left, opNames, comparators]
-        return Compare(node=node, *args)
+        return self.dslClasses['Compare'](node=node, *args)
 
 
 class DslObject(object):
@@ -705,15 +718,18 @@ utc = pytz.utc if pytz else UTC()
 
 class Date(DslConstant):
 
-    requiredType = (String, datetime.datetime)
+    requiredType = (basestring, String, datetime.datetime)
 
     def __str__(self, indent=0):
         return "Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)
 
     def parse(self, value):
         # Return a datetime.datetime.
-        if isinstance(value, String):
-            dateStr = value.evaluate()
+        if isinstance(value, (basestring, String)):
+            if isinstance(value, String):
+                dateStr = value.evaluate()
+            else:
+                dateStr = value
             try:
                 return dateutil.parser.parse(dateStr).replace(tzinfo=utc)
             except ValueError, inst:
@@ -946,11 +962,11 @@ class Max(BinOp):
 class Market(DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=1)
-        self.assertArgsPosn(args, posn=0, requiredType=(String, Name))
+        self.assertArgsPosn(args, posn=0, requiredType=(basestring, String, Name))
 
     @property
     def name(self):
-        return self._args[0].evaluate()
+        return self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
 
     def evaluate(self, **kwds):
         # Todo: Improve on having various ways of checking variables are defined.
@@ -1107,7 +1123,7 @@ class Fixing(DatedDslObject, DslExpression):
 
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=(String, Date, Name, BinOp))
+        self.assertArgsPosn(args, posn=0, requiredType=(basestring, String, Date, Name, BinOp))
         self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
 
     @property
@@ -1832,57 +1848,6 @@ class Underlying(DslObject):
         return self.expr
 
 
-defaultDslClasses = {
-    'Add': Add,
-    'Choice': Choice,
-    'Date': Date,
-    'Div': Div,
-    'Fixing': Fixing,
-    'Number': Number,
-    'Market': Market,
-    'Max': Max,
-    'Mul': Mult,
-    'Settlement': Settlement,
-    'String': String,
-    'Sub': Sub,
-    'UnarySub': UnarySub,
-    'Wait': Wait,
-    'On': On,
-    'Name': Name,
-    'TimeDelta': TimeDelta,
-    'Underlying': Underlying,
-    'Stub': Stub,
-}
-
-
-
-class DslNamespace(dict):
-
-    def copy(self):
-        copy = self.__class__(self)
-        return copy
-
-
-class FunctionDefCallStack(queue.Queue):
-
-    def put(self, stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime):
-        assert isinstance(stubId, basestring), type(stubId)
-        assert isinstance(stackedCall, FunctionDef), type(stackedCall)
-        assert isinstance(stackedLocals, DslNamespace), type(stackedLocals)
-        assert isinstance(stackedGlobals, DslNamespace), type(stackedGlobals)
-        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
-        queue.Queue.put(self, (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime))
-
-
-class StubbedExpressionStack(queue.LifoQueue):
-
-    def put(self, stubId, stubbedExpr, effectivePresentTime):
-        assert isinstance(stubId, basestring), type(stubId)
-        assert isinstance(stubbedExpr, DslExpression), type(stubbedExpr)
-        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
-        queue.LifoQueue.put(self, (stubId, stubbedExpr, effectivePresentTime))
-
-
 class Module(DslObject):
     """
     A DSL module has a body, which is a list of DSL objects either
@@ -2004,6 +1969,76 @@ class Module(DslObject):
             secondDef = functionDefs[1]
             raise QuantDslSyntaxError('more than one function def in module without an expression', '"def %s"' % secondDef.name, node=functionDefs[1].node)
         raise QuantDslSyntaxError("shouldn't get here", node=self.node)
+
+
+defaultDslClasses = {
+    'Add': Add,
+    'And': And,
+    'Or': Or,
+    'Choice': Choice,
+    'Date': Date,
+    'Div': Div,
+    'Fixing': Fixing,
+    'Number': Number,
+    'Market': Market,
+    'Max': Max,
+    'Mult': Mult,
+    'Pow': Pow,
+    'Mod': Mod,
+    'FloorDiv': FloorDiv,
+    'Settlement': Settlement,
+    'String': String,
+    'Sub': Sub,
+    'UnarySub': UnarySub,
+    'Wait': Wait,
+    'On': On,
+    'Name': Name,
+    'TimeDelta': TimeDelta,
+    'Underlying': Underlying,
+    'Stub': Stub,
+    'Module': Module,
+    'FunctionDef': FunctionDef,
+    'FunctionCall': FunctionCall,
+    'Compare': Compare,
+    'IfExp': IfExp,
+    'If': If,
+}
+
+
+def nostub(*args):
+    """
+    Dummy 'nostub' Quant DSL decorator - we just want the name in the namespace.
+    """
+    return mock.Mock
+
+__all__ = defaultDslClasses.keys() + ['nostub']
+
+
+class DslNamespace(dict):
+
+    def copy(self):
+        copy = self.__class__(self)
+        return copy
+
+
+class FunctionDefCallStack(queue.Queue):
+
+    def put(self, stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime):
+        assert isinstance(stubId, basestring), type(stubId)
+        assert isinstance(stackedCall, FunctionDef), type(stackedCall)
+        assert isinstance(stackedLocals, DslNamespace), type(stackedLocals)
+        assert isinstance(stackedGlobals, DslNamespace), type(stackedGlobals)
+        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
+        queue.Queue.put(self, (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime))
+
+
+class StubbedExpressionStack(queue.LifoQueue):
+
+    def put(self, stubId, stubbedExpr, effectivePresentTime):
+        assert isinstance(stubId, basestring), type(stubId)
+        assert isinstance(stubbedExpr, DslExpression), type(stubbedExpr)
+        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
+        queue.LifoQueue.put(self, (stubId, stubbedExpr, effectivePresentTime))
 
 
 class ExpressionStack(object):

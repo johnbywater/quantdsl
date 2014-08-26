@@ -5,7 +5,7 @@ Quant DSL
 
 *Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, works with Python, looks like Python, and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
-Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice* and *Market*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section 'Overview of the Language' (below) for more information.
+Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
 
 ```python
 def American(starts, ends, strike, underlying):
@@ -23,7 +23,7 @@ def Option(date, strike, underlying, alternative):
 American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
 ```
 
-If *Quant DSL* source code involves *Market* objects, market calibration parameters will be required. For example, for a one-factor "Black Scholes" price process the calibration parameters for two markets called 'NBP' and 'TTF' might look like this:
+If *Quant DSL* source code involves *Market* objects, market calibration parameters will be required. Although market dynamics are out of the scope of this package, *Quant DSL* provides a one-factor "spot-vol" (Black Scholes) price process, which can simulate correlated Brownian motions. The one-factor calibration parameters for two markets called 'NBP' and 'TTF' might look like this:
 
 ```python
 {

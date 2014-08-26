@@ -2,10 +2,12 @@
 import os
 
 import argh
+import multiprocessing
 from quantdsl import QuantDslError
 
 
-@argh.arg('--pool-size', help='workers in multiprocessing pool', default='multiprocessing.cpu_count()', type=int)
+
+@argh.arg('--pool-size', help='workers in multiprocessing pool', default=multiprocessing.cpu_count(), type=int)
 @argh.arg('--path-count', help='paths in Monte Carlo simulation', type=int)
 @argh.arg('-c', '--calibration-url', help='URL of market calibration data')
 @argh.arg('source-url', help='URL of DSL source')
