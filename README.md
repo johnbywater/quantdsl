@@ -5,7 +5,7 @@ Quant DSL
 
 *Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, looks like Python, and works with Python. Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development.
 
-```python
+```
 $ quantdsl --help
 usage: quantdsl [-h] [-c CALIBRATION_URL] [--path-count PATH_COUNT] [--pool-size POOL_SIZE] source-url
 
