@@ -3,9 +3,31 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance.***
 
-*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, works with Python, looks like Python, and is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
+*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, looks like Python, and works with Python. Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development.
 
-Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
+```
+$ quantdsl --help
+usage: quantdsl [-h] [-c CALIBRATION_URL] [--path-count PATH_COUNT] [--pool-size POOL_SIZE] source-url
+
+    Evaluates DSL module at source_url, given market calibration at calibration_url.
+    
+
+positional arguments:
+  source-url            URL of DSL source
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c CALIBRATION_URL, --calibration-url CALIBRATION_URL
+                        URL of market calibration data (default: None)
+  --path-count PATH_COUNT
+                        paths in Monte Carlo simulation (default: 50000)
+  --pool-size POOL_SIZE
+                        workers in multiprocessing pool (default: 8)
+```
+
+*Quant DSL* is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
+
+Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Market*, *Wait*, *Choice*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
 
 ```python
 def American(starts, ends, strike, underlying):
@@ -23,7 +45,9 @@ def Option(date, strike, underlying, alternative):
 American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
 ```
 
-If *Quant DSL* source code involves *Market* objects, market calibration parameters will be required. Although market dynamics are out of the scope of this package, *Quant DSL* provides a one-factor "spot-vol" (Black Scholes) price process, which can simulate correlated Brownian motions. The one-factor calibration parameters for two markets called 'NBP' and 'TTF' might look like this:
+If a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a one-factor "spot-vol" (Black Scholes) price process - which can simulate correlated Brownian motions - is included and used by default. *Quant DSL* supports using other price processes, such as the two factor model proposed by Smith and Schwartz, however price processes other than simple Black Scholes have not so far been developed for this package.
+
+The one-factor calibration parameters for two markets called 'NBP' and 'TTF' might look like this:
 
 ```python
 {
@@ -35,9 +59,9 @@ If *Quant DSL* source code involves *Market* objects, market calibration paramet
 }
 ```
 
-The command line program `quantdsl` (which is installed with the *Quant DSL* Python package) evaluates *Quant DSL* source. Given a path (or URL) to a document containing *Quant DSL* source code, the `quantdsl` program will print results, showing progress for longer computations.
+A command line program `quantdsl` is installed with the *Quant DSL* Python package. Given a path (or URL) to a document containing *Quant DSL* source code, the `quantdsl` program will evaluate the *Quant DSL* code.
 
-With above American option DSL in a file called 'myamerican.quantdsl' and the above market calibration parameters in a file called 'mycalibration.json', the following shell command will print the results of the evaluation of the American option given the default one-factor price process the market calibration parameters. *Quant DSL* supports using other price processes, such as the two factor model proposed by Smith and Schwartz, however price processes other than simple Black Scholes have not so far been developed for this package.
+With the above example American option source code in a file called 'myamerican.quantdsl' and the above market calibration parameters in a file called 'mycalibration.json', the following shell command evaluates the expression under a calibrated one-factor model of market dynamics.
 
 ```
 $ quantdsl --calibration-url mycalibration.json --path-count=50000  myamerican.quantdsl 
