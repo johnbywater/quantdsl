@@ -20,7 +20,7 @@ try:
 except ImportError:
     pytz = None
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 # Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
 # Todo: Make price process by configurable on command line, with option for stating which Python class to use?
