@@ -10,7 +10,6 @@ import multiprocessing
 import Queue as queue
 import re
 import itertools
-import mock
 import scipy
 import time
 import sys
@@ -20,7 +19,7 @@ try:
 except ImportError:
     pytz = None
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 # Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
 # Todo: Make price process by configurable on command line, with option for stating which Python class to use?
@@ -2080,6 +2079,7 @@ def nostub(*args):
     """
     Dummy 'nostub' Quant DSL decorator - we just want the name in the namespace.
     """
+    import mock
     return mock.Mock
 
 __all__ = defaultDslClasses.keys() + ['nostub']
