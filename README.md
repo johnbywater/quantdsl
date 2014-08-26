@@ -63,7 +63,7 @@ The example American option above refers to a market called 'NBP'. The one-facto
 ```python
 {
    "NBP-LAST-PRICE": 10,
-   "NBP-ACTUAL-HISTORICAL-VOLATILITY": 50,
+   "NBP-ACTUAL-HISTORICAL-VOLATILITY": 50
 }
 ```
 
