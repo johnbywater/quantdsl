@@ -3,11 +3,15 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance.***
 
-*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. The core of *Quant DSL* is a set of primitive elements (such as "*Wait*", "*Choice*", and "*Market*") which encapsulate mathematical machinery used in finanace and trading, and which can be composed into concise expressions of future value. User defined functions are used to generate complex graphs of primitive expressions that can be evaluated in parallel. The syntax and semantics of *Quant DSL* expressions have been formally defined, and supported with mathematical proofs. This package is an implementation in Python of the *Quant DSL* syntax and semantics.
+*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments.
 
-Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
+The core of *Quant DSL* is a set of primitive elements (such as *"Wait"*, *"Choice"*, and *"Market"*) which encapsulate common mathematical machinery used in finanace and trading (e.g. time value of money calculations, the least-squares Monte Carlo approach, and models of market dynamics) and which can be composed into concise expressions of value.
 
-Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development.
+User defined functions are used to generate complex graphs of primitive expressions that can be evaluated in parallel. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with mathematical proofs.
+
+This package is an implementation in Python of the *Quant DSL* syntax and semantics. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
+
+Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development, or knowledge of the Python programming language.
 
 ```
 $ quantdsl -h
@@ -29,7 +33,7 @@ optional arguments:
   -q, --quiet           don't show any progress info (default: False)
 ```
 
-Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Market*, *Wait*, *Choice*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
+Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*def Option* and *def American*), and an expression which states the specific terms of the option. The terms *Market*, *Wait*, *Choice*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
 
 ```python
 def American(starts, ends, strike, underlying):
