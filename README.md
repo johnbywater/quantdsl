@@ -3,9 +3,9 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance.***
 
-*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. The core of *Quant DSL* is a set of primitive elements such as *Wait*, *Choice*, and *Market* - which encapsulate mathematical machinery used in finanace and trading, and which can be composed into expressions of value. User defined functions are used to generate complex graphs of primitive expressions, which can be evaluated in parallel. The syntax and semantics of *Quant DSL* expressions have been formally defined with mathematical proofs. This package is an implementation in Python of the *Quant DSL* syntax and semantics.
+*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. The core of *Quant DSL* is a set of primitive elements (such as "*Wait*", "*Choice*", and "*Market*") which encapsulate mathematical machinery used in finanace and trading, and which can be composed into concise expressions of future value. User defined functions are used to generate complex graphs of primitive expressions that can be evaluated in parallel. The syntax and semantics of *Quant DSL* expressions have been formally defined, and supported with mathematical proofs. This package is an implementation in Python of the *Quant DSL* syntax and semantics.
 
-Stable releases of are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
+Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
 
 Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development.
 
