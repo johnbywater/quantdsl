@@ -7,7 +7,7 @@ Quant DSL
 
 The core of *Quant DSL* is a set of primitive elements (such as *"Wait"*, *"Choice"*, and *"Market"*) which encapsulate common mathematical machinery used in finanace and trading (e.g. time value of money calculations, the least-squares Monte Carlo approach, and models of market dynamics) and which can be composed into concise expressions of value.
 
-User defined functions are used to generate complex graphs of primitive expressions that can be evaluated in parallel. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with mathematical proofs.
+User defined functions can be used to generate complex graphs of primitive expressions that can be evaluated in parallel. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with mathematical proofs.
 
 This package is an implementation in Python of the *Quant DSL* syntax and semantics. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
 
