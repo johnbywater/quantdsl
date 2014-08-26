@@ -3,29 +3,31 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance.***
 
-*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, looks like Python, and works with Python. Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development.
+*Quant DSL* is a hybrid functional programming language for modelling derivative financial instruments. *Quant DSL* is written in Python, looks like Python, and works with Python.
+
+Stable *Quant DSL* releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
+
+Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quantdsl` is provided so that valuations can be made without any further software development.
 
 ```
-$ quantdsl --help
-usage: quantdsl [-h] [-c CALIBRATION_URL] [--path-count PATH_COUNT] [--pool-size POOL_SIZE] source-url
+$ quantdsl -h
+usage: quantdsl [-h] [-m MARKET_CALIB] [-p PATHS] [-w WORKERS] [-q] SOURCE
 
-    Evaluates DSL module at source_url, given market calibration at calibration_url.
-    
+Evaluates DSL module from SOURCE, given market calibration params from MARKET_CALIB.
 
 positional arguments:
-  source-url            URL of DSL source
+  SOURCE                DSL source URL or file path ("-" to read from STDIN)
 
 optional arguments:
   -h, --help            show this help message and exit
-  -c CALIBRATION_URL, --calibration-url CALIBRATION_URL
-                        URL of market calibration data (default: None)
-  --path-count PATH_COUNT
+  -m MARKET_CALIB, --market-calib MARKET_CALIB
+                        market calibration URL or file path (default: None)
+  -p PATHS, --paths PATHS
                         paths in Monte Carlo simulation (default: 50000)
-  --pool-size POOL_SIZE
-                        workers in multiprocessing pool (default: 8)
+  -w WORKERS, --workers WORKERS
+                        number workers in multiprocessing pool (default: 4)
+  -q, --quiet           don't show any progress info (default: False)
 ```
-
-*Quant DSL* is available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl).
 
 Here is an example of a *Quant DSL* model of an American option. There are two user defined functions (*Option* and *American*), and an expression which states the specific terms of the option. The terms *Market*, *Wait*, *Choice*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
 
@@ -45,9 +47,18 @@ def Option(date, strike, underlying, alternative):
 American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
 ```
 
-If a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a one-factor "spot-vol" (Black Scholes) price process - which can simulate correlated Brownian motions - is included and used by default. *Quant DSL* supports using other price processes, such as the two factor model proposed by Smith and Schwartz, however price processes other than simple Black Scholes have not so far been developed for this package.
+If a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a simple one-factor "spot/vol" (Black Scholes) price process - which can simulate correlated Brownian motions - is used by default. *Quant DSL* can use other price processes, such as the two and three factor models proposed by Smith and Schwartz, however no other price processes have so far been developed for this package.
 
-The one-factor calibration parameters for two markets called 'NBP' and 'TTF' might look like this:
+The example American option above refers to a market called 'NBP'. The one-factor "spot/vol" calibration parameters for a market called 'NBP' might look like this:
+
+```python
+{
+   "NBP-LAST-PRICE": 10,
+   "NBP-ACTUAL-HISTORICAL-VOLATILITY": 50,
+}
+```
+
+Similarly, when a *Quant DSL* expression which refers to two correlated markets ('NBP' and 'TTF') is evaluated, the following one-factor "spot/vol" calibration parameters would be required:
 
 ```python
 {
@@ -59,12 +70,10 @@ The one-factor calibration parameters for two markets called 'NBP' and 'TTF' mig
 }
 ```
 
-A command line program `quantdsl` is installed with the *Quant DSL* Python package. Given a path (or URL) to a document containing *Quant DSL* source code, the `quantdsl` program will evaluate the *Quant DSL* code.
-
-With the above example American option source code in a file called 'myamerican.quantdsl' and the above market calibration parameters in a file called 'mycalibration.json', the following shell command evaluates the expression under a calibrated one-factor model of market dynamics.
+With the above example American option source code in a file called 'americanoption.quantdsl' and the above market calibration parameters in a file called 'nbpcalibration.json', the following `quantdsl` shell command will evaluate that expression with those calibration parameters under the default one-factor model of market dynamics.
 
 ```
-$ quantdsl --calibration-url mycalibration.json --path-count=50000  myamerican.quantdsl 
+$ quantdsl --calibration-url nbpcalibration.json --path-count=50000  americanoption.quantdsl 
 
 Compiling DSL source:
 """
@@ -147,7 +156,7 @@ To install *Quant DSL*, install the `quantdsl` Python package.
 pip install quantdsl
 ```
 
-If you are operating behind a corporate firewall, then you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) and then use the path to the downloaded file instead of the package name.
+If you are operating behind a corporate firewall, then you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) and dependencies by hand, and then use the path to the downloaded files instead of the package name in the `pip` command:
 
 ```
 pip install C:\Downloads\quantdsl-0.0.0.tar.gz
