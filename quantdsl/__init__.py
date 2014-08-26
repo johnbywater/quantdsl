@@ -94,7 +94,7 @@ def compile(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, c
 
 
 def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
-         priceSimulatorClass=None, isVerbose=False, **extraEvaluationKwds):
+         priceProcessName='quantdsl:BlackScholesPriceProcess', isVerbose=False, **extraEvaluationKwds):
     """
     Returns the result of evaluating a compiled module (an expression, or a user defined function).
 
@@ -187,11 +187,23 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                 )
                 print
 
-            if not priceSimulatorClass:
-                priceSimulatorClass = PriceSimulator
-            priceSimulator = priceSimulatorClass()
-            brownianMotions = priceSimulator.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
+            # Load the price process object.
+            if not ':' in priceProcessName:
+                raise QuantDslError("Price process name doesn't have ':' separating module and class names: %s" % priceProcessName)
+            priceProcessModuleName, priceProcessClassName = priceProcessName.split(':')
+            try:
+                priceProcessModule = __import__(priceProcessModuleName, '', '', '*')
+            except Exception, e:
+                raise QuantDslError("Can't import price process module '%s': %s" % (priceProcessModuleName, e))
+            try:
+                priceProcessClass = getattr(priceProcessModule, priceProcessClassName)
+            except Exception, e:
+                raise QuantDslError("Can't find price process class '%s' in module '%s': %s" % (priceProcessClassName, priceProcessModuleName, e))
+
+            brownianMotions = priceProcessClass().getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
             evaluationKwds['brownianMotions'] = brownianMotions
+
+            # Also compute market prices, so the Market object doesn't do this.
 
 
     if isinstance(dslExpr, ExpressionStack):
@@ -203,23 +215,23 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             print "Evaluating %d partial expressions, please wait..." % lenDslExpr
             print
-        # Start progress display thread.
-        def showProgress():
-            progress = 0
-            while progress < 100:
-                time.sleep(0.2)
-                # Avoid race condition.
-                if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultsDict'):
-                    progress = 100.0 * len(dslExpr.runner.resultsDict) / lenDslExpr
-                    sys.stdout.write("\rProgress: %01.2f%%" % progress)
-                    sys.stdout.flush()
-                else:
-                    time.sleep(0.5)
-            sys.stdout.write("\r")
-            sys.stdout.flush()
+            # Start progress display thread.
+            def showProgress():
+                progress = 0
+                while progress < 100:
+                    time.sleep(0.2)
+                    # Avoid race condition.
+                    if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultsDict'):
+                        progress = 100.0 * len(dslExpr.runner.resultsDict) / lenDslExpr
+                        sys.stdout.write("\rProgress: %01.2f%%" % progress)
+                        sys.stdout.flush()
+                    else:
+                        time.sleep(0.5)
+                sys.stdout.write("\r")
+                sys.stdout.flush()
 
-        thread = threading.Thread(target=showProgress)
-        thread.start()
+            thread = threading.Thread(target=showProgress)
+            thread.start()
 
     # Evaluate the primitive DSL expression.
     startEval = datetime.datetime.now()
@@ -227,8 +239,9 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     durationEval = datetime.datetime.now() - startEval
 
     if isinstance(dslExpr, ExpressionStack):
-        # Join with progress display thread.
-        thread.join(timeout=3)
+        if isVerbose:
+            # Join with progress display thread.
+            thread.join(timeout=3)
 
     if isVerbose:
         print "Duration of evaluation: %s" % durationEval
@@ -968,6 +981,40 @@ class Market(DslExpression):
     def name(self):
         return self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
 
+    def _evaluate(self, **kwds):
+        try:
+            presentTime = kwds['presentTime']
+        except KeyError:
+            raise QuantDslSyntaxError(
+                "Can't evaluate Market '%s' without 'presentTime' in context variables" % self.name,
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+        try:
+            allMarketPrices = kwds['allMarketPrices']
+        except KeyError:
+            raise QuantDslSyntaxError(
+                "Can't evaluate Market '%s' without 'allMarketPrices' in context variables" % self.name,
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+
+        try:
+            marketPrices = allMarketPrices[self.name]
+        except KeyError:
+            raise QuantDslSyntaxError(
+                "Market '%s' not found in 'allMarketPrices'" % self.name,
+                ", ".join(allMarketPrices.keys()),
+                node=self.node
+            )
+
+        try:
+            marketPrice = marketPrices[presentTime]
+        except KeyError:
+            raise Exception, "Present time %s not in market prices: %s" % (presentTime, marketPrices.keys())
+
+        return marketPrice
+
     def evaluate(self, **kwds):
         # Todo: Improve on having various ways of checking variables are defined.
         try:
@@ -995,7 +1042,7 @@ class Market(DslExpression):
                 node=self.node
             )
 
-        # Todo: Move this price construction into the PriceSimulator, and make Market values available by (name, date).
+        # Todo: Move this price construction into the BlackScholesPriceProcess, and make Market values available by (name, date).
 
         LAST_PRICE = '%s-LAST-PRICE' % self.name
         try:
@@ -2315,7 +2362,7 @@ class QuantDslSystemError(QuantDslError):
     """
 
 
-class PriceSimulator(object):
+class BlackScholesPriceProcess(object):
 
     def getBrownianMotions(self, marketNames, fixingDates, startDate, pathCount, marketCalibration):
         assert isinstance(startDate, datetime.datetime), type(startDate)

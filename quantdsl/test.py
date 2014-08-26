@@ -9,7 +9,7 @@ import scipy
 from quantdsl import DslParser, Number, Add, Max, On, Date, String, FunctionDef, \
     Name, Compare, IfExp, FunctionCall, Sub, QuantDslSyntaxError, Mult, Div, UnarySub, Pow, Mod, FloorDiv, \
     ExpressionStack, If, TimeDelta, Module, parse, compile, eval, utc, LeastSquares, DslNamespace, DslExpression, \
-    PriceSimulator
+    BlackScholesPriceProcess
 
 
 def suite():
@@ -697,7 +697,7 @@ class DslTestCase(unittest.TestCase):
                 '#2-LAST-PRICE': 10,
                 '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
             },
-            'allRvs': PriceSimulator().getAllRvs(dslExpr, observationTime, pathCount=500000),
+            'allRvs': BlackScholesPriceProcess().getAllRvs(dslExpr, observationTime, pathCount=500000),
         })
         assert isinstance(dslExpr, DslExpression)
         value = dslExpr.evaluate(**evaluationKwds)
