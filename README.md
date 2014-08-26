@@ -15,7 +15,9 @@ Although *Quant DSL* is designed to be integrated into other software applicatio
 
 ```
 $ quantdsl -h
-usage: quantdsl [-h] [-m MARKET_CALIB] [-p PATHS] [-w WORKERS] [-q] SOURCE
+usage: quantdsl [-h] [-p PRICE_PROCESS] [-c CALIBRATION] [-n NUM_PATHS]
+                [-w WORKERS] [-q]
+                SOURCE
 
 Evaluates DSL module from SOURCE, given market calibration params from MARKET_CALIB.
 
@@ -24,9 +26,12 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -m MARKET_CALIB, --market-calib MARKET_CALIB
+  -p PRICE_PROCESS, --price-process PRICE_PROCESS
+                        price process model of market dynamics (default:
+                        quantdsl:BlackScholesPriceProcess)
+  -c CALIBRATION, --calibration CALIBRATION
                         market calibration URL or file path (default: None)
-  -p PATHS, --paths PATHS
+  -n NUM_PATHS, --num-paths NUM_PATHS
                         paths in Monte Carlo simulation (default: 50000)
   -w WORKERS, --workers WORKERS
                         number workers in multiprocessing pool (default: 4)
@@ -51,7 +56,7 @@ def Option(date, strike, underlying, alternative):
 American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
 ```
 
-If a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a simple one-factor "spot/vol" (Black Scholes) price process - which can simulate correlated Brownian motions - is used by default. *Quant DSL* can use other price processes, such as the two and three factor models proposed by Smith and Schwartz, however no other price processes have so far been developed for this package.
+If a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a simple one-factor "spot/vol" (Black Scholes) price process is used by default. *Quant DSL* can be told to use other price processes, however no other price processes have so far been developed for this package.
 
 The example American option above refers to a market called 'NBP'. The one-factor "spot/vol" calibration parameters for a market called 'NBP' might look like this:
 
@@ -62,7 +67,7 @@ The example American option above refers to a market called 'NBP'. The one-facto
 }
 ```
 
-Similarly, when a *Quant DSL* expression which refers to two correlated markets ('NBP' and 'TTF') is evaluated, the following one-factor "spot/vol" calibration parameters would be required:
+Similarly, when a *Quant DSL* expression refers to two correlated markets ('NBP' and 'TTF'), the following one-factor "spot/vol" calibration parameters would be required:
 
 ```python
 {
@@ -74,7 +79,7 @@ Similarly, when a *Quant DSL* expression which refers to two correlated markets 
 }
 ```
 
-With the above example American option source code in a file called 'americanoption.quantdsl' and the above market calibration parameters in a file called 'nbpcalibration.json', the following `quantdsl` shell command will evaluate that expression with those calibration parameters under the default one-factor model of market dynamics.
+With the above example American option source code in a file called `americanoption.quantdsl` and the above market calibration parameters in a file called `nbpcalibration.json`, the following `quantdsl` shell command will evaluate that expression with those calibration parameters (albeit under the default one-factor model of market dynamics).
 
 ```
 $ quantdsl --calibration-url nbpcalibration.json --path-count=50000  americanoption.quantdsl 
@@ -149,21 +154,21 @@ Result:
     stderr: 0.0143
 ```
 
-The one-factor price process can be replaced with more sophisticated models of market dynamics.
+The one-factor price process can be replaced with more sophisticated models of market dynamics by using the `--price-process` option of the `quantdsl` command line program.
 
 Installation
 ------------
 
-To install *Quant DSL*, install the `quantdsl` Python package.
+Use Pip to install the *Quant DSL* Python package.
 
 ```
 pip install quantdsl
 ```
 
-If you are operating behind a corporate firewall, then you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) and dependencies by hand, and then use the path to the downloaded files instead of the package name in the `pip` command:
+If you are operating behind a corporate firewall, then you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) (and dependencies) by hand, and then use the path to the downloaded files instead of the package name in the `pip` command:
 
 ```
-pip install C:\Downloads\quantdsl-0.0.0.tar.gz
+pip install C:\Downloads\quantdsl-X.X.X.tar.gz
 ```
 
 To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
