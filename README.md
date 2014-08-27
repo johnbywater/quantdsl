@@ -9,13 +9,33 @@ The core of *Quant DSL* is a set of primitive elements (such as *"Wait"*, *"Choi
 
 User defined functions can be used to generate complex graphs of primitive expressions which can be evaluated in parallel. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with mathematical proofs.
 
+This package is an implementation in Python of the *Quant DSL* syntax and semantics. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
+
 
 Introduction
 ------------
 
-This package is an implementation in Python of the *Quant DSL* syntax and semantics. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
+Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*def Option* and *def American*), and an expression which states the specific terms of the option.
 
-Although *Quant DSL* is designed to be integrated into other software applications, a command line interface `quant-dsl.py` is provided so that valuations can be made without any further software development, or knowledge of the Python programming language.
+The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language.
+
+```python
+def American(starts, ends, strike, underlying):
+    if starts < ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        Option(starts, strike, underlying, 0)
+
+@nostub
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
+```
+
+Although *Quant DSL* is designed to be integrated into other software applications, a command line interface program called `quant-dsl.py` is provided so that *Quant DSL* code can be written and evaluated without any further software development.
 
 ```
 $ quant-dsl.py -h
@@ -43,27 +63,9 @@ optional arguments:
                         pool size, which defaults to cpu count) (default: 0)
 ```
 
-Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*def Option* and *def American*), and an expression which states the specific terms of the option. The terms *Market*, *Wait*, *Choice*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language - see section *Overview of the Language* below for more information.
+Now, if a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a one-factor "spot/vol" (Black Scholes) price process is provided by default. *Quant DSL* can be told to use other price processes, however no other price processes have so far been developed for this package.
 
-```python
-def American(starts, ends, strike, underlying):
-    if starts < ends:
-        Option(starts, strike, underlying,
-            American(starts + TimeDelta('1d'), ends, strike, underlying)
-        )
-    else:
-        Option(starts, strike, underlying, 0)
-
-@nostub
-def Option(date, strike, underlying, alternative):
-    Wait(date, Choice(underlying - strike, alternative))
-
-American(Date('2015-04-01'), Date('2016-05-01'), 9, Market('NBP'))
-```
-
-If a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a simple one-factor "spot/vol" (Black Scholes) price process is used by default. *Quant DSL* can be told to use other price processes, however no other price processes have so far been developed for this package.
-
-The example American option above refers to a market called 'NBP'. The one-factor "spot/vol" calibration parameters for a market called 'NBP' might look like this:
+The market calibration parameters are consumed by the price process, which simulates an evolution of future prices for the markets involved in the *Quant DSL* expression. The example American option above refers to a market called 'NBP'. The one-factor "spot/vol" calibration parameters for single a market called 'NBP' look like this:
 
 ```python
 {
@@ -72,7 +74,7 @@ The example American option above refers to a market called 'NBP'. The one-facto
 }
 ```
 
-With the above example American option source code in a file called `myamerican.quantdsl` and the above market calibration parameters in a file called `mycalibration.json`, the following `quant-dsl.py` shell command will evaluate that expression with those calibration parameters (albeit under the default one-factor model of market dynamics).
+With the above example American option source code in a file called `myamerican.quantdsl` and the above market calibration parameters in a file called `mycalibration.json`, the following `quant-dsl.py` shell command will evaluate that American option with those market calibration parameters under the default one-factor model of market dynamics.
 
 ```
 $ quant-dsl.py --calibration=mycalibration.json --num-paths=50000  myamerican.quantdsl
@@ -104,7 +106,8 @@ Result: {
 
 ```
 
-The one-factor price process can be replaced with more sophisticated models of market dynamics by using the `--price-process` option of the `quant-dsl.py` command line program.
+Please note, the one-factor price process can be replaced with your own, more sophisticated, model of market dynamics by using the `--price-process` option of the `quant-dsl.py` command line program.
+
 
 Installation
 ------------
