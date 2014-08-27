@@ -6,11 +6,11 @@ from setuptools import setup
 long_description = """
 Quant DSL is a hybrid functional programming language for modelling derivative financial instruments.
 
-The core of Quant DSL is a set of primitive elements (such as "Wait", "Choice", "Market") that encapsulate common mathematical machinery used in finanace and trading (e.g. time value of money calculations, the least-squares Monte Carlo approach, models of market dynamics) and which can be composed into executable expressions of value.
+The core of Quant DSL is a set of primitive elements (such as "Wait", "Choice", "Market") that encapsulate common mathematical machinery used in finance and trading (e.g. time value of money calculations, the least-squares Monte Carlo approach, models of market dynamics) and which can be composed into executable expressions of value.
 
 User defined functions can be used to generate complex graphs of primitive expressions which can be evaluated in parallel. The syntax of Quant DSL expressions have been formally defined, and the semantics are supported with mathematical proofs.
 
-This package is an implementation in Python of the Quant DSL syntax and semantics. 
+This package is an implementation of the Quant DSL syntax and semantics in Python. 
 """
 
 from quantdsl import __version__
