@@ -10,7 +10,6 @@ import multiprocessing
 import Queue as queue
 import re
 import itertools
-import scipy
 import time
 import sys
 import threading
@@ -18,11 +17,13 @@ try:
     import pytz
 except ImportError:
     pytz = None
-import signal
 
 __version__ = '0.1.0'
 
-# Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
+# Todo: Keep memory/storage low by notifying dependencies when they are no longer needed, and delete when there are no outstanding dependents?
+# Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
+# Todo: Develop call requirement dependency graph store, so call requirements can be retrieved over the network.
+# Todo: Improve separation expression stack/dependency graph from results
 # Todo: Check whether it's okay to regress on correlated brownian motions, rather than uncorrelated ones (if so, no need to keep the uncorrelated once correlated are generated).
 # Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
 # Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
@@ -30,12 +31,13 @@ __version__ = '0.1.0'
 # Todo: Develop a GUI that shows the graph being evaluated, allowing results to be examined, allows models to be developed.
 # Todo: Make stats available on number of call requirements, number of leaves in dependency graph, depth of graph?
 # Todo: Prediction of cost of evaluating an expression, cost of network data requests, could calibrate by running sample stubbed expressions (perhaps complicated for LongstaffSchwartz cos the LeastSqaures routine is run different numbers of times).
-# Todo: Unsubscribe from results, and delete intermediate result when there are zero subscriptions (or subscribe to consumers)?
 # Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
 # Todo: Develop multi-factor model (e.g. Schwartz-Smith)?
 # Todo: Develop natural language "skin" for Quant DSL expressions (something like how Gherkin syntax maps to functions?)?
 
 # Todo: Introduce support for "import" statements, so that a library of Quant DSL can be developed (so e.g. Option can be shared). Need to have a path system? And a packaging and distribution system? Perhaps just make them Python modules? Perhaps just start with everything in one QUANTDSL_SOURCE_PATH?
+
+# Todo: Extend language syntax spec, to cover function defs. Use the Python syntax definitions, since it's just a reduction of the Python syntax?
 
 # Todo: Develop closures, function defs within function defs may help to reduce call argument complexity.
 # Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
@@ -118,6 +120,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         print "Compiling DSL source, please wait..."
         print
     compileStartTime = datetime.datetime.now()
+
     # Compile the source into a primitive DSL expression.
     dslExpr = compile(dslSource, filename=filename, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
     compileTimeDelta = datetime.datetime.now() - compileStartTime
@@ -133,8 +136,11 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             print "Compiled DSL source into %d partial expressions (root ID: %s)." % (lenDslExpr, dslExpr.rootStubId)
             print
-            #for stubId, stubbedExpr, _ in dslExpr.stubbedExprs:
-            #    print stubId, stubbedExpr
+            if isShowSource:
+                print "Expression stack:"
+                for stubbedExprData in dslExpr.stubbedExprs:
+                    print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
+                print
 
     # Fix up the evaluationKwds with Brownian motions, if necessary.
     if dslExpr.hasInstances(dslType=Market):
@@ -204,24 +210,6 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             priceProcess = priceProcessClass()
 
-            # allBrownianMotions = priceProcess.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
-            # evaluationKwds['brownianMotions'] = allBrownianMotions
-            #
-            # # Also compute market prices, so the Market object doesn't do this.
-            # allMarketPrices = {}
-            # for (marketName, brownianMotions) in allBrownianMotions.items():
-            #     actualHistoricalVolatility = marketCalibration['%s-ACTUAL-HISTORICAL-VOLATILITY' % marketName.upper()]
-            #     lastPrice = marketCalibration['%s-LAST-PRICE' % marketName.upper()]
-            #     marketPrices = {}
-            #
-            #     for (fixingDate, brownianRv) in brownianMotions.items():
-            #         sigma = actualHistoricalVolatility / 100
-            #         T = getDurationYears(observationTime, fixingDate)
-            #         marketRv = lastPrice * scipy.exp(sigma * brownianRv - 0.5 * sigma * sigma * T)
-            #         marketPrices[fixingDate] = marketRv
-            #
-            #     allMarketPrices[marketName] = marketPrices
-
         allMarketPrices = priceProcess.simulateFuturePrices(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
         evaluationKwds['allMarketPrices'] = allMarketPrices
 
@@ -230,12 +218,6 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
     if isinstance(dslExpr, ExpressionStack):
         if isVerbose:
-
-            if isShowSource:
-                print "Expression stack:"
-                for stubbedExprData in dslExpr.stubbedExprs:
-                    print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
-                print
 
             _, leafIds = dslExpr.constructCallGraph()
 
@@ -290,13 +272,6 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             thread = threading.Thread(target=showProgress, args=(stop,))
             thread.start()
 
-    def progress_thread_signal_handler(signal, frame):
-        if not stop.is_set:
-            stop.set()
-        sys.exit(0)
-
-#    signal.signal(signal.SIGINT, progress_thread_signal_handler)
-
     try:
         # Evaluate the primitive DSL expression.
         value = dslExpr.evaluate(**evaluationKwds)
@@ -328,6 +303,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         print
 
     # Prepare the result.
+    import scipy
     if isinstance(value, scipy.ndarray):
         mean = value.mean()
         stderr = value.std() / math.sqrt(pathCount)
@@ -810,7 +786,6 @@ utc = pytz.utc if pytz else UTC()
 
 
 class Date(DslConstant):
-
     requiredType = (basestring, String, datetime.datetime)
 
     def __str__(self, indent=0):
@@ -858,6 +833,7 @@ class TimeDelta(DslConstant):
 
 
 class UnaryOp(DslExpression):
+    opchar = None
 
     def __str__(self, indent=0):
         return str(self.opchar) + str(self.operand)
@@ -879,11 +855,10 @@ class UnaryOp(DslExpression):
 
 
 class UnarySub(UnaryOp):
-    def op(self, value):
-        return -value
-
     opchar = '-'
 
+    def op(self, value):
+        return -value
 
 
 class BoolOp(DslExpression):
@@ -914,19 +889,16 @@ class BoolOp(DslExpression):
 
 
 class Or(BoolOp):
-
     def op(self, value):
         return value
 
 
 class And(BoolOp):
-
     def op(self, value):
         return not value
 
 
 class BinOp(DslExpression):
-
     opchar = ''
 
     @abstractmethod
@@ -1099,108 +1071,6 @@ class Market(DslExpression):
 
         return marketPrice
 
-    # def _evaluate(self, **kwds):
-    #     # Todo: Improve on having various ways of checking variables are defined.
-    #     try:
-    #         observationTime = kwds['observationTime']
-    #     except KeyError:
-    #         raise QuantDslSyntaxError(
-    #             "Can't evaluate Market '%s' without 'observationTime' in context variables." % self.name,
-    #             ", ".join(kwds.keys()),
-    #             node=self.node
-    #         )
-    #     try:
-    #         presentTime = kwds['presentTime']
-    #     except KeyError:
-    #         raise QuantDslSyntaxError(
-    #             "Can't evaluate Market '%s' without 'presentTime' in context variables" % self.name,
-    #             ", ".join(kwds.keys()),
-    #             node=self.node
-    #         )
-    #     try:
-    #         calibration = kwds['marketCalibration']
-    #     except KeyError:
-    #         raise QuantDslError(
-    #             "Can't evaluate Market '%s' without 'calibration' in context variables" % self.name,
-    #             ", ".join(kwds.keys()),
-    #             node=self.node
-    #         )
-    #
-    #     # Todo: Move this price construction into the BlackScholesPriceProcess, and make Market values available by (name, date).
-    #
-    #     LAST_PRICE = '%s-LAST-PRICE' % self.name
-    #     try:
-    #         lastPrice = calibration[LAST_PRICE]
-    #     except KeyError:
-    #         raise QuantDslError(
-    #             "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, LAST_PRICE),
-    #             ", ".join(calibration.keys()),
-    #             node=self.node
-    #         )
-    #     ACTUAL_HISTORICAL_VOLATILITY = '%s-ACTUAL-HISTORICAL-VOLATILITY' % self.name
-    #     try:
-    #         actualHistoricalVolatility = calibration[ACTUAL_HISTORICAL_VOLATILITY]
-    #     except KeyError:
-    #         raise QuantDslError(
-    #             "Can't evaluate Market '%s' without calibration setting '%s" % (self.name, actualHistoricalVolatility),
-    #             ", ".join(calibration.keys()),
-    #             node=self.node
-    #         )
-    #
-    #     if presentTime == observationTime:
-    #         value = lastPrice
-    #     else:
-    #         try:
-    #             brownianMotions = kwds['brownianMotions']
-    #         except KeyError:
-    #             raise QuantDslSyntaxError(
-    #                 "Can't evaluate Market '%s' without 'brownianMotions' in context variables" % self.name,
-    #                 ", ".join(kwds.keys()),
-    #                 node=self.node
-    #             )
-    #
-    #         try:
-    #             marketRvs = brownianMotions[self.name]
-    #         except KeyError:
-    #             raise QuantDslSyntaxError(
-    #                 "Market '%s' not available in rvs" % self.name,
-    #                 ", ".join(brownianMotions.keys()),
-    #                 node=self.node
-    #             )
-    #
-    #         try:
-    #             marketRv = marketRvs[presentTime]
-    #         except KeyError:
-    #             raise Exception, "Present time %s not in market rvs: %s" % (presentTime, marketRvs.keys())
-    #
-    #         sigma = actualHistoricalVolatility / 100
-    #         import scipy
-    #         T = getDurationYears(observationTime, presentTime)
-    #         value = lastPrice * scipy.exp(sigma * marketRv - 0.5 * sigma * sigma * T)
-    #     return value
-    #
-    # def getLastPrice(self, image):
-    #     return self.getMetricValue(image, 'last-price')
-    #
-    # def getSigma(self, image):
-    #     volatility = self.getMetricValue(image, 'actual-historical-volatility')
-    #     return float(volatility) / 100
-    #
-    # def getMetricValue(self, image, metricName):
-    #     return image.getMetricValue(metricName, self.getDomainObject(image))
-    #
-    # def getDomainObject(self, image):
-    #     if not hasattr(self, 'domainObject'):
-    #         self.domainObject = None
-    #         marketRef = self.name
-    #         if marketRef:
-    #             if marketRef.startswith('#'):
-    #                 marketId = marketRef[1:]
-    #                 self.domainObject = image.registry.markets.findSingleDomainObject(id=marketId)
-    #         if not self.domainObject:
-    #             raise Exception, "Market '%s' could not be found." % marketRef
-    #     return self.domainObject
-
 
 class DatedDslObject(DslObject):
 
@@ -1294,7 +1164,6 @@ class Wait(Fixing):
     """
     A fixing with discounting of the resulting value from date arg to presentTime.
     """
-
     def evaluate(self, **kwds):
         value = super(Wait, self).evaluate(**kwds)
         return self.discount(value, self.date, **kwds)
@@ -1316,12 +1185,6 @@ class Choice(DslExpression):
             self.resultsCache = {}
         cacheKeyKwdItems = [(k, hash(tuple(sorted(v))) if isinstance(v, dict) else v) for (k, v) in kwds.items()]
         kwdsHash = hash(tuple(sorted(cacheKeyKwdItems)))
-        #     # Erm, this hash is a bit crappy
-        #     # Todo: Use a DslNamepace object instead, and make it capable of generating the hash.
-        #     id(kwds['brownianMotions']),
-        #     str(kwds['presentTime']),
-        #     kwds['interestRate'],
-        # ))
         if kwdsHash not in self.resultsCache:
             # Run the least-squares monte-carlo routine.
             presentTime = kwds['presentTime']
@@ -1347,10 +1210,8 @@ class LongstaffSchwartz(object):
 
     def evaluate(self, **kwds):
         try:
-            #brownianMotions = kwds['brownianMotions']
             brownianMotions = kwds['allMarketPrices']
         except KeyError:
-            #raise QuantDslSystemError("'brownianMotions' not in evaluation kwds", kwds.keys(), node=None)
             raise QuantDslSystemError("'allMarketPrices' not in evaluation kwds", kwds.keys(), node=None)
         if len(brownianMotions) == 0:
             raise QuantDslSystemError('no rvs', str(kwds))
@@ -1381,8 +1242,8 @@ class LongstaffSchwartz(object):
                             raise Exception(msg)
 
                         regressionVariables.append(marketRv)
-                    payoffValue = self.getPayoff(state, subsequentState)
                     # Todo: Either use or remove 'getPayoff()', payoffValue not used ATM.
+                    #payoffValue = self.getPayoff(state, subsequentState)
                     expectedContinuationValue = valueOfBeingIn[subsequentState]
                     expectedContinuationValues.append(expectedContinuationValue)
                     if len(regressionVariables):
@@ -1877,7 +1738,6 @@ class BaseIf(DslExpression):
             return self.orelse.evaluate(**kwds)
 
 
-
 class If(BaseIf):
 
     def __str__(self, indent=0):
@@ -2288,6 +2148,7 @@ def createUuid():
 
 class DomainObject(object): pass
 
+
 class CallRequirement(DomainObject):
     def __init__(self, id, stubbedExprStr, requiredCallIds, effectivePresentTime):
         self.id = id
@@ -2342,41 +2203,19 @@ class DependencyGraphRunner(object):
         if self.isMultiprocessing:
             pool = multiprocessing.Pool(processes=self.poolSize)
 
-
-
-        def pool_signal_handler(signal, frame):
-            print "Pool got signal"
-#            pool.terminate()
-            pool.close()
-            #pool.join()
-#            pool.terminate()
-#            self.executionQueueManager.shutdown()
-            sys.exit(1)
-
-#        if self.isMultiprocessing:
-#            signal.signal(signal.SIGINT, pool_signal_handler)
-
-        try:
-            while not self.executionQueue.empty():
-                if self.isMultiprocessing:
-                    batchCallRequirementIds = []
-                    while not self.executionQueue.empty():
-                        batchCallRequirementIds.append(self.executionQueue.get())
-                    pool.map_async(executeCallRequirement, [(i, kwds, self.resultsDict, self.executionQueue, self.callsDict) for i in batchCallRequirementIds]).get(9999999)
-                    self.callCount += len(batchCallRequirementIds)
-                else:
-                    callRequirementId = self.executionQueue.get()
-                    executeCallRequirement((callRequirementId, kwds, self.resultsDict, self.executionQueue, self.callsDict))
-                    self.callCount += 1
-        except KeyboardInterrupt:
-            sys.exit(1)
-        finally:
-            pass
-        #     if self.isMultiprocessing:
-        #         pool.close()
-        #         pool.join()
-        #         pool.terminate()
-        #         self.executionQueueManager.shutdown()
+        while not self.executionQueue.empty():
+            if self.isMultiprocessing:
+                batchCallRequirementIds = []
+                while not self.executionQueue.empty():
+                    batchCallRequirementIds.append(self.executionQueue.get())
+                pool.map_async(executeCallRequirement,
+                    [(i, kwds, self.resultsDict, self.executionQueue, self.callsDict) for i in batchCallRequirementIds]
+                ).get(99999999)  # Do this rather than just call map(), because otherwise Ctrl-C doesn't work.
+                self.callCount += len(batchCallRequirementIds)
+            else:
+                callRequirementId = self.executionQueue.get()
+                executeCallRequirement((callRequirementId, kwds, self.resultsDict, self.executionQueue, self.callsDict))
+                self.callCount += 1
 
 
 def executeCallRequirement(args):
@@ -2479,6 +2318,7 @@ class QuantDslSystemError(QuantDslError):
     Exception class for DSL system errors.
     """
 
+
 class PriceProcess(object):
 
     __metaclass__ = ABCMeta
@@ -2489,9 +2329,11 @@ class PriceProcess(object):
         Returns dict (keyed by market name) of dicts (keyed by fixing date) with correlated random future prices.
         """
 
+
 class BlackScholesPriceProcess(PriceProcess):
 
     def simulateFuturePrices(self, marketNames, fixingDates, observationTime, pathCount, marketCalibration):
+        import scipy
         allBrownianMotions = self.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
         # Also compute market prices, so the Market object doesn't do this.
         allMarketPrices = {}
@@ -2575,8 +2417,7 @@ class BlackScholesPriceProcess(PriceProcess):
             raise QuantDslError("Couldn't do Cholesky decomposition with correlation matrix: %s: %s" % (correlationMatrix, e))
 
         # Correlated increments from uncorrelated increments.
-        # Todo: This seems to work, but I would feel better if there was a test making sure this implementation of 'R . U' is correct.
-        brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works?
+        brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works.
         try:
             brownianMotionsCorrelated = brownianMotions.dot(U)
         except Exception, e:
@@ -2601,36 +2442,3 @@ def getDurationYears(startDate, endDate, daysPerYear=365):
     except TypeError, inst:
         raise TypeError("%s: start: %s end: %s" % (inst, startDate, endDate))
     return timeDelta.days / daysPerYear
-
-
-
-####### Plotting codes #####################################
-
-# FROM top of file
-
-# # Todo: Write plots to file.
-# isPlotting = False
-# if isPlotting:
-# from pylab import *
-
-
-# FROM Least Squares
-#if len(regressionVariables):
-#    conditionalExpectedValue = LeastSquares(regressionVariables, expectedContinuationValue).fit()
-
-                #plotCount = 3000
-
-                        # if isPlotting:
-                        #     data = scipy.array([underlyingValue[:plotCount], conditionalExpectedValue[:plotCount], expectedContinuationValue[:plotCount]])
-                        #     plot(data[0], data[2], 'go')
-                        #     plot(data[0], data[1], 'y^')
-
-
-# FROM LongstaffSchwartz
-#assert stateValue.shape == underlyingValue.shape
-
-                # if isPlotting:
-                #     data = scipy.array([underlyingValue[:plotCount], stateValue[:plotCount]])
-                #     plot(data[0], data[1], 'rs')
-                #     draw()
-                #     show()
