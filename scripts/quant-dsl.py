@@ -1,22 +1,23 @@
 #!/usr/bin/env python
 import os
-
+import datetime
+import sys
 import argh
-import multiprocessing
-from quantdsl import QuantDslError
-
+import multiprocessing as mp
+import json
 
 @argh.arg('SOURCE', help='DSL source URL or file path ("-" to read from STDIN)')
-@argh.arg('-p', '--price-process', help='price process model of market dynamics')
+@argh.arg('-q', '--quiet', help='don\'t show progress info' )
 @argh.arg('-c', '--calibration', help='market calibration URL or file path')
-@argh.arg('-n', '--num-paths', help='paths in Monte Carlo simulation', type=int)
-@argh.arg('-w', '--workers', help='number workers in multiprocessing pool', default=multiprocessing.cpu_count(), type=int)
-@argh.arg('-q', '--quiet', help='don\'t show any progress info')
-def main(SOURCE, price_process='quantdsl:BlackScholesPriceProcess', calibration=None, num_paths=50000, workers=None, quiet=False):
+@argh.arg('-n', '--num-paths', help='number of paths in price simulations', type=int)
+@argh.arg('-p', '--price-process', help='price process model of market dynamics')
+@argh.arg('-m', '--multiprocessing-pool', help='evaluate with multiprocessing pool (option value is pool size, which defaults to cpu count)', nargs='?', type=int)
+def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='quantdsl:BlackScholesPriceProcess', multiprocessing_pool=0):
     """Evaluates DSL module from SOURCE, given market calibration params from MARKET_CALIB."""
     import quantdsl
-    import datetime
-    import sys
+
+    if multiprocessing_pool is None:
+        multiprocessing_pool = mp.cpu_count()
 
     source_url = SOURCE
     calibration_url = calibration
@@ -33,17 +34,24 @@ def main(SOURCE, price_process='quantdsl:BlackScholesPriceProcess', calibration=
         elif os.path.exists(url) and os.path.isfile(url):
             return open(url).read()
         else:
-            raise QuantDslError("Can't open resource: %s" % url)
+            raise quantdsl.QuantDslError("Can't open resource: %s" % url)
 
+    print "DSL source from: %s" % (source_url if source_url != '-' else 'STDIN')
+    print
     dslSource = getResource(source_url)
 
     if calibration_url:
+        print "Calibration from: %s" % (calibration_url if calibration_url != '-' else 'STDIN')
+        print
         marketCalibrationJson = getResource(calibration_url)
-        import json
         try:
             marketCalibration = json.loads(marketCalibrationJson)
         except Exception, e:
-            msg = "Unable to load JSON from %s: %s: %s" % (calibration_url, e, marketCalibrationJson)
+            msg = "Unable to load JSON from %s: %s: %s" % (
+                calibration_url if calibration_url != '-' else 'STDIN',
+                e,
+                marketCalibrationJson
+            )
             raise ValueError(msg)
     else:
         marketCalibration = {}
@@ -58,8 +66,8 @@ def main(SOURCE, price_process='quantdsl:BlackScholesPriceProcess', calibration=
             interestRate=2.5,
             pathCount=num_paths,
             observationTime=observationTime,
-            isMultiprocessing=True,
-            poolSize=workers,
+            isMultiprocessing=bool(multiprocessing_pool),
+            poolSize=multiprocessing_pool,
             isVerbose=isVerbose,
             priceProcessName=price_process,
         )
@@ -71,13 +79,9 @@ def main(SOURCE, price_process='quantdsl:BlackScholesPriceProcess', calibration=
         print
     else:
         if isVerbose:
-            print "Result:"
-            print "    mean: %.4f" % result['mean']
-            print "    stderr: %.4f" % result['stderr']
-            print
-        else:
-            import pprint
-            print pprint.pformat(result)
+            sys.stdout.write("Result: ")
+            sys.stdout.flush()
+        print json.dumps(result, indent=4, sort_keys=True)
 
 if __name__ == '__main__':
     argh.dispatch_command(main)

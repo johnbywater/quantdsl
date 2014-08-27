@@ -18,11 +18,11 @@ try:
     import pytz
 except ImportError:
     pytz = None
+import signal
 
 __version__ = '0.0.5'
 
 # Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
-# Todo: Make price process by configurable on command line, with option for stating which Python class to use?
 # Todo: Check whether it's okay to regress on correlated brownian motions, rather than uncorrelated ones (if so, no need to keep the uncorrelated once correlated are generated).
 # Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
 # Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
@@ -104,23 +104,25 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     assert isinstance(evaluationKwds, dict)
     evaluationKwds.update(extraEvaluationKwds)
 
-    if isVerbose:
-        print "Compiling DSL source:"
+    isShowSource = False
+
+    if isShowSource:
+        print "Reading DSL source:"
         print
         print '"""'
         print dslSource.strip()
         print '"""'
         print
 
-    # Compile the source into a primitive DSL expression.
-    startCompile = datetime.datetime.now()
-
-    dslExpr = compile(dslSource, filename=filename, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
-
-    durationCompile = datetime.datetime.now() - startCompile
-
     if isVerbose:
-        print "Duration of compilation: %s" % durationCompile
+        print "Compiling DSL source, please wait..."
+        print
+    compileStartTime = datetime.datetime.now()
+    # Compile the source into a primitive DSL expression.
+    dslExpr = compile(dslSource, filename=filename, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
+    compileTimeDelta = datetime.datetime.now() - compileStartTime
+    if isVerbose:
+        print "Duration of compilation: %s" % compileTimeDelta
         print
 
     assert isinstance(dslExpr, (DslExpression, ExpressionStack)), type(dslExpr)
@@ -148,9 +150,6 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         pathCount = evaluationKwds['pathCount']
         assert isinstance(pathCount, int)
 
-        if isVerbose:
-            print "Path count: %d" % pathCount
-            print
         # Check calibration for market dynamics.
         marketCalibration = evaluationKwds['marketCalibration']
         assert isinstance(marketCalibration, dict)
@@ -182,6 +181,10 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                     # Todo: Only print first and last few, if there are loads.
                     "', '".join(["%04d-%02d-%02d" % (d.year, d.month, d.day) for d in fixingDates]),
                 )
+                print
+
+            if isVerbose:
+                print "Path count: %d" % pathCount
                 print
 
             # Load the price process object.
@@ -223,37 +226,92 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         evaluationKwds['allMarketPrices'] = allMarketPrices
 
 
+    evalStartTime = datetime.datetime.now()
+
     if isinstance(dslExpr, ExpressionStack):
         if isVerbose:
-            print "Expression stack:"
-            for stubbedExprData in dslExpr.stubbedExprs:
-                print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
+
+            if isShowSource:
+                print "Expression stack:"
+                for stubbedExprData in dslExpr.stubbedExprs:
+                    print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
+                print
+
+            _, leafIds = dslExpr.constructCallGraph()
+
+            lenLeafIds = len(leafIds)
+
+            msg = "Evaluating %d expressions (%d leaves) with " % (lenDslExpr, lenLeafIds)
+            if evaluationKwds.get('isMultiprocessing') and evaluationKwds.get('poolSize'):
+                msg += "a multiprocessing pool of %s workers" % evaluationKwds.get('poolSize')
+            else:
+                msg += "a single thread"
+            msg += ", please wait..."
+
+            print msg
             print
 
-            print "Evaluating %d partial expressions, please wait..." % lenDslExpr
-            print
             # Start progress display thread.
-            def showProgress():
+            def showProgress(stop):
                 progress = 0
-                while progress < 100:
+                movingRates = [(0, evalStartTime)]
+                while progress < 100 and not stop.is_set():
                     time.sleep(0.2)
+                    if stop.is_set():
+                        break
                     # Avoid race condition.
                     if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultsDict'):
-                        progress = 100.0 * len(dslExpr.runner.resultsDict) / lenDslExpr
-                        sys.stdout.write("\rProgress: %01.2f%%" % progress)
+                        try:
+                            lenResults = len(dslExpr.runner.resultsDict)
+                        except IOError:
+                             break
+                        progress = 100.0 * lenResults / lenDslExpr
+                        resultsTime = datetime.datetime.now()
+                        movingRates.append((lenResults, resultsTime))
+                        if len(movingRates) >= 15:
+                            movingRates.pop(0)
+                        if len(movingRates) > 1:
+                            firstLenResults, firstTimeResults = movingRates[0]
+                            lastLenResults, lastTimeResults = movingRates[-1]
+                            lenDelta = lastLenResults - firstLenResults
+                            resultsTimeDelta = lastTimeResults - firstTimeResults
+                            timeDeltaSeconds = resultsTimeDelta.seconds + resultsTimeDelta.microseconds * 0.000001
+                            rateStr = "%.2f expr/s" % (lenDelta / timeDeltaSeconds)
+                        else:
+                            rateStr = ''
+                        sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, lenDslExpr, rateStr))
                         sys.stdout.flush()
                     else:
                         time.sleep(0.5)
                 sys.stdout.write("\r")
                 sys.stdout.flush()
 
-            thread = threading.Thread(target=showProgress)
+            stop = threading.Event()
+            thread = threading.Thread(target=showProgress, args=(stop,))
             thread.start()
 
-    # Evaluate the primitive DSL expression.
-    startEval = datetime.datetime.now()
-    value = dslExpr.evaluate(**evaluationKwds)
-    durationEval = datetime.datetime.now() - startEval
+    def progress_thread_signal_handler(signal, frame):
+        if not stop.is_set:
+            stop.set()
+        sys.exit(0)
+
+#    signal.signal(signal.SIGINT, progress_thread_signal_handler)
+
+    try:
+        # Evaluate the primitive DSL expression.
+        value = dslExpr.evaluate(**evaluationKwds)
+    except:
+        if isinstance(dslExpr, ExpressionStack):
+            if isVerbose:
+                if thread.isAlive():
+                    # print "Thread is alive..."
+                    stop.set()
+                    # print "Waiting to join with thread..."
+                    thread.join(timeout=1)
+                    # print "Joined with thread..."
+        raise
+
+    evalTimeDelta = datetime.datetime.now() - evalStartTime
 
     if isinstance(dslExpr, ExpressionStack):
         if isVerbose:
@@ -261,7 +319,12 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             thread.join(timeout=3)
 
     if isVerbose:
-        print "Duration of evaluation: %s" % durationEval
+        timeDeltaSeconds = evalTimeDelta.seconds + evalTimeDelta.microseconds * 0.000001
+        if isinstance(dslExpr, ExpressionStack):
+            rateStr = "(%.2f expr/s)" % (lenDslExpr / timeDeltaSeconds)
+        else:
+            rateStr = ''
+        print "Duration of evaluation: %s    %s" % (evalTimeDelta, rateStr)
         print
 
     # Prepare the result.
@@ -270,7 +333,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         stderr = value.std() / math.sqrt(pathCount)
     else:
         mean = value
-        stderr = 0
+        stderr = 0.0
     # Todo: Make this a proper object class.
     dslResult = {
         'mean': mean,
@@ -2135,26 +2198,34 @@ class ExpressionStack(object):
             [instances.append(i) for i in stubbedExpr.findInstances(dslType=dslType)]
         return instances
 
+    def constructCallGraph(self):
+        if not hasattr(self, '_leafIds'):
+            leafIds = []
+            callRequirementIds = []
+            for stubId, stubbedExpr, effectivePresentTime in self.stubbedExprs:
+
+                assert isinstance(stubbedExpr, DslExpression)
+
+                callRequirementIds.append(stubId)
+
+                # Finding stub instances reveals the dependency graph.
+                requiredStubIds = [s.name for s in stubbedExpr.findInstances(Stub)]
+
+                # Stubbed expr has names that need to be replaced with results of other stubbed exprs.
+                stubbedExprStr = str(stubbedExpr)
+                createCallRequirement(stubId, stubbedExprStr, requiredStubIds, effectivePresentTime)
+
+                if not requiredStubIds:
+                    # Keep a track of the leaves of the dependency graph (stubbed exprs that don't depend on anything).
+                    leafIds.append(stubId)
+            self._leafIds = leafIds
+            self._callRequirementIds = callRequirementIds
+        return self._callRequirementIds, self._leafIds
+
     def evaluate(self, isMultiprocessing=False, poolSize=None, **kwds):
         assert len(self.stubbedExprs)
-        leafIds = []
-        callRequirementIds = []
-        for stubId, stubbedExpr, effectivePresentTime in self.stubbedExprs:
 
-            assert isinstance(stubbedExpr, DslExpression)
-
-            callRequirementIds.append(stubId)
-
-            # Finding stub instances reveals the dependency graph.
-            requiredStubIds = [s.name for s in stubbedExpr.findInstances(Stub)]
-
-            # Stubbed expr has names that need to be replaced with results of other stubbed exprs.
-            stubbedExprStr = str(stubbedExpr)
-            createCallRequirement(stubId, stubbedExprStr, requiredStubIds, effectivePresentTime)
-
-            if not requiredStubIds:
-                # Keep a track of the leaves of the dependency graph (stubbed exprs that don't depend on anything).
-                leafIds.append(stubId)
+        callRequirementIds, leafIds = self.constructCallGraph()
 
         assert self.rootStubId in callRequirementIds
 
@@ -2259,30 +2330,53 @@ class DependencyGraphRunner(object):
             self.executionQueueManager = multiprocessing.Manager()
             self.executionQueue = self.executionQueueManager.Queue()
             self.resultsDict = self.executionQueueManager.dict()
+            self.callsDict = self.executionQueueManager.dict()
+            self.callsDict.update(registry.calls)
         else:
             self.executionQueue = queue.Queue()
             self.resultsDict = registry.results
+            self.callsDict = registry.calls
         for callRequirementId in self.leafIds:
             self.executionQueue.put(callRequirementId)
         pool = None
         if self.isMultiprocessing:
             pool = multiprocessing.Pool(processes=self.poolSize)
+
+
+
+        def pool_signal_handler(signal, frame):
+            print "Pool got signal"
+#            pool.terminate()
+            pool.close()
+            #pool.join()
+#            pool.terminate()
+#            self.executionQueueManager.shutdown()
+            sys.exit(1)
+
+#        if self.isMultiprocessing:
+#            signal.signal(signal.SIGINT, pool_signal_handler)
+
         try:
             while not self.executionQueue.empty():
                 if self.isMultiprocessing:
                     batchCallRequirementIds = []
                     while not self.executionQueue.empty():
                         batchCallRequirementIds.append(self.executionQueue.get())
-                    pool.map(executeCallRequirement, [(i, kwds, self.resultsDict, self.executionQueue) for i in batchCallRequirementIds])
+                    pool.map_async(executeCallRequirement, [(i, kwds, self.resultsDict, self.executionQueue, self.callsDict) for i in batchCallRequirementIds]).get(9999999)
                     self.callCount += len(batchCallRequirementIds)
                 else:
                     callRequirementId = self.executionQueue.get()
-                    executeCallRequirement((callRequirementId, kwds, self.resultsDict, self.executionQueue))
+                    executeCallRequirement((callRequirementId, kwds, self.resultsDict, self.executionQueue, self.callsDict))
                     self.callCount += 1
+        except KeyboardInterrupt:
+            sys.exit(1)
         finally:
-            if self.isMultiprocessing:
-                pool.close()
-                pool.join()
+            pass
+        #     if self.isMultiprocessing:
+        #         pool.close()
+        #         pool.join()
+        #         pool.terminate()
+        #         self.executionQueueManager.shutdown()
 
 
 def executeCallRequirement(args):
@@ -2291,10 +2385,10 @@ def executeCallRequirement(args):
     """
     try:
         # Get call requirement ID and modelled function objects.
-        callRequirementId, evaluationKwds, resultsRegister, executionQueue = args
+        callRequirementId, evaluationKwds, resultsRegister, executionQueue, callsDict = args
 
         # Get the call requirement object (it has the stubbedExpr and effectivePresentTime).
-        callRequirement = registry.calls[callRequirementId]
+        callRequirement = callsDict[callRequirementId]
 
         assert isinstance(callRequirement, CallRequirement), "Call requirement object is not a CallRequirement" \
                                                              ": %s" % callRequirement
@@ -2325,28 +2419,28 @@ def executeCallRequirement(args):
         assert isinstance(simpleExpr, DslExpression), "Reduced parsed stubbed expr string is not an " \
                                                       "expression: %s" % type(simpleExpr)
         resultValue = simpleExpr.evaluate(**evaluationKwds)
-        handleResult(callRequirementId, resultValue, resultsRegister, executionQueue)
+        handleResult(callRequirementId, resultValue, resultsRegister, executionQueue, callsDict)
         return "OK"
     except Exception, e:
         import traceback
-        msg = traceback.format_exc()
+        msg = "Error whilst calling 'executeCallRequirement': %s" % traceback.format_exc()
         msg += str(e)
         raise Exception(msg)
 
 
-def handleResult(callRequirementId, resultValue, resultsDict, executionQueue):
+def handleResult(callRequirementId, resultValue, resultsDict, executionQueue, callsDict):
     # Create result object and check if subscribers are ready to be executed.
     createResult(callRequirementId, resultValue, resultsDict)
-    callRequirement = registry.calls[callRequirementId]
+    callRequirement = callsDict[callRequirementId]
     for subscriberId in callRequirement.subscribers:
         if subscriberId in resultsDict:
             continue
-        subscriber = registry.calls[subscriberId]
+        subscriber = callsDict[subscriberId]
         if subscriber.isReady(resultsDict):
             executionQueue.put(subscriberId)
 
 
-# Todo: Just have one msg parameter (merge 'error' and 'descr').
+# Todo: Just have one msg parameter (merge 'error' and 'descr')?
 class QuantDslError(Exception):
     """
     Quant DSL exception base class.

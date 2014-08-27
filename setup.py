@@ -28,7 +28,7 @@ setup(
         'requests',
     ],
     scripts = [
-        os.path.join('scripts', 'quantdsl'),
+        os.path.join('scripts', 'quant-dsl.py'),
     ],
     extras_require = {
         'test':  ["Mock"],
