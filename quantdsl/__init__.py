@@ -20,7 +20,7 @@ except ImportError:
     pytz = None
 import signal
 
-__version__ = '0.0.5'
+__version__ = '0.1.0'
 
 # Todo: Develop PriceSimulation object from just a simple "local" in memory, to be an network service client object.
 # Todo: Check whether it's okay to regress on correlated brownian motions, rather than uncorrelated ones (if so, no need to keep the uncorrelated once correlated are generated).
