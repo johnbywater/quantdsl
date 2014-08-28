@@ -9,9 +9,8 @@ The core of *Quant DSL* is a set of primitive elements (such as *"Wait"*, *"Choi
 
 User defined functions can be used to generate complex graphs of primitive expressions which can be evaluated in parallel. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with mathematical proofs.
 
-This package is an implementation of the *Quant DSL* syntax and semantics in Python. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
-
-*Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1).
+This package is an implementation of the *Quant DSL* syntax and semantics in Python. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). *Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1).
+ You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
 
 
 Introduction
