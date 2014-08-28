@@ -17,7 +17,7 @@ This package is an implementation of the *Quant DSL* syntax and semantics in Pyt
 Introduction
 ------------
 
-Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*def Option* and *def American*), and an expression which states the specific terms of the option.
+Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*"Option"* and *"American"*), and an expression which states the specific terms of the option.
 
 The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language.
 
