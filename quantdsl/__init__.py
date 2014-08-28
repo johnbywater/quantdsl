@@ -20,11 +20,14 @@ except ImportError:
 
 __version__ = '0.1.0'
 
+# Todo: Change the price process cli option from colon separation between module and class name to just dots - can just split on last dot to get the class name, and avoid causing confusion.
 # Todo: Keep memory/storage low by notifying dependencies when they are no longer needed, and delete when there are no outstanding dependents?
 # Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
 # Todo: Develop call requirement dependency graph store, so call requirements can be retrieved over the network.
-# Todo: Improve separation expression stack/dependency graph from results
-# Todo: Check whether it's okay to regress on correlated brownian motions, rather than uncorrelated ones (if so, no need to keep the uncorrelated once correlated are generated).
+# Todo: Improve separation of expression stack/dependency graph from results and notifications.
+# Todo: Decouple the cli from the runner more, the workers put things directly on the queue, so that the cli just waits for the final result and clocks the intermediate results as they occur in an event stream.
+# Todo: Go through dependency graph runner and identify the domain events (what data is used, and where it is created).
+
 # Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
 # Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
 # Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
@@ -53,6 +56,7 @@ __version__ = '0.1.0'
 # Todo: (Long one) Go through all ways of writing broken DSL source code, and make sure there are sensible errors.
 # Todo: Figure out how to identify and catch when a loop will be started, perhaps by limiting the number of FunctionDef.apply() calls in one DslParser.parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
 # Todo: Figure out behaviour for observationTime > any fixing date, currently leads to a complex numbers (square root of negative time delta).
+# Todo: Ask about regressing on correlated brownian motions, rather than uncorrelated ones - is there actually a difference? If no difference, there is no need to keep the uncorrelated Brownian motions.
 
 # Todo: Review the test coverage of the code.
 # Todo: Review the separation of concerns between the various test cases.
@@ -92,7 +96,7 @@ def compile(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, c
 
 
 def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
-         priceProcessName='quantdsl:BlackScholesPriceProcess', isVerbose=False, **extraEvaluationKwds):
+         priceProcessName='quantdsl:BlackScholesPriceProcess', isVerbose=False, isShowSource=False, **extraEvaluationKwds):
     """
     Returns the result of evaluating a compiled module (an expression, or a user defined function).
 
@@ -105,8 +109,6 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         evaluationKwds = DslNamespace()
     assert isinstance(evaluationKwds, dict)
     evaluationKwds.update(extraEvaluationKwds)
-
-    isShowSource = False
 
     if isShowSource:
         print "Reading DSL source:"
@@ -181,11 +183,14 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             fixingDates = sorted(list(fixingDates))
 
             if isVerbose:
-                print "Computing Brownian motions for market names ('%s') from observation time '%s' through fixing dates: '%s'." % (
+                print "Computing Brownian motions for market%s '%s' from observation time %s through fixing dates: %s." % (
+                    '' if len(marketNames) == 1 else 's',
                     "', '".join(marketNames),
                     "%04d-%02d-%02d" % (observationTime.year, observationTime.month, observationTime.day),
                     # Todo: Only print first and last few, if there are loads.
-                    "', '".join(["%04d-%02d-%02d" % (d.year, d.month, d.day) for d in fixingDates]),
+                    ", ".join(["%04d-%02d-%02d" % (d.year, d.month, d.day) for d in fixingDates[:8]]) + \
+                    (", [...]" if len(fixingDates) > 9 else '') + \
+                    ((", %04d-%02d-%02d" % (fixingDates[-1].year, fixingDates[-1].month, fixingDates[-1].day)) if len(fixingDates) > 8 else '')
                 )
                 print
 
@@ -223,7 +228,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             lenLeafIds = len(leafIds)
 
-            msg = "Evaluating %d expressions (%d leaves) with " % (lenDslExpr, lenLeafIds)
+            msg = "Evaluating %d expressions (%d %s) with " % (lenDslExpr, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
             if evaluationKwds.get('isMultiprocessing') and evaluationKwds.get('poolSize'):
                 msg += "a multiprocessing pool of %s workers" % evaluationKwds.get('poolSize')
             else:

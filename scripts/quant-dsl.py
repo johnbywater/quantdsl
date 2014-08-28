@@ -7,14 +7,16 @@ import multiprocessing as mp
 import json
 
 @argh.arg('SOURCE', help='DSL source URL or file path ("-" to read from STDIN)')
-@argh.arg('-q', '--quiet', help='don\'t show progress info' )
 @argh.arg('-c', '--calibration', help='market calibration URL or file path')
 @argh.arg('-n', '--num-paths', help='number of paths in price simulations', type=int)
 @argh.arg('-p', '--price-process', help='price process model of market dynamics')
 @argh.arg('-i', '--interest-rate', help='annual percent interest rate', type=float)
 @argh.arg('-m', '--multiprocessing-pool', help='evaluate with multiprocessing pool (option value is pool size, which defaults to cpu count)', nargs='?', type=int)
-def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='quantdsl:BlackScholesPriceProcess',
-         interest_rate=2.5, multiprocessing_pool=0):
+@argh.arg('-q', '--quiet', help='don\'t show progress info')
+@argh.arg('-s', '--show-source', help='show source code and compiled expression stack')
+
+def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:BlackScholesPriceProcess',
+         interest_rate=2.5, multiprocessing_pool=0, quiet=False, show_source=False):
     """Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION."""
     import quantdsl
 
@@ -67,6 +69,7 @@ def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='
             isMultiprocessing=bool(multiprocessing_pool),
             poolSize=multiprocessing_pool,
             isVerbose=isVerbose,
+            isShowSource=show_source,
             priceProcessName=price_process,
         )
     except quantdsl.QuantDslError, e:
