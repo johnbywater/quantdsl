@@ -44,7 +44,7 @@ usage: quant-dsl.py [-h] [-q] [-c CALIBRATION] [-n NUM_PATHS]
                     [-p PRICE_PROCESS] [-m [MULTIPROCESSING_POOL]]
                     SOURCE
 
-Evaluates Quant DSL source from SOURCE, given market calibration params from MARKET_CALIB.
+Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION.
 
 positional arguments:
   SOURCE                DSL source URL or file path ("-" to read from STDIN)
