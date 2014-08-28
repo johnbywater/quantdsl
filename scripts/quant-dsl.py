@@ -11,9 +11,11 @@ import json
 @argh.arg('-c', '--calibration', help='market calibration URL or file path')
 @argh.arg('-n', '--num-paths', help='number of paths in price simulations', type=int)
 @argh.arg('-p', '--price-process', help='price process model of market dynamics')
+@argh.arg('-i', '--interest-rate', help='annual percent interest rate', type=float)
 @argh.arg('-m', '--multiprocessing-pool', help='evaluate with multiprocessing pool (option value is pool size, which defaults to cpu count)', nargs='?', type=int)
-def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='quantdsl:BlackScholesPriceProcess', multiprocessing_pool=0):
-    """Evaluates DSL module from SOURCE, given market calibration params from MARKET_CALIB."""
+def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='quantdsl:BlackScholesPriceProcess',
+         interest_rate=2.5, multiprocessing_pool=0):
+    """Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION."""
     import quantdsl
 
     if multiprocessing_pool is None:
@@ -36,22 +38,18 @@ def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='
         else:
             raise quantdsl.QuantDslError("Can't open resource: %s" % url)
 
-    print "DSL source from: %s" % (source_url if source_url != '-' else 'STDIN')
+    print "DSL source from: %s" % source_url
     print
     dslSource = getResource(source_url)
 
     if calibration_url:
-        print "Calibration from: %s" % (calibration_url if calibration_url != '-' else 'STDIN')
+        print "Calibration from: %s" % calibration_url
         print
         marketCalibrationJson = getResource(calibration_url)
         try:
             marketCalibration = json.loads(marketCalibrationJson)
         except Exception, e:
-            msg = "Unable to load JSON from %s: %s: %s" % (
-                calibration_url if calibration_url != '-' else 'STDIN',
-                e,
-                marketCalibrationJson
-            )
+            msg = "Unable to load JSON from %s: %s: %s" % (calibration_url, e, marketCalibrationJson)
             raise ValueError(msg)
     else:
         marketCalibration = {}
@@ -60,10 +58,10 @@ def main(SOURCE, quiet=False, calibration=None, num_paths=50000, price_process='
 
     try:
         result = quantdsl.eval(dslSource,
-            filename=source_url,
+            filename=source_url if source_url != '-' else 'STDIN',
             isParallel=True,
             marketCalibration=marketCalibration,
-            interestRate=2.5,
+            interestRate=interest_rate,
             pathCount=num_paths,
             observationTime=observationTime,
             isMultiprocessing=bool(multiprocessing_pool),
