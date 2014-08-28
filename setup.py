@@ -40,7 +40,7 @@ setup(
     description='Domain specific language for quantitative analytics in finance.',
     long_description = long_description,
     classifiers = [
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Environment :: Console',
         'Intended Audience :: Developers',
         'Intended Audience :: Education',
