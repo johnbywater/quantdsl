@@ -11,7 +11,7 @@ User defined functions can be used to generate complex graphs of primitive expre
 
 This package is an implementation of the *Quant DSL* syntax and semantics in Python. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
 
-*Quant DSL* has been tested with Python 2.7 on GNU/Linux Ubuntu 14.04 and on Windows 7 Professional (using PythonXY).
+*Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1).
 
 
 Introduction
