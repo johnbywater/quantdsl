@@ -40,8 +40,8 @@ Although *Quant DSL* is designed to be integrated into other software applicatio
 
 ```
 $ quant-dsl.py -h
-usage: quant-dsl.py [-h] [-q] [-c CALIBRATION] [-n NUM_PATHS]
-                    [-p PRICE_PROCESS] [-m [MULTIPROCESSING_POOL]]
+usage: quant-dsl.py [-h] [-c CALIBRATION] [-n NUM_PATHS] [-p PRICE_PROCESS]
+                    [-i INTEREST_RATE] [-m [MULTIPROCESSING_POOL]] [-q] [-s]
                     SOURCE
 
 Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION.
@@ -51,7 +51,6 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -q, --quiet           don't show progress info (default: False)
   -c CALIBRATION, --calibration CALIBRATION
                         market calibration URL or file path (default: None)
   -n NUM_PATHS, --num-paths NUM_PATHS
@@ -59,14 +58,18 @@ optional arguments:
   -p PRICE_PROCESS, --price-process PRICE_PROCESS
                         price process model of market dynamics (default:
                         quantdsl:BlackScholesPriceProcess)
+  -i INTEREST_RATE, --interest-rate INTEREST_RATE
+                        annual percent interest rate (default: 2.5)
   -m [MULTIPROCESSING_POOL], --multiprocessing-pool [MULTIPROCESSING_POOL]
                         evaluate with multiprocessing pool (option value is
                         pool size, which defaults to cpu count) (default: 0)
+  -q, --quiet           don't show progress info (default: False)
+  -s, --show-source     show source code and compiled expression stack
 ```
 
-Now, if a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. Although market dynamics are out of the scope of *Quant DSL*, a one-factor "spot/vol" (Black Scholes) price process is provided as a default. It can simulate a correlated evolution of future prices for a number of different markets, using last spot prices, actual historical volatility, and the historical correlations of the spot prices. *Quant DSL* can be told to use other price processes, however other price processes have not so far been developed for this package.
+Now, if a *Quant DSL* expression involves *Market* objects, market calibration parameters will be required when the expression is evaluated. *Quant DSL* provides a one-factor "spot/vol" (Black Scholes) price process as a default. It can simulate a correlated evolution of future prices for a number of different markets, using last spot prices, actual historical volatility, and the historical correlations of the spot prices. *Quant DSL* can be told to use other price processes, however other price processes have not so far been developed for this package.
 
-The market calibration parameters are consumed only by the price process, which simulates an evolution of future prices for the markets involved in the *Quant DSL* expression. The example American option above refers to a market called 'NBP'. The one-factor "spot/vol" calibration parameters for single a market called 'NBP' look like this:
+In any case, the market calibration parameters are consumed only by the price process, which simulates an evolution of future prices for the markets involved in the *Quant DSL* expression. The example American option above refers to a market called 'NBP'. The one-factor "spot/vol" calibration parameters for single a market called 'NBP' would look like this:
 
 ```python
 {
