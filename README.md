@@ -9,13 +9,14 @@ The core of *Quant DSL* is a set of primitive elements (such as *"Wait"*, *"Choi
 
 User defined functions can be used to generate complex graphs of primitive expressions which can be evaluated in parallel. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with mathematical proofs.
 
-This package is an implementation of the *Quant DSL* syntax and semantics in Python. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). You can [follow and contribute further changes on GitHub](https://github.com/johnbywater/quantdsl).
+This package is an implementation of the *Quant DSL* syntax and semantics in Python. Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). *Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1).
+ You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
 
 
 Introduction
 ------------
 
-Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*def Option* and *def American*), and an expression which states the specific terms of the option.
+Here is an example of a model in *Quant DSL* of an American option. There are two user defined functions (*"Option"* and *"American"*), and an expression which states the specific terms of the option.
 
 The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are primitive elements of the language.
 
@@ -43,7 +44,7 @@ usage: quant-dsl.py [-h] [-q] [-c CALIBRATION] [-n NUM_PATHS]
                     [-p PRICE_PROCESS] [-m [MULTIPROCESSING_POOL]]
                     SOURCE
 
-Evaluates DSL module from SOURCE, given market calibration params from MARKET_CALIB.
+Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION.
 
 positional arguments:
   SOURCE                DSL source URL or file path ("-" to read from STDIN)
