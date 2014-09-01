@@ -5,8 +5,9 @@ import sys
 import mock
 import numpy
 import scipy
+from quantdsl.runtime import MultiProcessingDependencyGraphRunner, DependencyGraphRunner, DependencyGraph
 
-from quantdsl.semantics import utc, ExpressionStack
+from quantdsl.semantics import utc
 from quantdsl.exceptions import DslSyntaxError
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
@@ -438,13 +439,13 @@ fib(%d)
         dslExpr = compile(dslSource, isParallel=True)
 
         # Expect an expression stack object.
-        self.assertIsInstance(dslExpr, ExpressionStack)
+        self.assertIsInstance(dslExpr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
         actualLenStubbedExprs = len(dslExpr.stubbedExprs)
 
         # Evaluate the stack.
-        dslValue = dslExpr.evaluate()
+        dslValue = dslExpr.evaluate(dependencyGraphRunnerClass=DependencyGraphRunner)
 
         # Check the value is expected.
         self.assertEqual(dslValue, expectedValue)
@@ -477,7 +478,7 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
         dslExpr = compile(dslSource, isParallel=True)
 
         # Expect an expression stack object.
-        self.assertIsInstance(dslExpr, ExpressionStack)
+        self.assertIsInstance(dslExpr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
         actualLenStubbedExprs = len(dslExpr.stubbedExprs)
@@ -490,7 +491,7 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
             'interestRate': 0,
             'presentTime': datetime.datetime(2011, 1, 1, tzinfo=utc),
         }
-        dslValue = dslExpr.evaluate(**kwds)
+        dslValue = dslExpr.evaluate(dependencyGraphRunnerClass=DependencyGraphRunner, **kwds)
 
         # Check the value is expected.
         self.assertEqual(dslValue, expectedValue)
@@ -530,7 +531,8 @@ Swing(Date('2012-01-01'), Date('2012-01-03'), 10, 500)
             'interestRate': 0,
             'presentTime': datetime.datetime(2011, 1, 1),
         }
-        dslValue = dslExpr.evaluate(**kwds)
+
+        dslValue = dslExpr.evaluate(dependencyGraphRunnerClass=DependencyGraphRunner, **kwds)
 
         # Check the value is expected.
         self.assertEqual(dslValue, expectedValue)
@@ -557,7 +559,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
 """
 
         dslExpr = compile(dslSource, isParallel=True)
-        assert isinstance(dslExpr, ExpressionStack)
+        assert isinstance(dslExpr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
         actualLenStubbedExprs = len(dslExpr.stubbedExprs)
@@ -578,7 +580,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
 
 
         # Evaluate the stack.
-        dslValue = dslExpr.evaluate(isMultiprocessing=True, **kwds).mean()
+        dslValue = dslExpr.evaluate(dependencyGraphRunnerClass=MultiProcessingDependencyGraphRunner, **kwds).mean()
 
         # Check the value is expected.
         self.assertEqual(dslValue, expectedValue)

@@ -110,5 +110,3 @@ class BlackScholesPriceProcess(PriceProcess):
             brownianMotionsDict[marketName] = marketRvs
 
         return brownianMotionsDict
-
-

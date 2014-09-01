@@ -1,6 +1,5 @@
 from __future__ import division
 
-## Exception classes.
 
 class DslError(Exception):
     """

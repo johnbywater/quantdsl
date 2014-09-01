@@ -1,8 +1,6 @@
 from __future__ import division
 from abc import ABCMeta, abstractmethod
 
-__author__ = 'john'
-
 
 class PriceProcess(object):
 

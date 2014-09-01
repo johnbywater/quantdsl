@@ -1,23 +1,21 @@
 from __future__ import division
-from quantdsl.domain.model import CallRequirement
-from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
-from quantdsl.infrastructure.registry import registry
-from quantdsl.priceprocess.base import getDurationYears
 from abc import ABCMeta, abstractmethod
 import Queue as queue
 import datetime
-import dateutil.parser
 import itertools
 import math
 import re
 import uuid
+
+import dateutil.parser
+
+from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
+from quantdsl.priceprocess.base import getDurationYears
+
 try:
     import pytz
 except ImportError:
     pytz = None
-
-
-## Quant DSL semantic model.
 
 
 class DslObject(object):
@@ -637,7 +635,6 @@ class FunctionDef(DslObject):
             dslStub = Stub(stubId, node=self.node)
 
             # Put the function call on the call stack, with the stub ID.
-            from quantdsl.runtime import FunctionDefCallStack # Todo: Rework this dependency.
             assert isinstance(pendingCallStack, FunctionDefCallStack)
             pendingCallStack.put(
                 stubId=stubId,
@@ -936,7 +933,7 @@ class Module(DslObject):
     def body(self):
         return self._args[0]
 
-    def compile(self, dslLocals=None, dslGlobals=None, isParallel=False):
+    def compile(self, dslLocals=None, dslGlobals=None, dependencyGraphClass=None):
         # It's a module compilation, so create a new namespace "context".
         if dslLocals == None:
             dslLocals = {}
@@ -969,8 +966,7 @@ class Module(DslObject):
             assert isinstance(dslExpr, DslExpression)
             if len(functionDefs):
                 # Compile the expression
-                if isParallel:
-                    from quantdsl.runtime import FunctionDefCallStack, StubbedExpressionStack
+                if dependencyGraphClass:
 
                     # Create a stack of discovered calls to function defs.
                     pendingCallStack = FunctionDefCallStack()
@@ -1022,7 +1018,7 @@ class Module(DslObject):
                     stubbedExprsArray = []
                     while not stubbedExprs.empty():
                         stubbedExprsArray.append(stubbedExprs.get())
-                    dslObj = ExpressionStack(self.rootStubId, stubbedExprsArray)
+                    dslObj = dependencyGraphClass(self.rootStubId, stubbedExprsArray)
                 else:
                     # Compile the module expression as and for a single threaded recursive operation (faster but not
                     # distributed, so also limited in space and perhaps time). For smaller computations only.
@@ -1058,92 +1054,6 @@ class DslNamespace(dict):
     def copy(self):
         copy = self.__class__(self)
         return copy
-
-
-class ExpressionStack(object):
-
-    def __init__(self, rootStubId, stubbedExprs):
-        self.rootStubId = rootStubId
-        assert isinstance(stubbedExprs, list)
-        assert len(stubbedExprs), "Stubbed expressions is empty!"
-        self.stubbedExprs = stubbedExprs
-
-    def __len__(self):
-        return len(self.stubbedExprs)
-
-    def hasInstances(self, dslType):
-        for _, stubbedExpr, _ in self.stubbedExprs:
-            if stubbedExpr.hasInstances(dslType=dslType):
-                return True
-        return False
-
-    def findInstances(self, dslType):
-        instances = []
-        for _, stubbedExpr, _ in self.stubbedExprs:
-            [instances.append(i) for i in stubbedExpr.findInstances(dslType=dslType)]
-        return instances
-
-    def constructCallGraph(self):
-        from quantdsl.domain.services import createCallRequirement
-        if not hasattr(self, '_leafIds'):
-            leafIds = []
-            callRequirementIds = []
-            for stubId, stubbedExpr, effectivePresentTime in self.stubbedExprs:
-
-                assert isinstance(stubbedExpr, DslExpression)
-
-                callRequirementIds.append(stubId)
-
-                # Finding stub instances reveals the dependency graph.
-                requiredStubIds = [s.name for s in stubbedExpr.findInstances(Stub)]
-
-                # Stubbed expr has names that need to be replaced with results of other stubbed exprs.
-                stubbedExprStr = str(stubbedExpr)
-                createCallRequirement(stubId, stubbedExprStr, requiredStubIds, effectivePresentTime)
-
-                if not requiredStubIds:
-                    # Keep a track of the leaves of the dependency graph (stubbed exprs that don't depend on anything).
-                    leafIds.append(stubId)
-            self._leafIds = leafIds
-            self._callRequirementIds = callRequirementIds
-        return self._callRequirementIds, self._leafIds
-
-    def evaluate(self, isMultiprocessing=False, poolSize=None, **kwds):
-        assert len(self.stubbedExprs)
-
-        callRequirementIds, leafIds = self.constructCallGraph()
-
-        assert self.rootStubId in callRequirementIds
-
-        # Subscribe to dependencies.
-        for callRequirementId in callRequirementIds:
-            callRequirement = registry.calls[callRequirementId]
-            assert isinstance(callRequirement, CallRequirement)
-            for requiredCallId in callRequirement.requiredCallIds:
-                requiredCall = registry.calls[requiredCallId]
-                assert isinstance(requiredCall, CallRequirement)
-                if callRequirementId not in requiredCall.subscribers:
-                    requiredCall.subscribers.append(callRequirementId)
-                assert requiredCallId not in callRequirement.subscribers, "Circular references."  # Circle of 2, anyway.
-
-        # Run the dependency graph.
-        from quantdsl.runtime import DependencyGraphRunner
-        self.runner = DependencyGraphRunner(self.rootStubId, leafIds, isMultiprocessing, poolSize=poolSize)
-        self.runner.run(**kwds)
-
-        assert self.rootStubId in self.runner.resultsDict, "Root ID not in runner results."
-        if isMultiprocessing:
-            # At the moment, the multiprocessing code creates it's own results dict.
-            [registry.results.__setitem__(key, value) for key, value in self.runner.resultsDict.items()]
-
-        # Debug and testing info.
-        self._runnerCallCount = self.runner.callCount
-
-        try:
-            return registry.results[self.rootStubId].value
-        except KeyError, e:
-            errorData = (self.rootStubId, registry.results.keys())
-            raise DslSystemError("root value not found", errorData)
 
 
 class DatedDslObject(DslObject):
@@ -1361,12 +1271,12 @@ class LongstaffSchwartz(object):
 
     def evaluate(self, **kwds):
         try:
-            brownianMotions = kwds['allMarketPrices']
+            allMarketPrices = kwds['allMarketPrices']
         except KeyError:
             raise DslSystemError("'allMarketPrices' not in evaluation kwds", kwds.keys(), node=None)
-        if len(brownianMotions) == 0:
+        if len(allMarketPrices) == 0:
             raise DslSystemError('no rvs', str(kwds))
-        firstMarketRvs = brownianMotions.values()[0]
+        firstMarketPrices = allMarketPrices.values()[0]
         allStates = self.getStates()
         allStates.reverse()
         valueOfBeingIn = {}
@@ -1378,21 +1288,21 @@ class LongstaffSchwartz(object):
             if lenSubsequentStates > 1:
                 conditionalExpectedValues = []
                 expectedContinuationValues = []
-                underlyingValue = firstMarketRvs[state.time]
+                underlyingValue = firstMarketPrices[state.time]
                 for subsequentState in state.subsequentStates:
                     regressionVariables = []
                     dslMarkets = subsequentState.dslObject.findInstances(Market)
                     marketNames = set([m.name for m in dslMarkets])
                     for marketName in marketNames:
-                        marketRvs = brownianMotions[marketName]
+                        marketPrices = allMarketPrices[marketName]
                         try:
-                            marketRv = marketRvs[state.time]
+                            marketPrice = marketPrices[state.time]
                         except KeyError, inst:
                             msg = "Couldn't find time '%s' in random variables. Times are: %s" % (
-                                state.time, marketRvs.keys())
+                                state.time, marketPrices.keys())
                             raise Exception(msg)
 
-                        regressionVariables.append(marketRv)
+                        regressionVariables.append(marketPrice)
                     # Todo: Either use or remove 'getPayoff()', payoffValue not used ATM.
                     #payoffValue = self.getPayoff(state, subsequentState)
                     expectedContinuationValue = valueOfBeingIn[subsequentState]
@@ -1417,10 +1327,10 @@ class LongstaffSchwartz(object):
                 stateValue = state.dslObject.evaluate(**kwds)
                 if isinstance(stateValue, (int, float)):
                     try:
-                        underlyingValue = firstMarketRvs[state.time]
+                        underlyingValue = firstMarketPrices[state.time]
                     except KeyError, inst:
                         msg = "Couldn't find time '%s' in random variables. Times are: %s" % (
-                            state.time, sorted(firstMarketRvs.keys()))
+                            state.time, sorted(firstMarketPrices.keys()))
                         raise Exception(msg)
                     pathCount = len(underlyingValue)
                     if stateValue == 0:
@@ -1552,3 +1462,23 @@ defaultDslClasses.update({
     'Settlement': Settlement,
     'Wait': Wait,
 })
+
+
+class FunctionDefCallStack(queue.Queue):
+
+    def put(self, stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime):
+        assert isinstance(stubId, basestring), type(stubId)
+        assert isinstance(stackedCall, FunctionDef), type(stackedCall)
+        assert isinstance(stackedLocals, DslNamespace), type(stackedLocals)
+        assert isinstance(stackedGlobals, DslNamespace), type(stackedGlobals)
+        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
+        queue.Queue.put(self, (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime))
+
+
+class StubbedExpressionStack(queue.LifoQueue):
+
+    def put(self, stubId, stubbedExpr, effectivePresentTime):
+        assert isinstance(stubId, basestring), type(stubId)
+        assert isinstance(stubbedExpr, DslExpression), type(stubbedExpr)
+        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
+        queue.LifoQueue.put(self, (stubId, stubbedExpr, effectivePresentTime))

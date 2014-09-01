@@ -1,9 +1,7 @@
-from quantdsl.exceptions import DslSyntaxError
 import ast
 
-SyntaxError
+from quantdsl.exceptions import DslSyntaxError
 
-## Quant DSL syntax parser.
 
 class DslParser(object):
 

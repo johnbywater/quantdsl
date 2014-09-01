@@ -3,9 +3,10 @@ import math
 import sys
 import threading
 import time
-from quantdsl.semantics import DslNamespace, DslExpression, ExpressionStack, Market, Fixing, DslError
+from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.syntax import DslParser
+from quantdsl.runtime import DependencyGraph
 
 ## Application services.
 
@@ -44,10 +45,10 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         print "Duration of compilation: %s" % compileTimeDelta
         print
 
-    assert isinstance(dslExpr, (DslExpression, ExpressionStack)), type(dslExpr)
+    assert isinstance(dslExpr, (DslExpression, DependencyGraph)), type(dslExpr)
 
     if isVerbose:
-        if isinstance(dslExpr, ExpressionStack):
+        if isinstance(dslExpr, DependencyGraph):
             lenDslExpr = len(dslExpr)
 
             print "Compiled DSL source into %d partial expressions (root ID: %s)." % (lenDslExpr, dslExpr.rootStubId)
@@ -77,7 +78,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         assert isinstance(marketCalibration, dict)
 
         # Construct the Brownian motions.
-        if not 'brownianMotions' in evaluationKwds:
+        if not 'allMarketPrices' in evaluationKwds:
 
             if isVerbose:
                 print "Finding all market names and fixing dates..."
@@ -129,24 +130,23 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             priceProcess = priceProcessClass()
 
-        if isVerbose:
-            print "Price process class: %s" % str(priceProcessClass).split("'")[1]
-            print
+            if isVerbose:
+                print "Price process class: %s" % str(priceProcessClass).split("'")[1]
+                print
 
-        allMarketPrices = priceProcess.simulateFuturePrices(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
-        evaluationKwds['allMarketPrices'] = allMarketPrices
+            allMarketPrices = priceProcess.simulateFuturePrices(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
+            evaluationKwds['allMarketPrices'] = allMarketPrices
 
 
     evalStartTime = datetime.datetime.now()
 
-    if isinstance(dslExpr, ExpressionStack):
+    if isinstance(dslExpr, DependencyGraph):
         if isVerbose:
 
-            _, leafIds = dslExpr.constructCallGraph()
+            lenStubbedExprs = len(dslExpr.stubbedExprs)
+            lenLeafIds = len(dslExpr.leafIds)
 
-            lenLeafIds = len(leafIds)
-
-            msg = "Evaluating %d expressions (%d %s) with " % (lenDslExpr, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
+            msg = "Evaluating %d expressions (%d %s) with " % (lenStubbedExprs, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
             if evaluationKwds.get('isMultiprocessing') and evaluationKwds.get('poolSize'):
                 msg += "a multiprocessing pool of %s workers" % evaluationKwds.get('poolSize')
             else:
@@ -199,7 +199,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         # Evaluate the primitive DSL expression.
         value = dslExpr.evaluate(**evaluationKwds)
     except:
-        if isinstance(dslExpr, ExpressionStack):
+        if isinstance(dslExpr, DependencyGraph):
             if isVerbose:
                 if thread.isAlive():
                     # print "Thread is alive..."
@@ -211,15 +211,15 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
     evalTimeDelta = datetime.datetime.now() - evalStartTime
 
-    if isinstance(dslExpr, ExpressionStack):
+    if isinstance(dslExpr, DependencyGraph):
         if isVerbose:
             # Join with progress display thread.
             thread.join(timeout=3)
 
     if isVerbose:
         timeDeltaSeconds = evalTimeDelta.seconds + evalTimeDelta.microseconds * 0.000001
-        if isinstance(dslExpr, ExpressionStack):
-            rateStr = "(%.2f expr/s)" % (lenDslExpr / timeDeltaSeconds)
+        if isinstance(dslExpr, DependencyGraph):
+            rateStr = "(%.2f expr/s)" % (lenStubbedExprs / timeDeltaSeconds)
         else:
             rateStr = ''
         print "Duration of evaluation: %s    %s" % (evalTimeDelta, rateStr)
@@ -264,8 +264,14 @@ def compile(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, c
     # Parse the source into a DSL module object.
     dslModule = parse(dslSource, filename=filename, dslClasses=dslClasses)
 
+    assert isinstance(dslModule, Module)
+
     # Compile the module into a single (primitive) expression.
-    return dslModule.compile(DslNamespace(), compileKwds, isParallel=isParallel)
+    if isParallel:
+        dependencyGraphClass = DependencyGraph
+    else:
+        dependencyGraphClass = None
+    return dslModule.compile(DslNamespace(), compileKwds, dependencyGraphClass=dependencyGraphClass)
 
 
 def parse(dslSource, filename='<unknown>', dslClasses=None):
