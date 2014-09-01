@@ -1,5 +1,5 @@
 from __future__ import division
-from quantdsl.exceptions import QuantDslError
+from quantdsl.exceptions import DslError
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.priceprocess.base import getDurationYears
 import datetime
@@ -48,7 +48,7 @@ class BlackScholesPriceProcess(PriceProcess):
                 draws = scipy.random.standard_normal(pathCount)
                 T = getDurationYears(_startDate, fixingDate)
                 if T < 0:
-                    raise QuantDslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
+                    raise DslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
                 endRv = startRv + scipy.sqrt(T) * draws
                 try:
                     brownianMotions[i][j + 1] = endRv
@@ -71,7 +71,7 @@ class BlackScholesPriceProcess(PriceProcess):
                     marketCalibration.keys(),
                     e
                 )
-                raise QuantDslError(msg)
+                raise DslError(msg)
             else:
                 correlations[marketNamePairs] = correlation
 
@@ -90,7 +90,7 @@ class BlackScholesPriceProcess(PriceProcess):
         try:
             U = scipy.linalg.cholesky(correlationMatrix)
         except LinAlgError, e:
-            raise QuantDslError("Couldn't do Cholesky decomposition with correlation matrix: %s: %s" % (correlationMatrix, e))
+            raise DslError("Couldn't do Cholesky decomposition with correlation matrix: %s: %s" % (correlationMatrix, e))
 
         # Correlated increments from uncorrelated increments.
         brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works.
@@ -98,7 +98,7 @@ class BlackScholesPriceProcess(PriceProcess):
             brownianMotionsCorrelated = brownianMotions.dot(U)
         except Exception, e:
             msg = "Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: %s, %s" % (brownianMotions, U)
-            raise QuantDslError(msg)
+            raise DslError(msg)
         brownianMotionsCorrelated = brownianMotionsCorrelated.transpose() # Put markets back on the first dimension.
 
         brownianMotionsDict = {}

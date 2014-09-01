@@ -1,4 +1,4 @@
-from quantdsl.exceptions import QuantDslSystemError, QuantDslSyntaxError
+from quantdsl.exceptions import DslSystemError, DslSyntaxError
 from quantdsl.semantics import Module, DslNamespace, Number, DslExpression
 from quantdsl.domain.model import CallRequirement, Result
 # Todo: Change things so domain services don't depend on application services and infrastructure.
@@ -41,7 +41,7 @@ def executeCallRequirement(args):
         assert isinstance(callRequirement, CallRequirement), "Call requirement object is not a CallRequirement" \
                                                              ": %s" % callRequirement
         if not callRequirement.isReady(resultsRegister=resultsRegister):
-            raise QuantDslSystemError("Call requirement '%s' is not actually ready! It shouldn't have got here" \
+            raise DslSystemError("Call requirement '%s' is not actually ready! It shouldn't have got here" \
                                       " without all required results being available. Is the results register" \
                                       " stale?" % callRequirement.id)
 
@@ -54,7 +54,7 @@ def executeCallRequirement(args):
             # Todo: Rework this dependency.
             from quantdsl.services import parse
             stubbedModule = parse(callRequirement.stubbedExprStr)
-        except QuantDslSyntaxError:
+        except DslSyntaxError:
             raise
 
         assert isinstance(stubbedModule, Module), "Parsed stubbed expr string is not an module: %s" % stubbedModule

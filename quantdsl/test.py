@@ -7,7 +7,7 @@ import numpy
 import scipy
 
 from quantdsl.semantics import utc, ExpressionStack
-from quantdsl.exceptions import QuantDslSyntaxError
+from quantdsl.exceptions import DslSyntaxError
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
     FloorDiv, Max, On, LeastSquares, FunctionCall, FunctionDef, Name, If, IfExp, Compare, Module, DslNamespace
@@ -26,8 +26,8 @@ class TestDslParser(unittest.TestCase):
 
     def test_empty_string(self):
         self.assertTrue(isinstance(parse(""), Module))
-        self.assertRaises(QuantDslSyntaxError, compile, "")
-        self.assertRaises(QuantDslSyntaxError, eval, "")
+        self.assertRaises(DslSyntaxError, compile, "")
+        self.assertRaises(DslSyntaxError, eval, "")
 
     def assertDslExprTypeValue(self, dslSource, expectedDslType, expectedDslValue, **compileKwds):
         # Assumes dslSource is just one statement.
@@ -73,7 +73,7 @@ class TestDslParser(unittest.TestCase):
         self.assertDslExprTypeValue("-Max(bar - 4, -9)", UnarySub, 8, bar=-4)
 
         # Check unsupported unary operators cause DSL errors.
-        self.assertRaises(QuantDslSyntaxError, parse, "~bar")
+        self.assertRaises(DslSyntaxError, parse, "~bar")
 
     def test_binop(self):
         self.assertDslExprTypeValue("5 + 2", Add, 7)
@@ -87,11 +87,11 @@ class TestDslParser(unittest.TestCase):
         self.assertDslExprTypeValue("5 % 2", Mod, 1)
 
         # Check unsupported binary operators cause DSL errors.
-        self.assertRaises(QuantDslSyntaxError, parse, "2 << 1")  # Bit shift left.
-        self.assertRaises(QuantDslSyntaxError, parse, "2 >> 1")  # Bit shift right.
-        self.assertRaises(QuantDslSyntaxError, parse, "2 & 1")  # Bitwise 'and'.
-        self.assertRaises(QuantDslSyntaxError, parse, "2 | 1")  # Complement
-        self.assertRaises(QuantDslSyntaxError, parse, "2 ^ 1")  # Bitwise exclusive or.
+        self.assertRaises(DslSyntaxError, parse, "2 << 1")  # Bit shift left.
+        self.assertRaises(DslSyntaxError, parse, "2 >> 1")  # Bit shift right.
+        self.assertRaises(DslSyntaxError, parse, "2 & 1")  # Bitwise 'and'.
+        self.assertRaises(DslSyntaxError, parse, "2 | 1")  # Complement
+        self.assertRaises(DslSyntaxError, parse, "2 ^ 1")  # Bitwise exclusive or.
 
     def test_compare(self):
         self.assertDslExprTypeValue("1 == 1", Compare, True)
@@ -897,15 +897,7 @@ Fixing( Date('2011-06-01'), Choice( Market('#1') - 9,
     Fixing( Date('2012-01-01'), Choice( Market('#1') - 9, 0))
 ))
 """
-        self.assertValuation(specification, 2.416, 0.677, 0.07)
-
-    def testValuation2(self):
-        specification = """
-Fixing( Date('2011-06-01'), Choice( Market('#1') - 9,
-    Fixing( Date('2012-01-01'), Choice( Market('#1') - 9, 0))
-))
-"""
-        self.assertValuation(specification, 2.416, 0.677, 0.07)
+        self.assertValuation(specification, 2.401, 0.677, 0.0001)
 
 
 class TestDslSumContracts(DslTestCase):

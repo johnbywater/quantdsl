@@ -3,7 +3,7 @@ import math
 import sys
 import threading
 import time
-from quantdsl.semantics import DslNamespace, DslExpression, ExpressionStack, Market, Fixing, QuantDslError
+from quantdsl.semantics import DslNamespace, DslExpression, ExpressionStack, Market, Fixing, DslError
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.syntax import DslParser
 
@@ -114,16 +114,16 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             # Load the price process object.
             if not ':' in priceProcessName:
-                raise QuantDslError("Price process name doesn't have ':' separating module and class names: %s" % priceProcessName)
+                raise DslError("Price process name doesn't have ':' separating module and class names: %s" % priceProcessName)
             priceProcessModuleName, priceProcessClassName = priceProcessName.split(':')
             try:
                 priceProcessModule = __import__(priceProcessModuleName, '', '', '*')
             except Exception, e:
-                raise QuantDslError("Can't import price process module '%s': %s" % (priceProcessModuleName, e))
+                raise DslError("Can't import price process module '%s': %s" % (priceProcessModuleName, e))
             try:
                 priceProcessClass = getattr(priceProcessModule, priceProcessClassName)
             except Exception, e:
-                raise QuantDslError("Can't find price process class '%s' in module '%s': %s" % (priceProcessClassName, priceProcessModuleName, e))
+                raise DslError("Can't find price process class '%s' in module '%s': %s" % (priceProcessClassName, priceProcessModuleName, e))
 
             assert issubclass(priceProcessClass, PriceProcess)
 

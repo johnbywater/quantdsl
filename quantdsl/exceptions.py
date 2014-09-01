@@ -2,7 +2,7 @@ from __future__ import division
 
 ## Exception classes.
 
-class QuantDslError(Exception):
+class DslError(Exception):
     """
     Quant DSL exception base class.
     """
@@ -25,19 +25,19 @@ class QuantDslError(Exception):
     __str__ = __repr__
 
 
-class QuantDslSyntaxError(QuantDslError):
+class DslSyntaxError(DslError):
     """
     Exception class for user syntax errors.
     """
 
 
-class QuantDslNameError(QuantDslError):
+class DslNameError(DslError):
     """
     Exception class for undefined names.
     """
 
 
-class QuantDslSystemError(QuantDslError):
+class DslSystemError(DslError):
     """
     Exception class for DSL system errors.
     """

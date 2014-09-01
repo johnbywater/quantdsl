@@ -1,7 +1,7 @@
+from quantdsl.exceptions import DslSyntaxError
 import ast
 
-from quantdsl.exceptions import QuantDslError, QuantDslSyntaxError
-
+SyntaxError
 
 ## Quant DSL syntax parser.
 
@@ -17,14 +17,14 @@ class DslParser(object):
             self.dslClasses.update(dslClasses)
 
         if not isinstance(dslSource, basestring):
-            raise QuantDslError("Can't parse non-string object", dslSource)
+            raise DslSyntaxError("Can't parse non-string object", dslSource)
 
         assert isinstance(dslSource, basestring)
         try:
             # Parse as Python source code, into a Python abstract syntax tree.
             astModule = ast.parse(dslSource, filename=filename, mode='exec')
         except SyntaxError, e:
-            raise QuantDslSyntaxError("DSL source code is not valid Python code", e)
+            raise DslSyntaxError("DSL source code is not valid Python code", e)
 
         # Generate Quant DSL from Python AST.
         return self.visitAstNode(astModule)
@@ -47,7 +47,7 @@ class DslParser(object):
         except AttributeError:
             msg = "element '%s' is not supported (visit method '%s' not found on parser): %s" % (
                 dslElementName, methodName, node)
-            raise QuantDslSyntaxError(msg)
+            raise DslSyntaxError(msg)
 
         # Call the "visit" method object, and return the result of visiting the node.
         return method(node=node)
@@ -81,7 +81,7 @@ class DslParser(object):
         if isinstance(node.value, ast.AST):
             return self.visitAstNode(node.value)
         else:
-            raise QuantDslSyntaxError
+            raise DslSyntaxError
 
     def visitNum(self, node):
         """
@@ -112,7 +112,7 @@ class DslParser(object):
         if isinstance(node.op, ast.USub):
             dslUnaryOpClass = self.dslClasses['UnarySub']
         else:
-            raise QuantDslSyntaxError("Unsupported unary operator token: %s" % node.op)
+            raise DslSyntaxError("Unsupported unary operator token: %s" % node.op)
         return dslUnaryOpClass(node=node, *args)
 
     def visitBinOp(self, node):
@@ -134,7 +134,7 @@ class DslParser(object):
         try:
             dslClass = typeMap[type(node.op)]
         except KeyError:
-            raise QuantDslSyntaxError("Unsupported binary operator token", node.op, node=node)
+            raise DslSyntaxError("Unsupported binary operator token", node.op, node=node)
         args = [self.visitAstNode(node.left), self.visitAstNode(node.right)]
         return dslClass(node=node, *args)
 
@@ -152,7 +152,7 @@ class DslParser(object):
         try:
             dslClass = typeMap[type(node.op)]
         except KeyError:
-            raise QuantDslSyntaxError("Unsupported boolean operator token: %s" % node.op)
+            raise DslSyntaxError("Unsupported boolean operator token: %s" % node.op)
         else:
             values = [self.visitAstNode(v) for v in node.values]
             args = [values]
@@ -174,11 +174,11 @@ class DslParser(object):
         defined function.
         """
         if node.keywords:
-            raise QuantDslSyntaxError("Calling with keywords is not currently supported (positional args only).")
+            raise DslSyntaxError("Calling with keywords is not currently supported (positional args only).")
         if node.starargs:
-            raise QuantDslSyntaxError("Calling with starargs is not currently supported (positional args only).")
+            raise DslSyntaxError("Calling with starargs is not currently supported (positional args only).")
         if node.kwargs:
-            raise QuantDslSyntaxError("Calling with kwargs is not currently supported (positional args only).")
+            raise DslSyntaxError("Calling with kwargs is not currently supported (positional args only).")
 
         # Collect the call arg expressions (whose values will be passed into the call when it is made).
         callArgExprs = [self.visitAstNode(arg) for arg in node.args]
@@ -260,5 +260,3 @@ class DslParser(object):
         comparators = [self.visitAstNode(c) for c in node.comparators]
         args = [left, opNames, comparators]
         return self.dslClasses['Compare'](node=node, *args)
-
-
