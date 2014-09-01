@@ -930,7 +930,7 @@ Fixing(
     )
 )
 """
-        self.assertValuation(specification, 2 * 2.416, 2 * 0.677, 2*0.07, 0.04, 0.2, 0.2)
+        self.assertValuation(specification, 4.812, 2 * 0.677, 2*0.07, 0.04, 0.2, 0.2)
 
 
 class TestDslAddition(DslTestCase):
