@@ -5,7 +5,7 @@ import sys
 import argh
 import multiprocessing as mp
 import json
-from quantdsl.exceptions import QuantDslError
+from quantdsl.exceptions import DslError
 from quantdsl.services import eval
 
 
@@ -41,7 +41,7 @@ def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:Blac
         elif os.path.exists(url) and os.path.isfile(url):
             return open(url).read()
         else:
-            raise QuantDslError("Can't open resource: %s" % url)
+            raise DslError("Can't open resource: %s" % url)
 
     print "DSL source from: %s" % source_url
     print
@@ -75,7 +75,7 @@ def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:Blac
             isShowSource=show_source,
             priceProcessName=price_process,
         )
-    except QuantDslError, e:
+    except DslError, e:
         print "Failed to eval DSL source:"
         print dslSource
         print
