@@ -5,6 +5,9 @@ import sys
 import argh
 import multiprocessing as mp
 import json
+from quantdsl.exceptions import QuantDslError
+from quantdsl.services import eval
+
 
 @argh.arg('SOURCE', help='DSL source URL or file path ("-" to read from STDIN)')
 @argh.arg('-c', '--calibration', help='market calibration URL or file path')
@@ -38,7 +41,7 @@ def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:Blac
         elif os.path.exists(url) and os.path.isfile(url):
             return open(url).read()
         else:
-            raise quantdsl.QuantDslError("Can't open resource: %s" % url)
+            raise QuantDslError("Can't open resource: %s" % url)
 
     print "DSL source from: %s" % source_url
     print
@@ -59,7 +62,7 @@ def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:Blac
     observationTime = datetime.datetime.now().replace(tzinfo=quantdsl.utc)
 
     try:
-        result = quantdsl.eval(dslSource,
+        result = eval(dslSource,
             filename=source_url if source_url != '-' else 'STDIN',
             isParallel=True,
             marketCalibration=marketCalibration,
@@ -72,7 +75,7 @@ def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:Blac
             isShowSource=show_source,
             priceProcessName=price_process,
         )
-    except quantdsl.QuantDslError, e:
+    except QuantDslError, e:
         print "Failed to eval DSL source:"
         print dslSource
         print

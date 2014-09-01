@@ -1,4 +1,4 @@
-from abc import ABCMeta, abstractmethod
+from __future__ import division
 import unittest
 import datetime
 import sys
@@ -6,10 +6,13 @@ import mock
 import numpy
 import scipy
 
-from quantdsl import DslParser, Number, Add, Max, On, Date, String, FunctionDef, \
-    Name, Compare, IfExp, FunctionCall, Sub, QuantDslSyntaxError, Mult, Div, UnarySub, Pow, Mod, FloorDiv, \
-    ExpressionStack, If, TimeDelta, Module, parse, compile, eval, utc, LeastSquares, DslNamespace, DslExpression, \
-    BlackScholesPriceProcess
+from quantdsl.semantics import utc, ExpressionStack
+from quantdsl.exceptions import QuantDslSyntaxError
+from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
+from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
+    FloorDiv, Max, On, LeastSquares, FunctionCall, FunctionDef, Name, If, IfExp, Compare, Module, DslNamespace
+from quantdsl.services import eval, compile, parse
+from quantdsl.syntax import DslParser
 
 
 def suite():
@@ -662,6 +665,7 @@ class DslTestCase(unittest.TestCase):
     def calcValue(self, dslSource, observationTime):
         # Todo: Rename 'allRvs' to 'simulatedPrices'?
         evaluationKwds = DslNamespace({
+            'presentTime': observationTime,
             'observationTime': observationTime,
             'interestRate': '2.5',
             'marketCalibration': {
@@ -697,7 +701,7 @@ class DslTestCase(unittest.TestCase):
                 '#2-LAST-PRICE': 10,
                 '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
             },
-            'allRvs': BlackScholesPriceProcess().getAllRvs(dslExpr, observationTime, pathCount=500000),
+            'allRvs': BlackScholesPriceProcess().getAllRvs(dslExpr, observationTime, pathCount=100000),
         })
         assert isinstance(dslExpr, DslExpression)
         value = dslExpr.evaluate(**evaluationKwds)
@@ -750,6 +754,10 @@ class TestDslMax(DslTestCase):
 
 
 class TestDslAdd(DslTestCase):
+
+    def testValuation(self):
+        specification = "10 + Market('#1')"
+        self.assertValuation(specification, 20, 1, 0)
 
     def testValuation(self):
         specification = "10 + Market('#2')"
@@ -891,6 +899,14 @@ Fixing( Date('2011-06-01'), Choice( Market('#1') - 9,
 """
         self.assertValuation(specification, 2.416, 0.677, 0.07)
 
+    def testValuation2(self):
+        specification = """
+Fixing( Date('2011-06-01'), Choice( Market('#1') - 9,
+    Fixing( Date('2012-01-01'), Choice( Market('#1') - 9, 0))
+))
+"""
+        self.assertValuation(specification, 2.416, 0.677, 0.07)
+
 
 class TestDslSumContracts(DslTestCase):
 
@@ -927,7 +943,7 @@ Fixing(
 
 class TestDslAddition(DslTestCase):
 
-    def testValuation(self):
+    def testValuation2(self):
         specification = """
 Fixing( Date('2012-01-01'),
     Max(Market('#1') - 9, 0) + Market('#1') - 9
