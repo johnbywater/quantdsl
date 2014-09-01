@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
-from setuptools import setup
+from setuptools import setup, find_packages
 
 long_description = """
 Quant DSL is a hybrid functional programming language for modelling derivative financial instruments.
@@ -15,24 +15,24 @@ This package is an implementation of the Quant DSL syntax and semantics in Pytho
 
 from quantdsl import __version__
 
+
 setup(
     name='quantdsl',
     version=__version__,
-    packages=['quantdsl'],
+    packages=find_packages(),
     # just use auto-include and specify special items in MANIFEST.in
     zip_safe = False,
     install_requires = [
-        'scipy',
-        'numpy',
         'argh',
-        'requests',
+        'mock',
+        'numpy',
+        'python-dateutil',
+        'scipy',
+        'six',
     ],
     scripts = [
         os.path.join('scripts', 'quant-dsl.py'),
     ],
-    extras_require = {
-        'test':  ["Mock"],
-    },
     author='John Bywater',
     author_email='john.bywater@appropriatesoftware.net',
     license='BSD',
