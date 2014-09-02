@@ -1,6 +1,5 @@
 from abc import ABCMeta, abstractmethod
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
-from quantdsl.infrastructure.registry import registry
 from quantdsl.semantics import Module, DslNamespace, DslExpression, Stub
 
 
@@ -77,7 +76,7 @@ class DependencyGraph(object):
     def evaluate(self, dependencyGraphRunnerClass=None, poolSize=None, **kwds):
 
         if dependencyGraphRunnerClass is None:
-            dependencyGraphRunnerClass = DependencyGraphRunner
+            dependencyGraphRunnerClass = SingleThreadedDependencyGraphRunner
 
         # Run the dependency graph.
         if poolSize:
@@ -145,7 +144,6 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
 
     def __init__(self, dependencyGraph, poolSize=None):
         super(MultiProcessingDependencyGraphRunner, self).__init__(dependencyGraph)
-        self.registry = registry
         self.poolSize = poolSize
 
     @property

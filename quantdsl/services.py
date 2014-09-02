@@ -10,8 +10,10 @@ from quantdsl.runtime import DependencyGraph
 
 ## Application services.
 
+defaultPriceProcessName = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
+
 def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
-         priceProcessName='quantdsl.priceprocess.blackscholes:BlackScholesPriceProcess', isVerbose=False, isShowSource=False, **extraEvaluationKwds):
+         priceProcessName=None, isVerbose=False, isShowSource=False, **extraEvaluationKwds):
     """
     Returns the result of evaluating a compiled module (an expression, or a user defined function).
 
@@ -20,6 +22,9 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     A function def will evaluate to a DSL expression, will may then be evaluated (more than one
     function def without an expression is an error).
     """
+    if priceProcessName is None:
+        priceProcessName = defaultPriceProcessName
+
     if evaluationKwds is None:
         evaluationKwds = DslNamespace()
     assert isinstance(evaluationKwds, dict)
