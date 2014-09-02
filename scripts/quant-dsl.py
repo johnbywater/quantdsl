@@ -18,10 +18,11 @@ from quantdsl.services import eval
 @argh.arg('-q', '--quiet', help='don\'t show progress info')
 @argh.arg('-s', '--show-source', help='show source code and compiled expression stack')
 
-def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:BlackScholesPriceProcess',
+def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
          interest_rate=2.5, multiprocessing_pool=0, quiet=False, show_source=False):
     """Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION."""
     import quantdsl
+    import quantdsl.semantics
 
     if multiprocessing_pool is None:
         multiprocessing_pool = mp.cpu_count()
@@ -59,7 +60,7 @@ def main(SOURCE, calibration=None, num_paths=50000, price_process='quantdsl:Blac
     else:
         marketCalibration = {}
 
-    observationTime = datetime.datetime.now().replace(tzinfo=quantdsl.utc)
+    observationTime = datetime.datetime.now().replace(tzinfo=quantdsl.semantics.utc)
 
     try:
         result = eval(dslSource,

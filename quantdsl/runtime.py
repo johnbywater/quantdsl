@@ -1,23 +1,30 @@
+from abc import ABCMeta, abstractmethod
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
 from quantdsl.infrastructure.registry import registry
 from quantdsl.semantics import Module, DslNamespace, DslExpression, Stub
 
-## "Run time environment."
 
 class DependencyGraph(object):
+    """
+    Constructs dependency graph from stack of stubbed expressions.
 
-    def __init__(self, rootStubId, stubbedExprs):
+    The calls are stored in a dict, keyed by ID. They call IDs are
+    kept in a list to maintain order. The calls which don't depend
+    on any other calls are identified as the 'leafIds'. The calls
+    which are dependent on a call are known as 'dependencyIds'. And
+    the calls which depend on a call are called 'notifyIds'.
+    """
+    def __init__(self, rootStubId, stubbedExprsData):
         self.rootStubId = rootStubId
-        assert isinstance(stubbedExprs, list)
-        assert len(stubbedExprs), "Stubbed expressions is empty!"
-        self.stubbedExprs = stubbedExprs
-
+        assert isinstance(stubbedExprsData, list)
+        assert len(stubbedExprsData), "Stubbed expressions is empty!"
+        self.stubbedExprsData = stubbedExprsData
         self.leafIds = []
         self.callRequirementIds = []
         self.callRequirements = {}
         self.dependencyIds = {}
         self.notifyIds = {self.rootStubId: []}
-        for stubId, stubbedExpr, effectivePresentTime in self.stubbedExprs:
+        for stubId, stubbedExpr, effectivePresentTime in self.stubbedExprsData:
 
             assert isinstance(stubbedExpr, DslExpression)
 
@@ -52,21 +59,25 @@ class DependencyGraph(object):
         assert self.rootStubId in self.callRequirementIds
 
     def __len__(self):
-        return len(self.stubbedExprs)
+        return len(self.stubbedExprsData)
 
     def hasInstances(self, dslType):
-        for _, stubbedExpr, _ in self.stubbedExprs:
+        for _, stubbedExpr, _ in self.stubbedExprsData:
             if stubbedExpr.hasInstances(dslType=dslType):
                 return True
         return False
 
     def findInstances(self, dslType):
         instances = []
-        for _, stubbedExpr, _ in self.stubbedExprs:
+        for _, stubbedExpr, _ in self.stubbedExprsData:
             [instances.append(i) for i in stubbedExpr.findInstances(dslType=dslType)]
         return instances
 
+
     def evaluate(self, dependencyGraphRunnerClass=None, poolSize=None, **kwds):
+
+        if dependencyGraphRunnerClass is None:
+            dependencyGraphRunnerClass = DependencyGraphRunner
 
         # Run the dependency graph.
         if poolSize:
@@ -87,8 +98,11 @@ class DependencyGraph(object):
 
 class DependencyGraphRunner(object):
 
+    __metaclass__ = ABCMeta
+
     def __init__(self, dependencyGraph):
         self.dependencyGraph = dependencyGraph
+        self.executionQueue = None
 
     def run(self, **kwds):
         self.runKwds = kwds
@@ -101,6 +115,17 @@ class DependencyGraphRunner(object):
         while not self.executionQueue.empty():
             self.executeWaitingCalls()
 
+    @abstractmethod
+    def initQueuesAndDicts(self):
+        pass
+
+    @abstractmethod
+    def executeWaitingCalls(self):
+        pass
+
+
+class SingleThreadedDependencyGraphRunner(DependencyGraphRunner):
+
     def initQueuesAndDicts(self):
         import Queue as queue
         self.executionQueue = queue.Queue()
@@ -111,7 +136,7 @@ class DependencyGraphRunner(object):
 
     def executeWaitingCalls(self):
         callRequirementId = self.executionQueue.get()
-        multiProcessingExecuteCallRequirement((callRequirementId, self.runKwds, self.resultsDict, self.executionQueue,
+        executeCallRequirement((callRequirementId, self.runKwds, self.resultsDict, self.executionQueue,
                                                self.callsDict, self.dependencyDict, self.notifyDict))
         self.callCount += 1
 
@@ -147,16 +172,18 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
         batchCallRequirementIds = []
         while not self.executionQueue.empty():
             batchCallRequirementIds.append(self.executionQueue.get())
-        self.multiProcessingPool.map_async(multiProcessingExecuteCallRequirement,
+        self.multiProcessingPool.map_async(executeCallRequirement,
                        [(i, self.runKwds, self.resultsDict, self.executionQueue, self.callsDict, self.dependencyDict, self.notifyDict) for i in
                         batchCallRequirementIds]
         ).get(99999999)  # Do this rather than just call map(), because otherwise Ctrl-C doesn't work.
         self.callCount += len(batchCallRequirementIds)
 
 
-def multiProcessingExecuteCallRequirement(args):
+def executeCallRequirement(args):
     """
-    Evaluates the stubbed expr, and checks if any dependents are ready to go.
+    Evaluates the stubbed expr, and checks if any dependents are ready to execute.
+
+    Needs to be a module-level function so that multiprocessing can find it.
     """
     try:
         # Get call requirement ID and modelled function objects.
@@ -200,7 +227,7 @@ def multiProcessingExecuteCallRequirement(args):
             isSubscriberReady = True
             for requiredId in subscriberRequiredIds:
                 if requiredId == callRequirementId:
-                    continue
+                    continue # We know we're done.
                 if requiredId not in resultsDict:
                     isSubscriberReady = False
                     break

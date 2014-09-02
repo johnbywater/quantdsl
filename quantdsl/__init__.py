@@ -8,12 +8,10 @@
 __version__ = '0.1.0'
 
 
-# Todo: Specify versions of dependencies in setup.py.
 # Todo: Change all names from lower camel case to underscore separated style.
 # Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
 # Todo: Go through dependency graph runner and identify the domain events (what data is used, and where it is created).
 # Todo: Use rules of Domain Driven Design, especially "change one object at once" - distill objects and events which will make this work well.
-# Todo: Change the quant-dsl.py --price-process option from colon separation between module and class name to just dots - can just split on last dot to get the class name, and avoid causing confusion.
 # Todo: Extend language syntax spec documentation, to cover function defs and modules. Perhaps reuse the Python syntax definitions, since it's just a reduction of the Python syntax?
 # Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
 # Todo: Develop multi-factor PriceProcess model (e.g. Schwartz-Smith)?

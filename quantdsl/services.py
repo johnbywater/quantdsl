@@ -49,13 +49,13 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
     if isVerbose:
         if isinstance(dslExpr, DependencyGraph):
-            lenDslExpr = len(dslExpr)
+            lenStubbedExprs = len(dslExpr.stubbedExprsData)
 
-            print "Compiled DSL source into %d partial expressions (root ID: %s)." % (lenDslExpr, dslExpr.rootStubId)
+            print "Compiled DSL source into %d partial expressions (root ID: %s)." % (lenStubbedExprs, dslExpr.rootStubId)
             print
             if isShowSource:
                 print "Expression stack:"
-                for stubbedExprData in dslExpr.stubbedExprs:
+                for stubbedExprData in dslExpr.stubbedExprsData:
                     print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
                 print
 
@@ -114,9 +114,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                 print
 
             # Load the price process object.
-            if not ':' in priceProcessName:
-                raise DslError("Price process name doesn't have ':' separating module and class names: %s" % priceProcessName)
-            priceProcessModuleName, priceProcessClassName = priceProcessName.split(':')
+            priceProcessModuleName, priceProcessClassName = priceProcessName.rsplit('.', 1)
             try:
                 priceProcessModule = __import__(priceProcessModuleName, '', '', '*')
             except Exception, e:
@@ -143,7 +141,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     if isinstance(dslExpr, DependencyGraph):
         if isVerbose:
 
-            lenStubbedExprs = len(dslExpr.stubbedExprs)
+            lenStubbedExprs = len(dslExpr.stubbedExprsData)
             lenLeafIds = len(dslExpr.leafIds)
 
             msg = "Evaluating %d expressions (%d %s) with " % (lenStubbedExprs, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
@@ -170,7 +168,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                             lenResults = len(dslExpr.runner.resultsDict)
                         except IOError:
                              break
-                        progress = 100.0 * lenResults / lenDslExpr
+                        progress = 100.0 * lenResults / lenStubbedExprs
                         resultsTime = datetime.datetime.now()
                         movingRates.append((lenResults, resultsTime))
                         if len(movingRates) >= 15:
@@ -184,7 +182,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                             rateStr = "%.2f expr/s" % (lenDelta / timeDeltaSeconds)
                         else:
                             rateStr = ''
-                        sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, lenDslExpr, rateStr))
+                        sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, lenStubbedExprs, rateStr))
                         sys.stdout.flush()
                     else:
                         time.sleep(0.5)

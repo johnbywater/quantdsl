@@ -442,7 +442,7 @@ fib(%d)
         self.assertIsInstance(dslExpr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
+        actualLenStubbedExprs = len(dslExpr.stubbedExprsData)
 
         # Evaluate the stack.
         dslValue = dslExpr.evaluate(dependencyGraphRunnerClass=DependencyGraphRunner)
@@ -481,7 +481,7 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
         self.assertIsInstance(dslExpr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
+        actualLenStubbedExprs = len(dslExpr.stubbedExprsData)
 
         # Evaluate the stack.
         image = mock.Mock()
@@ -562,7 +562,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
         assert isinstance(dslExpr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr.stubbedExprs)
+        actualLenStubbedExprs = len(dslExpr.stubbedExprsData)
 
         # Create a mock valuation environment.
         # image = mock.Mock()
