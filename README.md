@@ -1,3 +1,5 @@
+[![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
+
 Quant DSL
 =========
 
