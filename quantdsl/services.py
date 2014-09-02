@@ -6,14 +6,14 @@ import time
 from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.syntax import DslParser
-from quantdsl.runtime import DependencyGraph
+from quantdsl.runtime import DependencyGraph, MultiProcessingDependencyGraphRunner, SingleThreadedDependencyGraphRunner
 
 ## Application services.
 
 defaultPriceProcessName = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
 
 def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
-         priceProcessName=None, isVerbose=False, isShowSource=False, **extraEvaluationKwds):
+         priceProcessName=None, isMultiprocessing=False, poolSize=0, isVerbose=False, isShowSource=False, **extraEvaluationKwds):
     """
     Returns the result of evaluating a compiled module (an expression, or a user defined function).
 
@@ -150,8 +150,8 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             lenLeafIds = len(dslExpr.leafIds)
 
             msg = "Evaluating %d expressions (%d %s) with " % (lenStubbedExprs, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
-            if evaluationKwds.get('isMultiprocessing') and evaluationKwds.get('poolSize'):
-                msg += "a multiprocessing pool of %s workers" % evaluationKwds.get('poolSize')
+            if isMultiprocessing and poolSize:
+                msg += "a multiprocessing pool of %s workers" % poolSize
             else:
                 msg += "a single thread"
             msg += ", please wait..."
@@ -168,9 +168,9 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                     if stop.is_set():
                         break
                     # Avoid race condition.
-                    if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultsDict'):
+                    if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultIds'):
                         try:
-                            lenResults = len(dslExpr.runner.resultsDict)
+                            lenResults = len(dslExpr.runner.resultIds)
                         except IOError:
                              break
                         progress = 100.0 * lenResults / lenStubbedExprs
@@ -200,7 +200,14 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
     try:
         # Evaluate the primitive DSL expression.
-        value = dslExpr.evaluate(**evaluationKwds)
+        if isinstance(dslExpr, DependencyGraph):
+            if isMultiprocessing:
+                dependencyGraphRunnerClass = MultiProcessingDependencyGraphRunner
+            else:
+                dependencyGraphRunnerClass = SingleThreadedDependencyGraphRunner
+            value = dslExpr.evaluate(dependencyGraphRunnerClass=dependencyGraphRunnerClass, poolSize=poolSize, **evaluationKwds)
+        else:
+            value = dslExpr.evaluate(**evaluationKwds)
     except:
         if isinstance(dslExpr, DependencyGraph):
             if isVerbose:

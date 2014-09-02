@@ -129,13 +129,14 @@ class SingleThreadedDependencyGraphRunner(DependencyGraphRunner):
         import Queue as queue
         self.executionQueue = queue.Queue()
         self.resultsDict = {}
+        self.resultIds = {}
         self.callsDict = self.dependencyGraph.callRequirements.copy()
         self.dependencyDict = self.dependencyGraph.dependencyIds.copy()
         self.notifyDict = self.dependencyGraph.notifyIds.copy()
 
     def executeWaitingCalls(self):
         callRequirementId = self.executionQueue.get()
-        executeCallRequirement((callRequirementId, self.runKwds, self.resultsDict, self.executionQueue,
+        executeCallRequirement((callRequirementId, self.runKwds, self.resultsDict, self.resultIds, self.executionQueue,
                                                self.callsDict, self.dependencyDict, self.notifyDict))
         self.callCount += 1
 
@@ -155,23 +156,34 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
         return self._multiProcessingPool
 
     def initQueuesAndDicts(self):
+        # Make shared memory objects, from the native Python data objects.
         import multiprocessing
         self.executionQueueManager = multiprocessing.Manager()
         self.executionQueue = self.executionQueueManager.Queue()
         self.resultsDict = self.executionQueueManager.dict()
+        self.resultsIds = self.executionQueueManager.dict()
         self.callsDict = self.executionQueueManager.dict()
         self.callsDict.update(self.dependencyGraph.callRequirements)
         self.dependencyDict = self.executionQueueManager.dict()
         self.dependencyDict.update(self.dependencyGraph.dependencyIds)
         self.notifyDict = self.executionQueueManager.dict()
         self.notifyDict.update(self.dependencyGraph.notifyIds)
+        # if 'allMarketPrices' in self.runKwds:
+        #     allMarketPrices = self.runKwds.pop('allMarketPrices')
+        #     allMarketPricesDict = self.executionQueueManager.dict()
+        #     for marketName, marketPrices in allMarketPrices.items():
+        #         marketPricesDict = self.executionQueueManager.dict()
+        #         allMarketPricesDict[marketName] = marketPricesDict
+        #         for fixingDate, marketPrice in marketPrices.items():
+        #             marketPricesDict[fixingDate] = marketPrice
+        #     self.runKwds['allMarketPrices'] = allMarketPricesDict
 
     def executeWaitingCalls(self):
         batchCallRequirementIds = []
         while not self.executionQueue.empty():
             batchCallRequirementIds.append(self.executionQueue.get())
         self.multiProcessingPool.map_async(executeCallRequirement,
-                       [(i, self.runKwds, self.resultsDict, self.executionQueue, self.callsDict, self.dependencyDict, self.notifyDict) for i in
+                       [(i, self.runKwds, self.resultsDict, self.resultIds, self.executionQueue, self.callsDict, self.dependencyDict, self.notifyDict) for i in
                         batchCallRequirementIds]
         ).get(99999999)  # Do this rather than just call map(), because otherwise Ctrl-C doesn't work.
         self.callCount += len(batchCallRequirementIds)
@@ -185,7 +197,7 @@ def executeCallRequirement(args):
     """
     try:
         # Get call requirement ID and modelled function objects.
-        callRequirementId, evaluationKwds, resultsDict, executionQueue, callsDict, dependencyDict, notifyDict = args
+        callRequirementId, evaluationKwds, resultsDict, resultIds, executionQueue, callsDict, dependencyDict, notifyDict = args
 
         # Get the call requirement object (it has the stubbedExpr and effectivePresentTime).
         stubbedExprStr, effectivePresentTime = callsDict[callRequirementId]
@@ -217,6 +229,7 @@ def executeCallRequirement(args):
 
         # Create result object and check if subscribers are ready to be executed.
         resultsDict[callRequirementId] = resultValue
+        resultIds[callRequirementId] = None
         for subscriberId in notifyDict[callRequirementId]:
             if subscriberId in resultsDict:
                 continue
@@ -231,6 +244,20 @@ def executeCallRequirement(args):
                     break
             if isSubscriberReady:
                 executionQueue.put(subscriberId)
+
+        # Check if we can delete dependency results.
+        for notifierId in dependencyDict[callRequirementId]:
+            # - are there results for all dependents of this result?
+            isNotifierDone = True
+            for subscriberId in notifyDict[notifierId]:
+                if subscriberId == callRequirementId:
+                    continue
+                if subscriberId not in resultsDict:
+                    isNotifierDone = False
+                    break
+            if isNotifierDone:
+                resultsDict.pop(notifierId)
+
         return "OK"
     except Exception, e:
         import traceback
