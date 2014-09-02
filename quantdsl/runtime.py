@@ -161,7 +161,7 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
         self.executionQueueManager = multiprocessing.Manager()
         self.executionQueue = self.executionQueueManager.Queue()
         self.resultsDict = self.executionQueueManager.dict()
-        self.resultsIds = self.executionQueueManager.dict()
+        self.resultIds = self.executionQueueManager.dict()
         self.callsDict = self.executionQueueManager.dict()
         self.callsDict.update(self.dependencyGraph.callRequirements)
         self.dependencyDict = self.executionQueueManager.dict()
