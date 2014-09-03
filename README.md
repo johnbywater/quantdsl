@@ -3,17 +3,17 @@ Quant DSL
 
 ***Domain specific language for quantitative analytics in finance and trading.***
 
+[![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
+
 *Quant DSL* is a functional programming language for modelling derivative instruments.
 
 The reason for having a domain specific language is to avoid implementing each new contract individually. By defining elements which can be combined, it becomes possible to simply describe new contracts.
 
-At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Choice"*, *"Wait"*) that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value. User defined functions are supported, and can be used to generate massive expressions.
+At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Choice"*, *"Wait"*) that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value.
 
-The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). This package is an implementation in Python of the *Quant DSL* syntax and semantics.
+User defined functions are supported, and can be used to generate massive expressions. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). This package is an implementation in Python of the *Quant DSL* syntax and semantics.
 
 Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). *Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1). You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
-
-[![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
 
 
 Introduction
