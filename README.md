@@ -7,11 +7,11 @@ Quant DSL
 
 *Quant DSL* is a functional programming language for modelling derivative instruments.
 
-The reason for having a domain specific language is to avoid implementing each new contract individually. By defining elements which can be combined, it becomes possible to simply describe new contracts.
+The reason for having a domain specific language is to avoid implementing each new contract individually. By defining elements which can be combined into expressions, it becomes possible to describe and value new contracts quickly and without writing new software.
 
 At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Choice"*, *"Wait"*) that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value.
 
-User defined functions are supported, and can be used to generate massive expressions. The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). This package is an implementation in Python of the *Quant DSL* syntax and semantics.
+User defined functions are supported, and can be used to generate massive expressions. The syntax of *Quant DSL* expressions has been formally defined, and the semantic model is supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). This package is an implementation in Python of the *Quant DSL* syntax and semantics.
 
 Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). *Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1). You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
 
@@ -129,7 +129,7 @@ Use Pip to install the *Quant DSL* Python package.
 pip install quantdsl
 ```
 
-If you are working on a corporate LAN, then you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) (and dependencies) by hand, and then use the path to the downloaded files instead of the package name in the `pip` command:
+If you are working on a corporate LAN, with an HTTP proxy that requires authentication, then pip may fail to find the Python Package Index. In this case you may need to [download the distribution](https://pypi.python.org/pypi/quantdsl) (and dependencies) by hand, and then use the path to the downloaded files instead of the package name in the `pip` command:
 
 ```
 pip install C:\MyDownloads\quantdsl-X.X.X.tar.gz
@@ -137,9 +137,9 @@ pip install C:\MyDownloads\quantdsl-X.X.X.tar.gz
 
 To avoid disturbing your system's site packages, it is recommended to install *Quant DSL* into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 
-*Quant DSl* depends on NumPy and SciPy. On Linux systems these should be automatically installed as dependencies.
+*Quant DSL* depends on NumPy and SciPy. On Linux systems these should be automatically installed as dependencies. If you don't want to build the binaries, you can just install the system packages and create a virtual environment that uses system site packages (`--system-site-packages`).
 
-(Windows users may not be able to install NumPy and SciPy because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have NumPy and SciPy, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that NumPy and SciPy will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get bogged down, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` or `easy_install quantdsl` if Pip is not available.)
+(Windows users may not be able to install NumPy and SciPy because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have NumPy and SciPy, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that NumPy and SciPy will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get bogged down, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` or `easy_install quantdsl` if `pip` is not available.)
 
 
 Overview of the Language
@@ -203,11 +203,11 @@ The convenience function `parse` takes a piece of *Quant DSL* source code and re
 When converted to a string, a *Quant DSL* Module (and all other *Quant DSL* objects) renders itself as equivalent *Quant DSL* source code.
 
 ```python
->>> print parse("1 + 1")
-1 + 1
+>>> print parse("10 + 20")
+20 + 30
 ```
 
-When a *Quant DSL* module is compiled, a *Quant DSL* expression is obtained. In the case of `1 + 1`, an addition expression is obtained.
+When a *Quant DSL* module is compiled, a *Quant DSL* expression is obtained. In the case of `10 + 20`, an addition expression is obtained.
 
 ```python
 >>> module.compile()
@@ -222,7 +222,7 @@ The convenience function `compile()` takes *Quant DSL* source code and directly 
 <quantdsl.semantics.Add object at 0x7fadb8888510>
 ```
 
-A *Quant DSL* expression can be evaluated to a numerical value.
+A *Quant DSL* expression can be evaluated to a numeric value.
 
 ```python
 >>> compile("10 + 20").evaluate()
@@ -240,29 +240,17 @@ The convenience function `eval()` takes *Quant DSL* source code and directly ret
 
 ### Expressions
 
-As we have seen, expressions are evaluated to produce a numeric value.
+As we have seen, *Quant DSL* expressions can be evaluated to produce a numeric value.
 
 ```python
->>> eval("10")
-{'stderr': 0.0, 'mean': 30}
+>>> eval("-10")
+{'stderr': 0.0, 'mean': -10}
 
->>> print expr.evaluate()
-10
-
->>> expr = parser.parse("-10")
->>> print expr.evaluate()
--10
-
->>> expr = parser.parse("-0.1")
->>> print expr.evaluate()
--0.1
-
->>> expr = parser.parse("'hello world'")
->>> print expr.evaluate()
-'hello world'
+>>> eval("0.1")
+{'stderr': 0.0, 'mean': 0.1}
 ```
 
-Binary operations, such as addition, substraction, multiplication and division are also supported.
+Binary operations, such as addition, substraction, multiplication and division are supported.
 
 ```python
 >>> expr = parser.parse("10 + 4")
@@ -281,22 +269,6 @@ Binary operations, such as addition, substraction, multiplication and division a
 >>> print expr.evaluate()
 2.5
 
-```
-
-The parser also supports dates and time deltas. Time deltas can be multiplied by numbers and added to, or subtracted from, dates.
-
-```python
->>> expr = parser.parse("Date('2014-1-1')")
->>> print expr.evaluate()
-datetime.datetime(2014, 1, 1, 0, 0)
-
->>> expr = parser.parse("TimeDelta('1d')")
->>> print expr.evaluate()
-datetime.timedelta(1)
-
->>> expr = parser.parse("Date('2014-1-1') + 10 * TimeDelta('1d')")
->>> print expr.evaluate()
-datetime.datetime(2014, 1, 11, 0, 0)
 ```
 
 Variables can be used in expressions. Variables must be defined before the expression is evaluated.
@@ -364,6 +336,25 @@ Functions can have a conditional expression, but each leg of the conditional can
 >>> print expr.evaluate()
 25
 ```
+
+
+The test compare expression supports numerical expressions, and also expressions involving dates and time deltas. Time deltas can be multiplied by numbers and added to, or subtracted from, dates.
+
+```python
+>>> expr = parser.parse("Date('2014-1-1')")
+>>> print expr.evaluate()
+datetime.datetime(2014, 1, 1, 0, 0)
+
+>>> expr = parser.parse("TimeDelta('1d')")
+>>> print expr.evaluate()
+datetime.timedelta(1)
+
+>>> expr = parser.parse("Date('2014-1-1') + 10 * TimeDelta('1d')")
+>>> print expr.evaluate()
+datetime.datetime(2014, 1, 11, 0, 0)
+```
+
+
 
 Functions are reentrant and can recurse.
 
