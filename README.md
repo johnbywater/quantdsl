@@ -1,8 +1,6 @@
 Quant DSL
 =========
 
-[![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
-
 ***Domain specific language for quantitative analytics in finance.***
 
 *Quant DSL* is a functional programming language for modelling derivative instruments.
@@ -14,6 +12,8 @@ At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Ch
 The syntax of *Quant DSL* expressions have been formally defined, and the semantics are supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). This package is an implementation in Python of the *Quant DSL* syntax and semantics.
 
 Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). *Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1). You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
+
+[![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
 
 
 Introduction
