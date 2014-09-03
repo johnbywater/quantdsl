@@ -8,19 +8,20 @@
 __version__ = '0.1.0'
 
 
+# Todo: Make price process create calibration params from market observations, as well as consume the calibration parameters.
+# Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
 # Todo: Change all names from lower camel case to underscore separated style.
 # Todo: Move to an event sourced model for dependency graph changes (CreatedResult, CreatedCallDependency, CreatedCallRequirement, etc.) and use an RDBMS (even sqlite in memory) to manage a single table with everything in.
 # Todo: Go through dependency graph runner and identify the domain events (what data is used, and where it is created).
 # Todo: Use rules of Domain Driven Design, especially "change one object at once" - distill objects and events which will make this work well.
 # Todo: Extend language syntax spec documentation, to cover function defs and modules. Perhaps reuse the Python syntax definitions, since it's just a reduction of the Python syntax?
-# Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
 # Todo: Develop multi-factor PriceProcess model (e.g. Schwartz-Smith)?
 # Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
 # Todo: Develop call requirement dependency graph store, so call requirements can be retrieved over the network.
-# Todo: Keep memory/storage low by notifying dependencies when they are no longer needed, and delete when there are no outstanding dependents?
 # Todo: Improve the multiprocessing code - currently it runs slower that the single threaded, and seems to grind to a halt for stacks > 5000 expressions (IPC bandwidth? rounding errors?).
 # Todo: Improve separation of expression stack/dependency graph from results and notifications, so results from different runs can be reused when calculating greeks.
 # Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
+# Todo: Figure out how best to make alternative set of DSL classes available to workers (module name that is imported, rather than a dict of classes).
 # Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
 # Todo: Optimize network traffic by creating a single message containing all data required to evaluate a stubbed expression.
 # Todo: Decouple the cli from the runner more, make the workers put things directly on the queue, so that the cli just waits for the final result and clocks the intermediate results as they occur in an event stream.
