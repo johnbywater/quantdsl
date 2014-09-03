@@ -1,7 +1,7 @@
 Quant DSL
 =========
 
-***Domain specific language for quantitative analytics in finance.***
+***Domain specific language for quantitative analytics in finance and trading.***
 
 *Quant DSL* is a functional programming language for modelling derivative instruments.
 
