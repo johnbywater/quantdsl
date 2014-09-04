@@ -309,9 +309,11 @@ datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 
 *Quant DSL* has built-in primitive elements that generate and operate on random variables.
 
+#### Market
+
 A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples from a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
 
-The simulation of future prices involves a number of "paths" - one for each sample from the random variable - that allow an evolution of future prices. Prices are evolved from an "observation time" to the "present time" of the *Market* object (by adding random increments to each path according to the length of the duration - see the price process object class for details). The "present time" is given to a *Market* when it is evaluated, so that the value of a *Market* can be conditioned by surrounding *Quant DSL* elements (e.g. by fixing the market to an agreed date in the future).
+The simulation of future prices involves a number of "paths" that allow an evolution of prices. Before an expression which contains *Market* objects can be evaluated, future prices for each *Market* are evolved from an initial "observation time" to the effective "present times".
 
 As expected, the simulated value of an expression made simply of a single market object (e.g. the expression `"Market('NBP')"`) is exactly the corresponding spot price in the market calibration parameters. The standard error of zero because the duration from observation time to the effective present time is zero, so there are no random increments.
 
@@ -327,6 +329,10 @@ As expected, the simulated value of an expression made simply of a single market
 >>> eval("Market('TTF')", observationTime=observationTime, marketCalibration=ttfMarketCalibration)
 {'stderr': 0.0, 'mean': 11.0}
 ```
+
+The "present time" is given to a *Market* when it is evaluated, so that the value of a *Market* can be conditioned by surrounding *Quant DSL* elements (e.g. by fixing the market to an agreed date in the future).
+
+#### Fixing
 
 In *Quant DSL*, a *"Fixing"* is an expression that contains a date and another expression. A *Fixing* sets the present time of its contained expression is set to the date of the *Fixing*.
 
@@ -351,6 +357,8 @@ The standard error can be reduced by increasing the number of paths in the simul
 {'stderr': 0.11179458389825998, 'mean': 10.082329861847562}
 ```
 
+#### Settlement
+
 In *Quant DSL*, a *"Settlement"* is an expression that contains a date and another expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
 
 ```python
@@ -360,6 +368,15 @@ In *Quant DSL*, a *"Settlement"* is an expression that contains a date and anoth
 >>> eval("Settlement('2024-01-01', Market('NBP'))", interestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration)
 {'stderr': 2.1918490723225498e-15, 'mean': 7.2237890436954215}
 ```
+
+To settle a future value at a future time, a *Settlement* can be used with a *Fixing*.
+
+```python
+>>> eval("Settlement('2024-01-01', Fixing('2024-01-01', Market('NBP')))", interestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration)
+{'stderr': 0.23780365491871699, 'mean': 7.2177797811573576}
+```
+
+#### Wait
 
 In *Quant DSL*, a *"Wait"* is an expression that contains a date and another expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
 
