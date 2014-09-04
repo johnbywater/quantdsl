@@ -85,9 +85,9 @@ For two correlated markets called 'NBP' and 'TTF', under the default Black-Schol
 }
 ```
 
-The default Black-Scholes price process can be replaced with your own model of market dynamics, by using the `--price-process` option of the `quant-dsl.py` command line program. The market calibration parameters are used only by the price process (which uses them to simulate an evolution of future prices that *Quant DSL* "*Market*" objects will consume - so if you have developed a model of market dynamics, the market calibration parameters will contain whatever is needed by your price process object).
+The default Black-Scholes price process can be replaced with your own model of market dynamics, by using the `--price-process` option of the `quant-dsl.py` command line program (see above). The market calibration parameters are used only by the price process (which uses them to simulate an evolution of future prices that *Quant DSL* "*Market*" objects will consume; so if you have developed a model of market dynamics, the market calibration parameters will contain whatever is needed by your price process object).
 
-With the above example *Quant DSL* American option saved in a file called `americanoption.quantdsl` (the filename is arbitrary, and could be replaced with a URL), and with the above market calibration parameters in a file called `calibration.json` (again, the filename is arbitrary, and could be a URL), the following shell command evaluates that American option with those market calibration parameters under the default one-factor model of market dynamics.
+With the above example *Quant DSL* American option saved in a file called `americanoption.quantdsl` (the filename is arbitrary, and could be replaced with a URL), and with the above market calibration parameters in a file called `calibration.json` (again the filename is arbitrary and could be a URL), the following shell command evaluates that American option with those market calibration parameters under the default one-factor model of market dynamics.
 
 ```
 $ quant-dsl.py -c calibration.json  americanoption.quantdsl 
@@ -103,7 +103,7 @@ Compiled DSL source into 368 partial expressions (root ID: dfca11e1-e131-4588-94
 
 Price process class: quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess
 
-Path count: 50000
+Path count: 20000
 
 Finding all Market names and Fixing dates...
 
