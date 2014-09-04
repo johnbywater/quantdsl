@@ -6,7 +6,7 @@ import datetime
 # from quantdsl.priceprocess.base import PriceProcess
 
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 
 # Todo: Warning when a built-in is being overridden by a user defined function. Or perhaps that would be useful? In any case, make sure this is handled properly (currently the user defined function will just be ignore?).
