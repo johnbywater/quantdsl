@@ -508,11 +508,11 @@ def Option(date, strike, underlying, alternative):
 
 ### Dependency Graph
 
-# Todo: More about dependency graph objects (how you make one, etc.).
+Todo: More about dependency graph objects (how you make one, etc.).
 
 ### Dependency Graph Runner
 
-# Todo: More about dependency graph runners (single threaded, multiprocessing, networked).
+Todo: More about dependency graph runners (single threaded, multiprocessing, networked).
 
 ## A Really Big Example
 
