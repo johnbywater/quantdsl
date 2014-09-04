@@ -7,8 +7,6 @@ Quant DSL
 
 *Quant DSL* is a functional programming language for modelling derivative instruments.
 
-The reason for having a domain specific language for quantitative analytics is to avoid implementing each new type of contract individually. By defining elements which can be combined into expressions, it becomes possible to describe and value new contracts quickly without writing new software.
-
 At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Choice"*, *"Wait"*) that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value.
 
 User defined functions are supported, and can be used to generate massive expressions. The syntax of *Quant DSL* expressions has been formally defined, and the semantic model is supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). The Python package `quantdsl` is an implementation in Python of the *Quant DSL* syntax and semantics.
@@ -19,7 +17,7 @@ Stable releases of `quantdsl` are available to [download from the Python Package
 Introduction
 ------------
 
-Here is an American option expressed in *Quant DSL*. There are two user defined functions (*"American"* and *"Option"*), and an expression which declares that the owner of the option may at any time during April 2015 buy one unit of "NBP" at a strike price of 9 units of currency. (The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are elements of *Quant DSL*.)
+Here is an American call option expressed in *Quant DSL*. There are two user defined functions (*"American"* and *"Option"*), and an expression which declares that the owner of the option may at any time during April 2015 buy one unit of "NBP" at a strike price of 9 units of currency. (The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are elements of *Quant DSL*.)
 
 
 ```python
@@ -167,6 +165,8 @@ The *Quant DSL* syntax is a strict subset of the Python language syntax. There a
 * the test compare expression of an 'if' clause cannot contain any of the primitive elements of *Quant DSL*.
 
 There are also some slight changes to the semantics of a function: in particular the return value of a function is not the result of evaluating the expressions, but rather it is the result of selecting an expression by evaluating the test compare expression of 'if' statements, and then compiling the selected expression into a primitive expression by making any function calls that are declared and substituting them with their return value. That is, what a function returns is a *Quant DSL* expression, rather than the evaluation of such an expression.
+
+What is the reason for having a domain specific language for quantitative analytics? By defining elements which can be combined into expressions, it becomes possible to describe and value new contracts quickly. By reducing the iteration time of model development, many more and much better models can be obtained with the "quant" resources that are available within an organisation.
 
 
 Acknowledgments
