@@ -175,8 +175,8 @@ Acknowledgments
 The *Quant DSL* language was partly inspired by the paper *[Composing contracts: an adventure in financial engineering (functional pearl)](http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph, to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees") module. We have also been encourged by members of the [London Financial Python User Group](https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL* expressions synatax and semantics were first presented.
 
 
-Getting Started
----------------
+Getting Started In Python
+-------------------------
 
 The `quantdsl` Python package is designed to be integrated into other software applications. This can be done by using the command line interface (see above), by writing a Python program which imports code from `quantdsl`, or as a service accessed via HTTP. This section shows how to use `quantdsl` in Python code.
 
@@ -398,7 +398,7 @@ In *Quant DSL*, a `Choice` is an expression that contains two other expressions.
 
 ### Variables
 
-Variables, such as those defined by function parameters - see below, can be used in expressions. In general, variables must be defined before the expression is compiled.
+Variables, such as those defined as function parameters, can be used in expressions. In general, variables must be defined before the expression is compiled.
 
 ```python
 >>> eval("a", compileKwds={'a': 2})
@@ -475,7 +475,7 @@ True
 True
 ```
 
-Comparisons can involve variables, and expressions that combine with numbers and dates.
+Comparisons can involve variables, and expressions that combine variables with numbers and dates.
 
 ```python
 >>> source = "Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')"
@@ -496,13 +496,29 @@ Functions are reentrant and can recurse.
 ((2 + 1) + 2) + (2 + 1)
 ```
 
-### Function Decorators
+#### Function Decorators
 
 At the moment, `quantdsl` supports a function decorator called `nostub`. If a user defined function is decorated with `nostub`, its call requirements will not become separate parts of the dependency graph but will be inlined within the results of other function calls. This is an attempt to avoid maximal proliferation of dependency graph nodes.
 
+```python
+@nostub
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+```
+
+### Dependency Graph
+
+# Todo: More about dependency graph objects (how you make one, etc.).
+
+### Dependency Graph Runner
+
+# Todo: More about dependency graph runners (single threaded, multiprocessing, networked).
+
+## A Really Big Example
+
+Todo: A really big example.
 
 ----
-Todo: A really big example.
 
 Todo: Parse and pretty print the reduced monolithic DSL expression.
 
