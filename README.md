@@ -56,10 +56,11 @@ optional arguments:
   -c CALIBRATION, --calibration CALIBRATION
                         market calibration URL or file path (default: None)
   -n NUM_PATHS, --num-paths NUM_PATHS
-                        number of paths in price simulations (default: 50000)
+                        number of paths in price simulations (default: 20000)
   -p PRICE_PROCESS, --price-process PRICE_PROCESS
-                        price process model of market dynamics (default:
-                        quantdsl:BlackScholesPriceProcess)
+                        price process model of market dynamics (default: quant
+                        dsl.priceprocess.blackscholes.BlackScholesPriceProcess
+                        )
   -i INTEREST_RATE, --interest-rate INTEREST_RATE
                         annual percent interest rate (default: 2.5)
   -m [MULTIPROCESSING_POOL], --multiprocessing-pool [MULTIPROCESSING_POOL]
@@ -67,6 +68,7 @@ optional arguments:
                         pool size, which defaults to cpu count) (default: 0)
   -q, --quiet           don't show progress info (default: False)
   -s, --show-source     show source code and compiled expression stack
+                        (default: False)
 ```
 
 Market calibration parameters are required to evaluate an expression which involves an underlying *Market*. For such expressions, `quantdsl` provides a multi-market Black-Scholes price process (a one factor "spot/vol" model of market dynamics). It can simulate a correlated evolution of future prices for a number of different markets. `quantdsl` can use other price processes, however no other price processes have (so far) been developed for this package.
