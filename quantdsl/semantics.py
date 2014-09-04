@@ -11,11 +11,7 @@ import dateutil.parser
 
 from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
 from quantdsl.priceprocess.base import getDurationYears
-
-try:
-    import pytz
-except ImportError:
-    pytz = None
+from quantdsl import utc
 
 
 class DslObject(object):
@@ -205,28 +201,6 @@ class Number(DslConstant):
         from numpy import ndarray
         return (int, float, ndarray)
 
-
-class UTC(datetime.tzinfo):
-    """
-    UTC implementation taken from Python's docs.
-
-    Used only when pytz isn't available.
-    """
-    ZERO = datetime.timedelta(0)
-
-    def __repr__(self):
-        return "<UTC>"
-
-    def utcoffset(self, dt):
-        return self.ZERO
-
-    def tzname(self, dt):
-        return "UTC"
-
-    def dst(self, dt):
-        return self.ZERO
-
-utc = pytz.utc if pytz else UTC()
 
 class Date(DslConstant):
     requiredType = (basestring, String, datetime.datetime)
@@ -418,27 +392,6 @@ class Div(BinOp):
         return left / right
 
 
-class Pow(BinOp):
-    opchar = '**'
-
-    def op(self, left, right):
-        return left ** right
-
-
-class Mod(BinOp):
-    opchar = '%'
-
-    def op(self, left, right):
-        return left % right
-
-
-class FloorDiv(BinOp):
-    opchar = '//'
-
-    def op(self, left, right):
-        return left // right
-
-
 class Max(BinOp):
     def op(self, a, b):
         # Assume a and b have EITHER type ndarray, OR type int or float.
@@ -465,6 +418,29 @@ class Max(BinOp):
             b = numpy.array([b] * len(a))
         c = numpy.array([a, b])
         return c.max(axis=0)
+
+
+# Todo: Pow, Mod, FloorDiv don't have proofs, so shouldn't really be used for combining random variables? Either prevent usage with ndarray inputs, or do the proofs. :-)
+
+class Pow(BinOp):
+    opchar = '**'
+
+    def op(self, left, right):
+        return left ** right
+
+
+class Mod(BinOp):
+    opchar = '%'
+
+    def op(self, left, right):
+        return left % right
+
+
+class FloorDiv(BinOp):
+    opchar = '//'
+
+    def op(self, left, right):
+        return left // right
 
 
 class Name(DslExpression):
@@ -1056,6 +1032,9 @@ class DslNamespace(dict):
         return copy
 
 
+class StochasticObject(DslObject):
+    pass
+
 class DatedDslObject(DslObject):
 
     @property
@@ -1107,7 +1086,7 @@ functionalDslClasses = {
     'Underlying': Underlying,
 }
 
-class Market(DslExpression):
+class Market(StochasticObject, DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=1)
         self.assertArgsPosn(args, posn=0, requiredType=(basestring, String, Name))
@@ -1155,7 +1134,7 @@ class Market(DslExpression):
         return marketPrice
 
 
-class Settlement(DatedDslObject, DslExpression):
+class Settlement(StochasticObject, DatedDslObject, DslExpression):
     """
     Discounts value of expression to 'presentTime'.
     """
@@ -1170,7 +1149,7 @@ class Settlement(DatedDslObject, DslExpression):
         return self.discount(value, self.date, **kwds)
 
 
-class Fixing(DatedDslObject, DslExpression):
+class Fixing(StochasticObject, DatedDslObject, DslExpression):
     """
     A fixing defines the 'presentTime' used for evaluating its expression.
     """
@@ -1230,7 +1209,7 @@ class Wait(Fixing):
         return self.discount(value, self.date, **kwds)
 
 
-class Choice(DslExpression):
+class Choice(StochasticObject, DslExpression):
     """
     Encapsulates the Longstaff-Schwartz routine as an element of the language.
     """

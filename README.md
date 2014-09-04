@@ -7,7 +7,7 @@ Quant DSL
 
 *Quant DSL* is a functional programming language for modelling derivative instruments.
 
-The reason for having a domain specific language is to avoid implementing each new contract individually. By defining elements which can be combined into expressions, it becomes possible to describe and value new contracts quickly and without writing new software.
+The reason for having a domain specific language in quantitative analytics is to avoid creating a new implemention for each type of contract. By defining elements which can be combined into expressions, it becomes possible to describe and value new contracts quickly and without writing new software.
 
 At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Choice"*, *"Wait"*) that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value.
 

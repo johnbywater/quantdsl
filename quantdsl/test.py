@@ -8,7 +8,7 @@ import scipy
 from quantdsl.runtime import MultiProcessingDependencyGraphRunner, DependencyGraphRunner, DependencyGraph, \
     SingleThreadedDependencyGraphRunner
 
-from quantdsl.semantics import utc
+from quantdsl import utc
 from quantdsl.exceptions import DslSyntaxError
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
@@ -396,7 +396,7 @@ sqr(3)
         self.assertEqual(dslExpr.evaluate(), 9)
 
         dslValue = eval(dslSource)
-        self.assertEqual(dslValue['mean'], 9)
+        self.assertEqual(dslValue, 9)
 
         # Expression with two function defs.
         dslSource = """
@@ -415,7 +415,7 @@ mul(3, 3)
         self.assertEqual(dslExpr.evaluate(), 9)
 
         dslValue = eval(dslSource)
-        self.assertEqual(dslValue['mean'], 9)
+        self.assertEqual(dslValue, 9)
 
 
     def test_parallel_fib(self):
@@ -455,7 +455,7 @@ fib(%d)
         self.assertEqual(actualLenStubbedExprs, expectedLenStubbedExprs)
 
         # Also check the runner call count is the same.
-        self.assertEqual(dslExpr._runnerCallCount, expectedLenStubbedExprs)
+        self.assertEqual(dslExpr.runner.callCount, expectedLenStubbedExprs)
 
     def test_parallel_american_option(self):
         # Branching function calls.
@@ -668,7 +668,6 @@ class DslTestCase(unittest.TestCase):
     def calcValue(self, dslSource, observationTime):
         # Todo: Rename 'allRvs' to 'simulatedPrices'?
         evaluationKwds = DslNamespace({
-            'presentTime': observationTime,
             'observationTime': observationTime,
             'interestRate': '2.5',
             'marketCalibration': {

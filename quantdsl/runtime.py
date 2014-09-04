@@ -74,19 +74,17 @@ class DependencyGraph(object):
 
 
     def evaluate(self, dependencyGraphRunnerClass=None, poolSize=None, **kwds):
-
+        # Make sure we've got a dependency graph runner.
         if dependencyGraphRunnerClass is None:
             dependencyGraphRunnerClass = SingleThreadedDependencyGraphRunner
+        assert issubclass(dependencyGraphRunnerClass, DependencyGraphRunner)
 
-        # Run the dependency graph.
+        # Init and run the dependency graph runner.
         if poolSize:
             self.runner = dependencyGraphRunnerClass(self, poolSize=poolSize)
         else:
             self.runner = dependencyGraphRunnerClass(self)
         self.runner.run(**kwds)
-
-        # Debug and testing info.
-        self._runnerCallCount = self.runner.callCount
 
         try:
             return self.runner.resultsDict[self.rootStubId]

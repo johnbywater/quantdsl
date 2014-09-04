@@ -3,14 +3,16 @@ import math
 import sys
 import threading
 import time
-from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module
+from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.syntax import DslParser
 from quantdsl.runtime import DependencyGraph, MultiProcessingDependencyGraphRunner, SingleThreadedDependencyGraphRunner
 
 ## Application services.
 
-defaultPriceProcessName = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
+DEFAULT_PRICE_PROCESS_NAME = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
+
+DEFAULT_PATH_COUNT = 20000
 
 def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, evaluationKwds=None,
          priceProcessName=None, isMultiprocessing=False, poolSize=0, isVerbose=False, isShowSource=False, **extraEvaluationKwds):
@@ -23,7 +25,7 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     function def without an expression is an error).
     """
     if priceProcessName is None:
-        priceProcessName = defaultPriceProcessName
+        priceProcessName = DEFAULT_PRICE_PROCESS_NAME
 
     if evaluationKwds is None:
         evaluationKwds = DslNamespace()
@@ -46,10 +48,6 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     # Compile the source into a primitive DSL expression.
     dslExpr = compile(dslSource, filename=filename, isParallel=isParallel, dslClasses=dslClasses, compileKwds=compileKwds)
     compileTimeDelta = datetime.datetime.now() - compileStartTime
-    if isVerbose:
-        print "Duration of compilation: %s" % compileTimeDelta
-        print
-
     assert isinstance(dslExpr, (DslExpression, DependencyGraph)), type(dslExpr)
 
     if isVerbose:
@@ -58,23 +56,33 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
 
             print "Compiled DSL source into %d partial expressions (root ID: %s)." % (lenStubbedExprs, dslExpr.rootStubId)
             print
+
+        print "Duration of compilation: %s" % compileTimeDelta
+        print
+
+        if isinstance(dslExpr, DependencyGraph):
             if isShowSource:
                 print "Expression stack:"
                 for stubbedExprData in dslExpr.stubbedExprsData:
                     print "  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1])
                 print
 
-    # Fix up the evaluationKwds with Brownian motions, if necessary.
-    if dslExpr.hasInstances(dslType=Market):
-
-        # In this case, evaluationKwds must have 'observationTime' and 'pathCount'.
+    if dslExpr.hasInstances(dslType=StochasticObject):
+        # evaluationKwds must have 'observationTime'
         observationTime = evaluationKwds['observationTime']
         assert isinstance(observationTime, datetime.datetime)
+
+        if 'presentTime' in evaluationKwds:
+            msg = "Don't set presentTime here, set observationTime instead. Adjust presentTime with a Fixing or a Wait."
+            raise DslError(msg)
 
         # Initialise presentTime as observationTime.
         evaluationKwds['presentTime'] = observationTime
 
-        # Check pathCount.
+    if dslExpr.hasInstances(dslType=Market):
+        # evaluationKwds must have 'pathCount'
+        if 'pathCount' not in evaluationKwds:
+            evaluationKwds['pathCount'] = DEFAULT_PATH_COUNT
         pathCount = evaluationKwds['pathCount']
         assert isinstance(pathCount, int)
 
@@ -82,41 +90,8 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         marketCalibration = evaluationKwds['marketCalibration']
         assert isinstance(marketCalibration, dict)
 
-        # Construct the Brownian motions.
+        # Construct the price simulations.
         if not 'allMarketPrices' in evaluationKwds:
-
-            if isVerbose:
-                print "Finding all market names and fixing dates..."
-                print
-
-            # Find all unique market names.
-            marketNames = set()
-            for dslMarket in dslExpr.findInstances(dslType=Market):
-                assert isinstance(dslMarket, Market)
-                marketNames.add(dslMarket.name)
-
-            # Find all unique fixing dates.
-            fixingDates = set()
-            for dslFixing in dslExpr.findInstances(dslType=Fixing):
-                assert isinstance(dslFixing, Fixing)
-                fixingDates.add(dslFixing.date)
-            fixingDates = sorted(list(fixingDates))
-
-            if isVerbose:
-                print "Computing Brownian motions for market%s '%s' from observation time %s through fixing dates: %s." % (
-                    '' if len(marketNames) == 1 else 's',
-                    "', '".join(marketNames),
-                    "%04d-%02d-%02d" % (observationTime.year, observationTime.month, observationTime.day),
-                    # Todo: Only print first and last few, if there are loads.
-                    ", ".join(["%04d-%02d-%02d" % (d.year, d.month, d.day) for d in fixingDates[:8]]) + \
-                    (", [...]" if len(fixingDates) > 9 else '') + \
-                    ((", %04d-%02d-%02d" % (fixingDates[-1].year, fixingDates[-1].month, fixingDates[-1].day)) if len(fixingDates) > 8 else '')
-                )
-                print
-
-            if isVerbose:
-                print "Path count: %d" % pathCount
-                print
 
             # Load the price process object.
             priceProcessModuleName, priceProcessClassName = priceProcessName.rsplit('.', 1)
@@ -137,11 +112,47 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                 print "Price process class: %s" % str(priceProcessClass).split("'")[1]
                 print
 
+            if isVerbose:
+                print "Path count: %d" % pathCount
+                print
+
+            if isVerbose:
+                print "Finding all Market names and Fixing dates..."
+                print
+
+            # Find all unique market names.
+            marketNames = set()
+            for dslMarket in dslExpr.findInstances(dslType=Market):
+                assert isinstance(dslMarket, Market)
+                marketNames.add(dslMarket.name)
+
+            # Find all unique fixing dates.
+            fixingDates = set()
+            for dslFixing in dslExpr.findInstances(dslType=Fixing):
+                assert isinstance(dslFixing, Fixing)
+                fixingDates.add(dslFixing.date)
+            fixingDates = sorted(list(fixingDates))
+
+            if isVerbose:
+                print "Simulating future prices for Market%s '%s' from observation time %s through fixing dates: %s." % (
+                    '' if len(marketNames) == 1 else 's',
+                    ", ".join(marketNames),
+                    "'%04d-%02d-%02d'" % (observationTime.year, observationTime.month, observationTime.day),
+                    # Todo: Only print first and last few, if there are loads.
+                    ", ".join(["'%04d-%02d-%02d'" % (d.year, d.month, d.day) for d in fixingDates[:8]]) + \
+                    (", [...]" if len(fixingDates) > 9 else '') + \
+                    ((", '%04d-%02d-%02d'" % (fixingDates[-1].year, fixingDates[-1].month, fixingDates[-1].day)) if len(fixingDates) > 8 else '')
+                )
+                print
+
+            # Simulate the future prices.
             allMarketPrices = priceProcess.simulateFuturePrices(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
+
+            # Add future price simulation to evaluationKwds.
             evaluationKwds['allMarketPrices'] = allMarketPrices
 
-
-    evalStartTime = datetime.datetime.now()
+    # Initialise the evaluation timer variable (needed by showProgress thread).
+    evalStartTime = None
 
     if isinstance(dslExpr, DependencyGraph):
         if isVerbose:
@@ -159,45 +170,50 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
             print msg
             print
 
-            # Start progress display thread.
+            # Define showProgress() thread.
             def showProgress(stop):
                 progress = 0
-                movingRates = [(0, evalStartTime)]
+                movingRates = []
                 while progress < 100 and not stop.is_set():
-                    time.sleep(0.2)
+                    time.sleep(0.3)
+                    if evalStartTime is None:
+                        continue
+                    # Avoid race condition.
+                    if not hasattr(dslExpr, 'runner') or not hasattr(dslExpr.runner, 'resultIds'):
+                        continue
                     if stop.is_set():
                         break
-                    # Avoid race condition.
-                    if hasattr(dslExpr, 'runner') and hasattr(dslExpr.runner, 'resultIds'):
-                        try:
-                            lenResults = len(dslExpr.runner.resultIds)
-                        except IOError:
-                             break
-                        progress = 100.0 * lenResults / lenStubbedExprs
-                        resultsTime = datetime.datetime.now()
-                        movingRates.append((lenResults, resultsTime))
-                        if len(movingRates) >= 15:
-                            movingRates.pop(0)
-                        if len(movingRates) > 1:
-                            firstLenResults, firstTimeResults = movingRates[0]
-                            lastLenResults, lastTimeResults = movingRates[-1]
-                            lenDelta = lastLenResults - firstLenResults
-                            resultsTimeDelta = lastTimeResults - firstTimeResults
-                            timeDeltaSeconds = resultsTimeDelta.seconds + resultsTimeDelta.microseconds * 0.000001
-                            rateStr = "%.2f expr/s" % (lenDelta / timeDeltaSeconds)
-                        else:
-                            rateStr = ''
-                        sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, lenStubbedExprs, rateStr))
-                        sys.stdout.flush()
+
+                    try:
+                        lenResults = len(dslExpr.runner.resultIds)
+                    except IOError:
+                         break
+                    resultsTime = datetime.datetime.now()
+                    movingRates.append((lenResults, resultsTime))
+                    if len(movingRates) >= 15:
+                        movingRates.pop(0)
+                    if len(movingRates) > 1:
+                        firstLenResults, firstTimeResults = movingRates[0]
+                        lastLenResults, lastTimeResults = movingRates[-1]
+                        lenDelta = lastLenResults - firstLenResults
+                        resultsTimeDelta = lastTimeResults - firstTimeResults
+                        timeDeltaSeconds = resultsTimeDelta.seconds + resultsTimeDelta.microseconds * 0.000001
+                        rateStr = "%.2f expr/s" % (lenDelta / timeDeltaSeconds)
                     else:
-                        time.sleep(0.5)
+                        rateStr = ''
+                    progress = 100.0 * lenResults / lenStubbedExprs
+                    sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, lenStubbedExprs, rateStr))
+                    sys.stdout.flush()
                 sys.stdout.write("\r")
                 sys.stdout.flush()
-
             stop = threading.Event()
             thread = threading.Thread(target=showProgress, args=(stop,))
+
+            # Start showProgress() thread.
             thread.start()
 
+    # Start timing the evaluation.
+    evalStartTime = datetime.datetime.now()
     try:
         # Evaluate the primitive DSL expression.
         if isinstance(dslExpr, DependencyGraph):
@@ -219,11 +235,12 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
                     # print "Joined with thread..."
         raise
 
+    # Stop timing the evaluation.
     evalTimeDelta = datetime.datetime.now() - evalStartTime
 
     if isinstance(dslExpr, DependencyGraph):
         if isVerbose:
-            # Join with progress display thread.
+            # Join with showProgress thread.
             thread.join(timeout=3)
 
     if isVerbose:
@@ -240,16 +257,12 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
     if isinstance(value, scipy.ndarray):
         mean = value.mean()
         stderr = value.std() / math.sqrt(pathCount)
+        return {
+            'mean': mean,
+            'stderr': stderr
+        }
     else:
-        mean = value
-        stderr = 0.0
-    # Todo: Make this a proper object class.
-    dslResult = {
-        'mean': mean,
-        'stderr': stderr
-    }
-
-    return dslResult
+        return value
 
 
 def compile(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, compileKwds=None, **extraCompileKwds):

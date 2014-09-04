@@ -9,15 +9,14 @@ import itertools
 class BlackScholesPriceProcess(PriceProcess):
 
     def simulateFuturePrices(self, marketNames, fixingDates, observationTime, pathCount, marketCalibration):
-        import scipy
         allBrownianMotions = self.getBrownianMotions(marketNames, fixingDates, observationTime, pathCount, marketCalibration)
-        # Also compute market prices, so the Market object doesn't do this.
+        # Compute market prices, so the Market object doesn't do this.
+        import scipy
         allMarketPrices = {}
         for (marketName, brownianMotions) in allBrownianMotions.items():
-            actualHistoricalVolatility = marketCalibration['%s-ACTUAL-HISTORICAL-VOLATILITY' % marketName.upper()]
             lastPrice = marketCalibration['%s-LAST-PRICE' % marketName.upper()]
+            actualHistoricalVolatility = marketCalibration['%s-ACTUAL-HISTORICAL-VOLATILITY' % marketName.upper()]
             marketPrices = {}
-
             for (fixingDate, brownianRv) in brownianMotions.items():
                 sigma = actualHistoricalVolatility / 100.0
                 T = getDurationYears(observationTime, fixingDate)
@@ -38,14 +37,16 @@ class BlackScholesPriceProcess(PriceProcess):
         lenAllDates = len(allDates)
 
         # Diffuse random variables through each date for each market (uncorrelated increments).
-        import scipy
+        import numpy
+        import scipy.linalg
+        from numpy.linalg import LinAlgError
         brownianMotions = scipy.zeros((lenMarketNames, lenAllDates, pathCount))
         for i in range(lenMarketNames):
             _startDate = allDates[0]
             startRv = brownianMotions[i][0]
             for j in range(lenAllDates - 1):
                 fixingDate = allDates[j + 1]
-                draws = scipy.random.standard_normal(pathCount)
+                draws = numpy.random.standard_normal(pathCount)
                 T = getDurationYears(_startDate, fixingDate)
                 if T < 0:
                     raise DslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
@@ -75,7 +76,7 @@ class BlackScholesPriceProcess(PriceProcess):
             else:
                 correlations[marketNamePairs] = correlation
 
-        correlationMatrix = scipy.zeros((lenMarketNames, lenMarketNames))
+        correlationMatrix = numpy.zeros((lenMarketNames, lenMarketNames))
         for i in range(lenMarketNames):
             for j in range(lenMarketNames):
                 if marketNames[i] == marketNames[j]:
@@ -85,8 +86,6 @@ class BlackScholesPriceProcess(PriceProcess):
                     correlation = correlations[key]
                 correlationMatrix[i][j] = correlation
 
-        import scipy.linalg
-        from numpy.linalg import LinAlgError
         try:
             U = scipy.linalg.cholesky(correlationMatrix)
         except LinAlgError, e:
