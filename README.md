@@ -178,7 +178,7 @@ Getting Started
 
 The *Quant DSL* Python package is designed to be integrated into other software applications. This can be done by using the command line interface (see above), by writing a Python program which imports code from `quantdsl`, or as a service accessed via HTTP.
 
-The *Quant DSL* package provides three convenience functions: `parse`, `compile`, and `eval`.
+The *Quant DSL* package provides three convenience functions: `parse()`, `compile()`, and `eval()`.
 
 Let's get started by opening an interactive Python session.
 
@@ -193,7 +193,7 @@ You can "import" the *Quant DSL* convenience functions from `quantdsl.services`.
 ```python
 >>> from quantdsl.services import parse
 ```
-The convenience function `parse` takes a piece of *Quant DSL* source code and returns a *Quant DSL* Module object.
+The convenience function `parse()` takes a piece of *Quant DSL* source code and returns a *Quant DSL* Module object.
 
 ```python
 >>> parse("10 + 20")
@@ -207,7 +207,7 @@ When converted to a string, a *Quant DSL* Module (and all other *Quant DSL* obje
 10 + 20
 ```
 
-When a *Quant DSL* module is compiled, a *Quant DSL* expression is obtained. In the case of `10 + 20`, an addition expression is obtained.
+When a *Quant DSL* module is compiled, a *Quant DSL* expression is obtained. In the case of `10 + 20`, an Add expression is obtained.
 
 ```python
 >>> parse("10 + 20").compile()
@@ -271,20 +271,17 @@ Binary operations, such as addition, substraction, multiplication and division a
 The parser also supports dates and time deltas.
 
 ```python
->>> expr = parser.parse("Date('2014-1-1')")
->>> print expr.evaluate()
+>>> eval("Date('2014-1-1')")
 datetime.datetime(2014, 1, 1, 0, 0)
 
->>> expr = parser.parse("TimeDelta('1d')")
->>> print expr.evaluate()
+>>> eval("TimeDelta('1d')")
 datetime.timedelta(1)
 ```
 
 Time deltas can be multiplied by numbers and added to, or subtracted from, dates.
 
 ```python
->>> expr = parser.parse("Date('2014-1-1') + 10 * TimeDelta('1d')")
->>> print expr.evaluate()
+>>> eval("Date('2014-1-1') + 10 * TimeDelta('1d')")
 datetime.datetime(2014, 1, 11, 0, 0)
 ```
 
@@ -321,7 +318,7 @@ The standard error of the result increases as the duration from observation time
 The standard error can be reduced by increasing the number of paths in the simulation.
 
 ```python
->>> print eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
+>>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
 {'stderr': 0.0699009276876663, 'mean': 10.07505213058151}
 ```
 
@@ -353,7 +350,6 @@ Variables can be combined with numbers and dates.
 >>> eval("a + 4", compileKwds={'a': 2)
 6
 >>> eval("TimeDelta('1d') * a")
->>> print expr.evaluate(a=10)
 datetime.timedelta(10)
 ```
 
@@ -369,16 +365,6 @@ Expressions can involve calls to user defined functions. Functions return a *Qua
 ... """
 >>> print compile(source).apply(x=10)
 10 * 10
-```
-
-Functions are reentrant and can recurse.
-
-```python
->>> source = """
-... def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n
-... """
->>> compile(source).apply(n=5)
-((2 + 1) + 2) + (2 + 1)
 ```
 
 Functions can have a conditional expression, but each leg of the conditional can only have one expression. When the function is called, the test compare expression is evaluated. According to the result of the comparison, one of the expressions is compiled in the context of the function call arguments, and returned as the result of the function call. (It follows that the stocastic elements cannot be used in test compare expressions.)
@@ -416,15 +402,24 @@ True
 Comparisons can involve variables, and expressions that combine with numbers and dates.
 
 ```python
->>> module = parse("Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')")
->>> print expr.compile(a=1).evaluate()
+>>> source = "Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')"
+>>> eval(source, compileKwds={'a': 1})
 True
 
->>> print expr.compile(a=3).evaluate()
+>>> eval(source, compileKwds={'a': 3})
 False
 ```
 
-If the selected expression calls a function, it is similarly substituted. And so on, until a DSL expression is obtained which does not involve any calls to used defined functions.
+Functions are reentrant and can recurse.
+
+```python
+>>> source = """
+... def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n
+... """
+>>> print compile(source).apply(n=5)
+((2 + 1) + 2) + (2 + 1)
+```
+
 
 
 Todo: Parse and pretty print the reduced monolithic DSL expression.
