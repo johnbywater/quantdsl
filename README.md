@@ -204,13 +204,13 @@ When converted to a string, a *Quant DSL* Module (and all other *Quant DSL* obje
 
 ```python
 >>> print parse("10 + 20")
-20 + 30
+10 + 20
 ```
 
 When a *Quant DSL* module is compiled, a *Quant DSL* expression is obtained. In the case of `10 + 20`, an addition expression is obtained.
 
 ```python
->>> module.compile()
+>>> parse("10 + 20").compile()
 <quantdsl.semantics.Add object at 0x7fadb8888510>
 ```
 
@@ -226,119 +226,49 @@ A *Quant DSL* expression can be evaluated to a numeric value.
 
 ```python
 >>> compile("10 + 20").evaluate()
-{'stderr': 0.0, 'mean': 30}
+30
 ```
 
-The convenience function `eval()` takes *Quant DSL* source code and directly returns a numeric result (as the mean and standard error of a normal distribution).
+The convenience function `eval()` takes *Quant DSL* source code and directly returns a numeric result.
 
 ```python
 >>> from quantdsl.services import eval
 >>> eval("10 + 20")
-{'stderr': 0.0, 'mean': 30}
+30
 ```
 
 
-### Expressions
+### Numbers
 
 As we have seen, *Quant DSL* expressions can be evaluated to produce a numeric value.
 
 ```python
 >>> eval("-10")
-{'stderr': 0.0, 'mean': -10}
+-10
 
 >>> eval("0.1")
-{'stderr': 0.0, 'mean': 0.1}
+0.1
 ```
 
 Binary operations, such as addition, substraction, multiplication and division are supported.
 
 ```python
->>> expr = parser.parse("10 + 4")
->>> print expr.evaluate()
+>>> eval("10 + 4")
 14
 
->>> expr = parser.parse("10 - 4")
->>> print expr.evaluate()
+>>> eval("10 - 4")
 6
 
->>> expr = parser.parse("10 * 4")
->>> print expr.evaluate()
+>>> eval("10 * 4")
 40
 
->>> expr = parser.parse("10 / 4")
->>> print expr.evaluate()
+>>> eval("10 / 4")
 2.5
-
 ```
 
-Variables can be used in expressions. Variables must be defined before the expression is evaluated.
+### Dates
 
-```python
->>> expr = parser.parse("a + 4")
->>> print expr.evaluate(a=10)
-14
-
->>> expr = parser.parse("a + b")
->>> print expr.evaluate(a=10, b=5)
-15
-
->>> expr = parser.parse("TimeDelta('1d') * a")
->>> print expr.evaluate(a=10)
-datetime.timedelta(10)
-```
-
-Numbers can be compared with numbers, and dates can be compared with dates. Numbers cannot be compared with dates.
-
-```python
->>> expr = parser.parse("10 > 4")
->>> print expr.evaluate()
-True
-
->>> expr = parser.parse("Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')")
->>> print expr.evaluate(a=1)
-True
->>> print expr.evaluate(a=3)
-False
-```
-
-
-### Function Definitions
-
-Expressions can involve user defined functions. Functions return a DSL expression.
-
-The functions must be defined in the source code passed to the parser.
-
-```python
->>> source = """
-... def sqr(x):
-...    x * x
-... sqr(x)
-... """
->>> expr = parser.parse(source)
->>> print expr.evaluate(x=10)
-100
-```
-
-Functions can have a conditional expression, but each leg of the conditional can only have one expression.
-
-```python
->>> source = """
-... def f(x): 
-...     if x < 0:
-...         0
-...     elif x < 1:
-...         x
-...     else:
-...         x ** 2
-... f(5)
-... """
->>> expr = parser.parse(source)
->>> print expr.evaluate()
-25
-```
-
-
-The test compare expression supports numerical expressions, and also expressions involving dates and time deltas. Time deltas can be multiplied by numbers and added to, or subtracted from, dates.
+The parser also supports dates and time deltas.
 
 ```python
 >>> expr = parser.parse("Date('2014-1-1')")
@@ -348,60 +278,154 @@ datetime.datetime(2014, 1, 1, 0, 0)
 >>> expr = parser.parse("TimeDelta('1d')")
 >>> print expr.evaluate()
 datetime.timedelta(1)
+```
 
+Time deltas can be multiplied by numbers and added to, or subtracted from, dates.
+
+```python
 >>> expr = parser.parse("Date('2014-1-1') + 10 * TimeDelta('1d')")
 >>> print expr.evaluate()
 datetime.datetime(2014, 1, 11, 0, 0)
 ```
 
+### Stocastic Calculus
 
+To support stochastic calculus, Quant DSL has some pre-defined built-in primitive elements. A `Market` is an expression of value that refers by name to a simulated future price, fixed at a given "present" time. The present time is passed in when the Market object is evaluated. The simulation of future prices involves a number of "paths" or samples from a random variable that is evolved from the "observation" time to the "present" time (by adding random increments to each path according to the length of the duration - see the price process object class for details).
+
+In consequence, a Market object evaluates to a number of samples from a random variable, and a summary of the random variable (the mean and standard error) is returned by the `eval` convenience function. However, the standard error of an expression which contains only a Market is zero, because the present time of the outer-most element of an expression is set as the given observation time, and so the duration from observation time to the effective present time is zero - the simulated price is simply the spot price provided in the market calibration parameters.)
+
+```python
+>>> import datetime
+>>> from quantdsl import utc
+>>> observationTime = datetime.datetime(2011,1,1, tzinfo=utc)
+>>> marketCalibration = {'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50, 'NBP-LAST-PRICE': 10}
+>>> eval("Market('NBP')", observationTime=observationTime, marketCalibration=marketCalibration)
+{'stderr': 0.0, 'mean': 10.0}
+```
+
+A `Fixing` is an expression that contains a date and another expression. A Fixing object will bind its expression to its date, so that when the contained expression is evaluated, the present time of contained expression is set to the date of the Fixing object. For example, a Fixing can set the future date of a simulated market price to be different from the observed time. In this case, the standard error of the result is non-zero.
+
+```python
+>>> import datetime
+>>> eval("Fixing('2014-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
+{'stderr': 0.073502822509151869, 'mean': 10.055852681883996}
+```
+
+The standard error of the result increases as the duration from observation time to the effective present time of the Market becomes longer.
+
+```python
+>>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
+{'stderr': 0.26124453081832577, 'mean': 9.5448501653286648}
+```
+
+The standard error can be reduced by increasing the number of paths in the simulation.
+
+```python
+>>> print eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
+{'stderr': 0.0699009276876663, 'mean': 10.07505213058151}
+```
+
+`Settlement` discounts an expression of value from a fixed date to the given time.
+
+Todo: More about Settlement.
+
+`Wait` effectively combines settlement and fixing, so that an expression is both fixed at a particular time, and also discounted back to the given time.
+
+Todo: More about Wait.
+
+`Choice` implements the least-squares monte-carlo approach suggested by Longstaff-Schwartz.
+
+Todo: More about Choice.
+
+
+### Variables
+
+Variables, such as those defined by function parameters - see below, can be used in expressions. In general, variables must be defined before the expression is compiled.
+
+```python
+>>> eval("a", compileKwds={'a': 2)
+2
+```
+
+Variables can be combined with numbers and dates.
+
+```python
+>>> eval("a + 4", compileKwds={'a': 2)
+6
+>>> eval("TimeDelta('1d') * a")
+>>> print expr.evaluate(a=10)
+datetime.timedelta(10)
+```
+
+
+### Function Definitions
+
+Expressions can involve calls to user defined functions. Functions return a *Quant DSL* expression, rather than a numeric result.
+
+```python
+>>> source = """
+... def sqr(x):
+...    x * x
+... """
+>>> print compile(source).apply(x=10)
+10 * 10
+```
 
 Functions are reentrant and can recurse.
 
 ```python
 >>> source = """
 ... def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n
-... fib(5)
 ... """
->>> expr = parser.parse(source)
->>> print expr.evaluate()
-8
+>>> compile(source).apply(n=5)
+((2 + 1) + 2) + (2 + 1)
 ```
 
-Rather than computing values, a function actually returns a DSL expression which is subsituted in the calling expression in place of the function call. Such expressions are reduced by replacing references to function parameters with the call argument values. A function with a conditional expression has the test expression evaluated, and accordingly one leg of the conditional expression is selected, reduced with the call argument values, and returned.
+Functions can have a conditional expression, but each leg of the conditional can only have one expression. When the function is called, the test compare expression is evaluated. According to the result of the comparison, one of the expressions is compiled in the context of the function call arguments, and returned as the result of the function call. (It follows that the stocastic elements cannot be used in test compare expressions.)
+
 
 ```python
 >>> source = """
-... def f(x): x + 2
-... f(2)
+... def f(x): 
+...     if x <= 0:
+...         0.0
+...     elif x < 1:
+...         x
+...     else:
+...         1.0 + x
 ... """
->>> expr = parser.parse(source)
->>> print expr
-2 + 2
+>>> func = compile(source)
+>>> print func.apply(x=-1)
+0.0
+>>> print func.apply(x=0.5)
+0.5
+>>> print func.apply(x=5)
+1.0 + 5.0
+```
+
+All the usual compare operators are supported (`==`, `!=`, `<`, `>`, etc.). The compare operators can be used with numerical expressions, and also expressions involving dates and time deltas. Numbers can be compared with numbers, and dates can be compared with dates. (Numbers cannot be compared with dates or datetimes, and datetimes cannot be compared with dates.)
+
+```python
+>>> eval("10 > 4")
+True
+
+>>> eval("Date('2011-01-01') < Date('2011-01-03')")
+True
+```
+
+Comparisons can involve variables, and expressions that combine with numbers and dates.
+
+```python
+>>> module = parse("Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')")
+>>> print expr.compile(a=1).evaluate()
+True
+
+>>> print expr.compile(a=3).evaluate()
+False
 ```
 
 If the selected expression calls a function, it is similarly substituted. And so on, until a DSL expression is obtained which does not involve any calls to used defined functions.
 
-
-### Stochastic Expressions
-
-To support stochastic calculus, Quant DSL has various pre-defined built-in expressions. `Market` is an expression of value that refers to a price at the given time, possibly a simulated future price. `Fixing` binds an expression of value to a fixed date, making its expression a function of that time,regardless of the given time. `Settlement` discounts an expression of value from a fixed date to the given time. `Wait` effectively combines settlement and fixing, so that an expression is both fixed at a particular time, and also discounted back to the given time. `Choice` implements the least-squares monte-carlo approach suggested by Longstaff-Schwartz.
-
-Examples of function definitions that can be created using the built in expressions follow.
-
-```python
-"""
-def Swing(starts, ends, underlying, quantity):
-    if (quantity == 0) or (starts >= ends):
-        0
-    else:
-        Choice(
-            Swing(starts + TimeDelta('1d'), ends, underlying, quantity - 1) + Fixing(starts, underlying),
-            Swing(starts + TimeDelta('1d'), ends, underlying, quantity)
-        )
-Swing(Date('2012-01-01'), Date('2012-02-01'), Market('NBP'), 500)
-"""
-```
 
 Todo: Parse and pretty print the reduced monolithic DSL expression.
 
