@@ -11,9 +11,9 @@ The reason for having a domain specific language for quantitative analytics is t
 
 At the heart of *Quant DSL* is a set of built-in elements (e.g. *"Market"*, *"Choice"*, *"Wait"*) that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value.
 
-User defined functions are supported, and can be used to generate massive expressions. The syntax of *Quant DSL* expressions has been formally defined, and the semantic model is supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). This package is an implementation in Python of the *Quant DSL* syntax and semantics.
+User defined functions are supported, and can be used to generate massive expressions. The syntax of *Quant DSL* expressions has been formally defined, and the semantic model is supported with [mathematical proofs](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf). The Python package `quantdsl` is an implementation in Python of the *Quant DSL* syntax and semantics.
 
-Stable releases are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). *Quant DSL* has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1). You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
+Stable releases of `quantdsl` are available to [download from the Python Package Index](https://pypi.python.org/pypi/quantdsl). `quantdsl` has been tested with Python 2.7 on GNU/Linux (Ubuntu 14.04) and on Windows 7 (using PythonXY v2.7.6.1). You may wish to [contribute improvements on GitHub](https://github.com/johnbywater/quantdsl).
 
 
 Introduction
@@ -38,7 +38,7 @@ def Option(date, strike, underlying, alternative):
 American(Date('2015-04-01'), Date('2015-05-01'), 9, Market('NBP'))
 ```
 
-A command line interface program called `quant-dsl.py` is provided so that *Quant DSL* source code can be easily evaluated.
+A command line interface program called `quant-dsl.py` is provided by the `quantdsl` Python package, so that *Quant DSL* source code can be easily evaluated.
 
 ```
 $ quant-dsl.py -h
@@ -69,7 +69,7 @@ optional arguments:
   -s, --show-source     show source code and compiled expression stack
 ```
 
-Market calibration parameters are required to evaluate an expression which involves an underlying *Market*. For such expressions, `quantdsl` provides a multi-market Black-Scholes price process (a one factor "spot/vol" model of market dynamics). It can simulate a correlated evolution of future prices for a number of different markets.*Quant DSL* can use other price processes, however no other price processes have (so far) been developed for this package.
+Market calibration parameters are required to evaluate an expression which involves an underlying *Market*. For such expressions, `quantdsl` provides a multi-market Black-Scholes price process (a one factor "spot/vol" model of market dynamics). It can simulate a correlated evolution of future prices for a number of different markets. `quantdsl` can use other price processes, however no other price processes have (so far) been developed for this package.
 
 The Black-Scholes price process provided by this package needs one-factor "spot/vol" market calibration parameters, with a correlation parameter for each pair of markets.
 
@@ -85,9 +85,9 @@ For two correlated markets called 'NBP' and 'TTF', under the default Black-Schol
 }
 ```
 
-The default Black-Scholes price process can be replaced with your own model of market dynamics, by using the `--price-process` option of the `quant-dsl.py` command line program. The market calibration parameters are used only by the price process (which uses them to simulate an evolution of future prices that *Quant DSL* Market objects will consume - so if you have developed a model of market dynamics, the market calibration parameters will contain whatever is needed by your price process object).
+The default Black-Scholes price process can be replaced with your own model of market dynamics, by using the `--price-process` option of the `quant-dsl.py` command line program. The market calibration parameters are used only by the price process (which uses them to simulate an evolution of future prices that *Quant DSL* "*Market*" objects will consume - so if you have developed a model of market dynamics, the market calibration parameters will contain whatever is needed by your price process object).
 
-With the above example *Quant DSL* American option saved in a file called `americanoption.quantdsl`, and with the above market calibration parameters in a file called `calibration.json`, the following shell command evaluates that American option with those market calibration parameters under the default one-factor model of market dynamics.
+With the above example *Quant DSL* American option saved in a file called `americanoption.quantdsl` (the filename is arbitrary, and could be replaced with a URL), and with the above market calibration parameters in a file called `calibration.json` (again, the filename is arbitrary, and could be a URL), the following shell command evaluates that American option with those market calibration parameters under the default one-factor model of market dynamics.
 
 ```
 $ quant-dsl.py -c calibration.json  americanoption.quantdsl 
@@ -101,13 +101,13 @@ Duration of compilation: 0:00:00.500619
 
 Compiled DSL source into 368 partial expressions (root ID: dfca11e1-e131-4588-945b-c8c924fb53e6).
 
-Finding all market names and fixing dates...
-
-Computing Brownian motions for market 'NBP' from observation time 2014-09-03 through fixing dates: 2015-04-01, 2015-04-02, 2015-04-03, 2015-04-04, 2015-04-05, 2015-04-06, 2015-04-07, 2015-04-08, [...], 2016-04-01.
+Price process class: quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess
 
 Path count: 50000
 
-Price process class: quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess
+Finding all Market names and Fixing dates...
+
+Simulating future prices for Market 'NBP' from observation time '2014-09-03' to '2015-04-01', '2015-04-02', '2015-04-03', '2015-04-04', '2015-04-05', '2015-04-06', '2015-04-07', '2015-04-08', [...], '2016-04-01'.
 
 Evaluating 368 expressions (1 leaf) with a single thread, please wait...
 
@@ -184,6 +184,8 @@ Let's get started by opening an interactive Python session.
 
 ```bash
 $ python
+Python 2.7.5+ (default, Feb 27 2014, 19:37:08) 
+[GCC 4.8.1] on linux2
 Type "help", "copyright", "credits" or "license" for more information.
 >>> 
 ```
@@ -220,6 +222,8 @@ The convenience function `compile()` takes *Quant DSL* source code and directly 
 >>> from quantdsl.services import compile
 >>> compile("10 + 20")
 <quantdsl.semantics.Add object at 0x7fadb8888510>
+>>> print compile("10 + 20")
+10 + 20
 ```
 
 A *Quant DSL* expression can be evaluated to a numeric value.
@@ -238,19 +242,18 @@ The convenience function `eval()` takes *Quant DSL* source code and directly ret
 ```
 
 
-### Numbers
+### Scalar Numbers
 
-As we have seen, *Quant DSL* expressions can be evaluated to produce a numeric value.
+As we have seen, *Quant DSL* expressions can be evaluated to produce a numeric value. Here is a negative floating point number.
 
 ```python
->>> eval("-10")
--10
-
->>> eval("0.1")
-0.1
+>>> eval("-1.2345")
+-1.2345
 ```
 
-Binary operations, such as addition, substraction, multiplication and division are supported.
+### Binary Operators
+
+Various binary operations are supported, such as addition, substraction, multiplication and division.
 
 ```python
 >>> eval("10 + 4")
@@ -266,60 +269,90 @@ Binary operations, such as addition, substraction, multiplication and division a
 2.5
 ```
 
-### Dates
+Python precedence rules are followed. Parentheses can be used to change the order.
 
-The parser also supports dates and time deltas.
+```python
+>>> print parse("10 * 4 + 11 * 5")
+(10 * 4) + (11 * 5)
+
+>>> print parse("10 * (4 + 11) * 5")
+(10 * (4 + 11)) * 5
+```
+
+### Dates and Time Deltas
+
+The parser supports dates (`Date`) and time deltas (`TimeDelta`).
 
 ```python
 >>> eval("Date('2014-1-1')")
-datetime.datetime(2014, 1, 1, 0, 0)
+datetime.datetime(2014, 1, 1, 0, 0, tzinfo=<UTC>)
 
 >>> eval("TimeDelta('1d')")
 datetime.timedelta(1)
 ```
 
-Time deltas can be multiplied by numbers and added to, or subtracted from, dates.
+Time deltas can be multiplied by integer numbers. They can be added to (and subtracted from) dates and other time deltas.
 
 ```python
+>>> eval("10 * TimeDelta('1d')")
+datetime.timedelta(10)
+
+>>> eval("Date('2014-1-1') + TimeDelta('1d')")
+datetime.datetime(2014, 1, 2, 0, 0, tzinfo=<UTC>)
+
 >>> eval("Date('2014-1-1') + 10 * TimeDelta('1d')")
-datetime.datetime(2014, 1, 11, 0, 0)
+datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 ```
 
-### Stocastic Calculus
+### Random Variables
 
-To support stochastic calculus, Quant DSL has some pre-defined built-in primitive elements. A `Market` is an expression of value that refers by name to a simulated future price, fixed at a given "present" time. The present time is passed in when the Market object is evaluated. The simulation of future prices involves a number of "paths" or samples from a random variable that is evolved from the "observation" time to the "present" time (by adding random increments to each path according to the length of the duration - see the price process object class for details).
+To support stochastic calculus, *Quant DSL* has built-in primitive elements that work with random variables.
 
-In consequence, a Market object evaluates to a number of samples from a random variable, and a summary of the random variable (the mean and standard error) is returned by the `eval` convenience function. However, the standard error of an expression which contains only a Market is zero, because the present time of the outer-most element of an expression is set as the given observation time, and so the duration from observation time to the effective present time is zero - the simulated price is simply the spot price provided in the market calibration parameters.)
+A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time".
+
+A  *Market* evaluates to a number of samples from a continuous random variable, and a summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
+
+The simulation of future prices involves a number of "paths" - one for each sample from the random variable.
+Prices are evolved from the "observation time" (the "present time" of the continaing *Quant DSL* module), to the "present time" of the *Market* object (by adding random increments to each path according to the length of the duration - see the price process object class for details).
+
+The "present time" is given to a *Market* when it is evaluated, so that the value of a *Market* can be conditioned by surrounding *Quant DSL* elements (e.g. by fixing the market to an agreed date in the future).
+
+As expected, the simulated value of an expression made simply of a single market object (e.g. the expression `"Market('NBP')"`) is exactly the corresponding spot price in the market calibration parameters. The standard error of zero because the duration from observation time to the effective present time is zero, so there are no random increments.
 
 ```python
 >>> import datetime
 >>> from quantdsl import utc
 >>> observationTime = datetime.datetime(2011,1,1, tzinfo=utc)
->>> marketCalibration = {'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50, 'NBP-LAST-PRICE': 10}
+>>> marketCalibration = {'TTF-LAST-PRICE': 11, 'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40}
+>>> eval("Market('TTF')", observationTime=observationTime, marketCalibration=marketCalibration)
+{'stderr': 0.0, 'mean': 11.0}
+
+>>> marketCalibration = {'NBP-LAST-PRICE': 10, 'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50}
 >>> eval("Market('NBP')", observationTime=observationTime, marketCalibration=marketCalibration)
 {'stderr': 0.0, 'mean': 10.0}
 ```
 
-A `Fixing` is an expression that contains a date and another expression. A Fixing object will bind its expression to its date, so that when the contained expression is evaluated, the present time of contained expression is set to the date of the Fixing object. For example, a Fixing can set the future date of a simulated market price to be different from the observed time. In this case, the standard error of the result is non-zero.
+In *Quant DSL*, a *"Fixing"* is an expression that contains a date and another expression. A *Fixing* will bind its expression to its date, so that when the contained expression is evaluated, the present time of the contained expression is set to the date of the *Fixing*. For example, a *Fixing* can set the future date of a simulated *Market* price to be different from the observed time of the module evaluation. In this case, the standard error of the result is non-zero.
+
+The mean of the random variable has moved from the last price in the calibration, but the move is comparable to the stderr.
 
 ```python
->>> import datetime
 >>> eval("Fixing('2014-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
-{'stderr': 0.073502822509151869, 'mean': 10.055852681883996}
+{'stderr': 0.074021663992697703, 'mean': 10.008802421966257}
 ```
 
-The standard error of the result increases as the duration from observation time to the effective present time of the Market becomes longer.
+The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer.
 
 ```python
 >>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
-{'stderr': 0.26124453081832577, 'mean': 9.5448501653286648}
+{'stderr': 0.35422549196595243, 'mean': 10.268412057325369}
 ```
 
-The standard error can be reduced by increasing the number of paths in the simulation.
+The standard error can be reduced by increasing the number of paths in the simulation (default path count: 20000). (Memory usage will increase, and computation steps will take longer, but since `quantdsl` discards intermediate results, once the price simulations have been generated, the memory profile is flat even for very large computations.)
 
 ```python
 >>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
-{'stderr': 0.0699009276876663, 'mean': 10.07505213058151}
+{'stderr': 0.1060611734866011, 'mean': 10.067874599156543}
 ```
 
 `Settlement` discounts an expression of value from a fixed date to the given time.
@@ -340,16 +373,16 @@ Todo: More about Choice.
 Variables, such as those defined by function parameters - see below, can be used in expressions. In general, variables must be defined before the expression is compiled.
 
 ```python
->>> eval("a", compileKwds={'a': 2)
+>>> eval("a", compileKwds={'a': 2})
 2
 ```
 
 Variables can be combined with numbers and dates.
 
 ```python
->>> eval("a + 4", compileKwds={'a': 2)
+>>> eval("a + 4", compileKwds={'a': 2})
 6
->>> eval("TimeDelta('1d') * a")
+>>> eval("TimeDelta('1d') * a"))
 datetime.timedelta(10)
 ```
 
@@ -419,8 +452,6 @@ Functions are reentrant and can recurse.
 >>> print compile(source).apply(n=5)
 ((2 + 1) + 2) + (2 + 1)
 ```
-
-
 
 Todo: Parse and pretty print the reduced monolithic DSL expression.
 
