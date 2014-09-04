@@ -305,13 +305,13 @@ datetime.datetime(2014, 1, 2, 0, 0, tzinfo=<UTC>)
 datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 ```
 
-### Random Variables
+### Stoachstic Process
 
-*Quant DSL* has built-in primitive elements that generate and operate on random variables.
+*Quant DSL* has built-in primitive elements that stoachastic processes.
 
 #### Market
 
-A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples from a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
+A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples which approximate a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
 
 The simulation of future prices involves a number of "paths" that allow an evolution of prices. Before an expression which contains *Market* objects can be evaluated, future prices for each *Market* are evolved from an initial "observation time" to the effective "present times".
 
