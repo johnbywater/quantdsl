@@ -305,9 +305,9 @@ datetime.datetime(2014, 1, 2, 0, 0, tzinfo=<UTC>)
 datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 ```
 
-### Stoachstic Process
+### Stochastic Calculus
 
-*Quant DSL* has built-in primitive elements that stoachastic processes.
+*Quant DSL* has built-in primitive elements that can be used to model stochastic processes.
 
 #### Market
 
