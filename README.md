@@ -334,16 +334,16 @@ The "present time" is given to a *Market* when it is evaluated, so that the valu
 
 #### Fixing
 
-In *Quant DSL*, a *"Fixing"* is an expression that contains a date and another expression. A *Fixing* sets the present time of its contained expression is set to the date of the *Fixing*.
+In *Quant DSL*, a *"Fixing"* is an expression that contains a date and an expression. A *Fixing* uses its date to set the "present time" of its expression.
 
-For example, a *Fixing* can set the future date of a simulated *Market* price to be different from the observed time of the module evaluation. With the one-factor price process, when the present time of the *Market* is greater than the observation time, and the actual historical volatility is non-zero, the standard error of the result will be non-zero. The result's mean is different from the last price in the calibration, but the difference is comparable to the result's standard error (normally within a multiple of three of the standard error).
+For example, a *Fixing* can set the future date of a simulated *Market* price.
 
 ```python
 >>> eval("Fixing('2014-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
 {'stderr': 0.076084630666974587, 'mean': 10.031075387271349}
 ```
 
-The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer:
+With the default one-factor price process, when the present time of the *Market* is greater than the observation time, and the actual historical volatility is non-zero, the standard error of the result will be non-zero. The result's mean is different from the last price in the calibration, but the difference is near to the result's standard error (normally within a multiple of three of the standard error). The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer.
 
 ```python
 >>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
@@ -359,7 +359,7 @@ The standard error can be reduced by increasing the number of paths in the simul
 
 #### Settlement
 
-In *Quant DSL*, a *"Settlement"* is an expression that contains a date and another expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
+In *Quant DSL*, a *"Settlement"* is an expression that contains a date and an expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
 
 ```python
 >>> eval("Settlement('2024-01-01', 10)", interestRate=2.5, observationTime=observationTime)
@@ -378,7 +378,7 @@ To settle a future value at a future time, a *Settlement* can be used with a *Fi
 
 #### Wait
 
-In *Quant DSL*, a *"Wait"* is an expression that contains a date and another expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
+In *Quant DSL*, a *"Wait"* is an expression that contains a date and an expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
 
 ```python
 >>> eval("Wait('2024-01-01', Market('NBP'))", iterestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
