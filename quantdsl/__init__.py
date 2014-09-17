@@ -1,9 +1,4 @@
 import datetime
-# from quantdsl.exceptions import QuantDslError, QuantDslSystemError
-# from quantdsl.syntax import DslParser
-# from quantdsl.semantics import DslExpression, UnaryOp, Market, Fixing, Module, DslNamespace
-# from quantdsl.runtime import ExpressionStack
-# from quantdsl.priceprocess.base import PriceProcess
 
 
 __version__ = '0.1.0'
@@ -52,6 +47,7 @@ __version__ = '0.1.0'
 # Todo: Review the separation of concerns between the various test cases.
 # Todo: Move these todos to an issue tracker.
 
+# Note on how to install matplotlib in virtualenv: http://www.stevenmaude.co.uk/2013/09/installing-matplotlib-in-virtualenv.html
 
 try:
     import pytz
