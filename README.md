@@ -40,8 +40,9 @@ A command line interface program called `quant-dsl.py` is provided by the `quant
 
 ```
 $ quant-dsl.py -h
-usage: quant-dsl.py [-h] [-c CALIBRATION] [-n NUM_PATHS] [-p PRICE_PROCESS]
-                    [-i INTEREST_RATE] [-m [MULTIPROCESSING_POOL]] [-q] [-s]
+usage: quant-dsl.py [-h] [-o OBSERVATION_TIME] [-c CALIBRATION] [-n NUM_PATHS]
+                    [-p PRICE_PROCESS] [-i INTEREST_RATE]
+                    [-m [MULTIPROCESSING_POOL]] [-q] [-s]
                     SOURCE
 
 Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION.
@@ -51,6 +52,8 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
+  -o OBSERVATION_TIME, --observation-time OBSERVATION_TIME
+                        observation time, format YYYYMMDD (default: 20140917)
   -c CALIBRATION, --calibration CALIBRATION
                         market calibration URL or file path (default: None)
   -n NUM_PATHS, --num-paths NUM_PATHS
