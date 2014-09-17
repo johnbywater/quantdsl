@@ -9,6 +9,8 @@ Quant DSL is a functional programming language for modelling derivative instrume
 At the heart of Quant DSL is a set of built-in elements (e.g. "Market", "Choice", "Wait") that encapsulate maths used in finance and trading (i.e. models of market dynamics, the least-squares Monte Carlo approach, time value of money calculations) and which can be composed into executable expressions of value.
 
 User defined functions are supported, and can be used to generate massive expressions. The syntax of Quant DSL expressions has been formally defined, and the semantic model is supported with mathematical proofs. The Python package quantdsl is an implementation in Python of the Quant DSL syntax and semantics.
+
+An extensive `README file is available on GitHub <https://github.com/johnbywater/quantdsl/blob/master/README.md>`_.
 """
 
 from quantdsl import __version__
