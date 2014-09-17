@@ -5,11 +5,16 @@ import sys
 import argh
 import multiprocessing as mp
 import json
+import quantdsl
 from quantdsl.exceptions import DslError
 from quantdsl.services import eval, DEFAULT_PRICE_PROCESS_NAME, DEFAULT_PATH_COUNT
 
+now = datetime.datetime.now(tz=quantdsl.utc)
+defaultObservationTime = int("%04d%02d%02d" % (now.year, now.month, now.day))
+
 
 @argh.arg('SOURCE', help='DSL source URL or file path ("-" to read from STDIN)')
+@argh.arg('-o', '--observation-time', help='observation time, format YYYYMMDD', type=int)
 @argh.arg('-c', '--calibration', help='market calibration URL or file path')
 @argh.arg('-n', '--num-paths', help='number of paths in price simulations', type=int)
 @argh.arg('-p', '--price-process', help='price process model of market dynamics')
@@ -18,7 +23,8 @@ from quantdsl.services import eval, DEFAULT_PRICE_PROCESS_NAME, DEFAULT_PATH_COU
 @argh.arg('-q', '--quiet', help='don\'t show progress info')
 @argh.arg('-s', '--show-source', help='show source code and compiled expression stack')
 
-def main(SOURCE, calibration=None, num_paths=DEFAULT_PATH_COUNT, price_process=DEFAULT_PRICE_PROCESS_NAME,
+
+def main(SOURCE, observation_time=defaultObservationTime, calibration=None, num_paths=DEFAULT_PATH_COUNT, price_process=DEFAULT_PRICE_PROCESS_NAME,
          interest_rate=2.5, multiprocessing_pool=0, quiet=False, show_source=False):
     """Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION."""
     import quantdsl
@@ -60,7 +66,11 @@ def main(SOURCE, calibration=None, num_paths=DEFAULT_PATH_COUNT, price_process=D
     else:
         marketCalibration = {}
 
-    observationTime = datetime.datetime.now().replace(tzinfo=quantdsl.semantics.utc)
+    observationTime = datetime.datetime(
+        int(''.join(str(observation_time)[0:4])),
+        int(''.join(str(observation_time)[4:6])),
+        int(''.join(str(observation_time)[6:8]))
+    ).replace(tzinfo=quantdsl.semantics.utc)
 
     try:
         result = eval(dslSource,
