@@ -172,11 +172,11 @@ What is the reason for having a domain specific language for quantitative analyt
 Acknowledgments
 ---------------
 
-The *Quant DSL* language was partly inspired by the paper *[Composing contracts: an adventure in financial engineering (functional pearl)](http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph, to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees") module. We have also been encourged by members of the [London Financial Python User Group](https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL* expressions synatax and semantics were first presented.
+The *Quant DSL* language was partly inspired by the paper *[Composing contracts: an adventure in financial engineering (functional pearl)](http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph, to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees") module. We have also been encourged by members of the [London Financial Python User Group](https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL* expression syntax and semantics were first presented.
 
 
-Getting Started
----------------
+Getting Started In Python
+-------------------------
 
 The `quantdsl` Python package is designed to be integrated into other software applications. This can be done by using the command line interface (see above), by writing a Python program which imports code from `quantdsl`, or as a service accessed via HTTP. This section shows how to use `quantdsl` in Python code.
 
@@ -305,13 +305,13 @@ datetime.datetime(2014, 1, 2, 0, 0, tzinfo=<UTC>)
 datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 ```
 
-### Random Variables
+### Stochastic Calculus
 
-*Quant DSL* has built-in primitive elements that generate and operate on random variables.
+*Quant DSL* has built-in primitive elements that can be used to model stochastic processes.
 
 #### Market
 
-A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples from a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
+A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples which approximate a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
 
 The simulation of future prices involves a number of "paths" that allow an evolution of prices. Before an expression which contains *Market* objects can be evaluated, future prices for each *Market* are evolved from an initial "observation time" to the effective "present times".
 
@@ -334,16 +334,16 @@ The "present time" is given to a *Market* when it is evaluated, so that the valu
 
 #### Fixing
 
-In *Quant DSL*, a *"Fixing"* is an expression that contains a date and another expression. A *Fixing* sets the present time of its contained expression is set to the date of the *Fixing*.
+In *Quant DSL*, a *"Fixing"* is an expression that contains a date and an expression. A *Fixing* uses its date to set the "present time" of its expression.
 
-For example, a *Fixing* can set the future date of a simulated *Market* price to be different from the observed time of the module evaluation. With the one-factor price process, when the present time of the *Market* is greater than the observation time, and the actual historical volatility is non-zero, the standard error of the result will be non-zero. The result's mean is different from the last price in the calibration, but the difference is comparable to the result's standard error (normally within a multiple of three of the standard error).
+For example, a *Fixing* can set the future date of a simulated *Market* price.
 
 ```python
 >>> eval("Fixing('2014-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
 {'stderr': 0.076084630666974587, 'mean': 10.031075387271349}
 ```
 
-The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer:
+With the default one-factor price process, when the present time of the *Market* is greater than the observation time, and the actual historical volatility is non-zero, the standard error of the result will be non-zero. The result's mean is different from the last price in the calibration, but the difference is near to the result's standard error (normally within a multiple of three of the standard error). The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer.
 
 ```python
 >>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
@@ -359,7 +359,7 @@ The standard error can be reduced by increasing the number of paths in the simul
 
 #### Settlement
 
-In *Quant DSL*, a *"Settlement"* is an expression that contains a date and another expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
+In *Quant DSL*, a *"Settlement"* is an expression that contains a date and an expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
 
 ```python
 >>> eval("Settlement('2024-01-01', 10)", interestRate=2.5, observationTime=observationTime)
@@ -378,7 +378,7 @@ To settle a future value at a future time, a *Settlement* can be used with a *Fi
 
 #### Wait
 
-In *Quant DSL*, a *"Wait"* is an expression that contains a date and another expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
+In *Quant DSL*, a *"Wait"* is an expression that contains a date and an expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
 
 ```python
 >>> eval("Wait('2024-01-01', Market('NBP'))", iterestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
@@ -398,7 +398,7 @@ In *Quant DSL*, a `Choice` is an expression that contains two other expressions.
 
 ### Variables
 
-Variables, such as those defined by function parameters - see below, can be used in expressions. In general, variables must be defined before the expression is compiled.
+Variables, such as those defined as function parameters, can be used in expressions. In general, variables must be defined before the expression is compiled.
 
 ```python
 >>> eval("a", compileKwds={'a': 2})
@@ -475,7 +475,7 @@ True
 True
 ```
 
-Comparisons can involve variables, and expressions that combine with numbers and dates.
+Comparisons can involve variables, and expressions that combine variables with numbers and dates.
 
 ```python
 >>> source = "Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')"
@@ -496,13 +496,29 @@ Functions are reentrant and can recurse.
 ((2 + 1) + 2) + (2 + 1)
 ```
 
-### Function Decorators
+#### Function Decorators
 
 At the moment, `quantdsl` supports a function decorator called `nostub`. If a user defined function is decorated with `nostub`, its call requirements will not become separate parts of the dependency graph but will be inlined within the results of other function calls. This is an attempt to avoid maximal proliferation of dependency graph nodes.
 
+```python
+@nostub
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+```
+
+### Dependency Graph
+
+Todo: More about dependency graph objects (how you make one, etc.).
+
+### Dependency Graph Runner
+
+Todo: More about dependency graph runners (single threaded, multiprocessing, networked).
+
+## A Really Big Example
+
+Todo: A really big example.
 
 ----
-Todo: A really big example.
 
 Todo: Parse and pretty print the reduced monolithic DSL expression.
 
