@@ -1,24 +1,146 @@
 from unittest import TestCase
-from quantdsl.priceprocess.schwartzsmith import main
+from quantdsl.priceprocess.schwartzsmith import calibrate, simulatePrices, plotSimulatedPrices
 import json
 import datetime
 import numpy as np
 
+
 class TestSchwartzSmithPriceProcess(TestCase):
 
-    def test(self):
-        alldata = json.loads(exampleData)
-        for i, commodity_data in enumerate(alldata):
-            observation_date = datetime.datetime(*[int(x) for x in commodity_data['observationDate'].split('-')])
-            commodity_data['observationDate'] = observation_date
-            months = np.array([datetime.datetime(*[int(x) for x in m.split('-')]) for m in commodity_data['months']])
-            commodity_data['months'] = months
-            futures = np.array(commodity_data['futures'])
-            commodity_data['futures'] = futures
-            impvols = np.array(commodity_data['impliedAtmVols'])
-            commodity_data['impliedAtmVols'] = impvols
-            alldata[i] = commodity_data
-        main(alldata)
+    def testCalibrateAndSimulateAndPlot(self):
+        allData = self.allObservedData[:]
+        allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(allData, niter=100, pathCount=50000)
+
+        print "allOptimizedSchwartzParams:", repr(allOptimizedSchwartzParams), "allOptimizedSeasonalParams:", repr(allOptimizedSeasonalParams), "allRhos:", repr(allRhos), "correlationMatrix:", repr(correlationMatrix), "simCorrelations:", repr(simCorrelations)
+
+        plotSimulatedPrices(allData, simulatedPrices)
+
+    def testCalibrate(self):
+        allOptimizedParams, allOptimizedSeasonalFactors, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(self.allObservedData, niter=3)
+        # Todo: More assertions...
+
+    def testSimulate(self):
+        months = self.allObservedData[0]['months']
+        observationDate = self.allObservedData[0]['observationDate']
+
+        simulatedPrices = simulatePrices(observationDate, months, self.allOptimizedParams,
+                                         self.allOptimizedSeasonalFactors, self.allRhos, pathCount=100000)
+
+        plotSimulatedPrices(self.allObservedData, simulatedPrices)
+
+    @property
+    def allObservedData(self):
+        if not hasattr(self, '_allObservedData'):
+            alldata = json.loads(exampleData)
+            for i, commodityData in enumerate(alldata):
+                observationDate = datetime.datetime(*[int(x) for x in commodityData['observationDate'].split('-')])
+                commodityData['observationDate'] = observationDate
+                months = np.array([datetime.datetime(*[int(x) for x in m.split('-')]) for m in commodityData['months']])
+                commodityData['months'] = months
+                futures = np.array(commodityData['futures'])
+                commodityData['futures'] = futures
+                impvols = np.array(commodityData['impliedAtmVols'])
+                commodityData['impliedAtmVols'] = impvols
+                alldata[i] = commodityData
+            self._allObservedData = alldata
+        return self._allObservedData
+
+    @property
+    def allOptimizedParams(self):
+        return [
+            {'kappa': 1.2638916531154194, 'sigmae': 0.14734516836401912, 'lambdae': 0.027771544884619619, 'mue': 0.053956757418720531, 'lambdax': -0.38068685060909119, 'sigmax': 0.37788634539857169, 'x0': 0.31473878159096852, 'e0': 3.5234145313102969, 'pxe': 0.92411109909993516},
+            {'kappa': 0.57715534625392007, 'sigmae': 0.10887723177092901, 'lambdae': -0.019285073785667982, 'mue': 0.0011320459844574805, 'lambdax': -0.61927428333859191, 'sigmax': 0.30200640241924076, 'x0': 1.0545125321082249, 'e0': 2.6147271447074214, 'pxe': 0.99575689314604499},
+            {'kappa': 0.22412720578496656, 'sigmae': 0.0, 'lambdae': 0.044745554489620816, 'mue': 0.05264568084973386, 'lambdax': -0.18589203406147856, 'sigmax': 0.35431191721351657, 'x0': 0.60673647390729191, 'e0': 2.8391451263673511, 'pxe': 0.34674867917684954},
+            {'kappa': 0.71269338830064555, 'sigmae': 0.18277823295767753, 'lambdae': 0.16091066685389732, 'mue': 0.18183521244793757, 'lambdax': -0.47577330791415523, 'sigmax': 0.31470493509078834, 'x0': 0.54187739996761075, 'e0': 0.97087034742915801, 'pxe': 0.32484063875303243}]
+
+    @property
+    def allOptimizedSeasonalFactors(self):
+        return [
+            np.array([ 1.0504042 ,  1.04688969,  0.94945908,  0.93742324,  0.92342429,
+        1.00579111,  1.18815119,  1.18477495,  0.96726959,  0.89044758,
+        0.89134138,  0.96462366]),
+            np.array([ 1.07682888,  1.07363859,  0.97399972,  0.95726028,  0.95005403,
+        1.03507967,  1.12945642,  1.09732927,  0.9259156 ,  0.89194462,
+        0.89361007,  0.99488288]),
+            np.array([ 1.23613611,  1.23360067,  1.05497264,  0.93844332,  0.8520782 ,
+        0.85190983,  0.95006018,  0.98313315,  0.90873277,  0.9062526 ,
+        0.97342678,  1.11125375]),
+            np.array([ 1.23515626,  1.20103727,  1.0091085 ,  0.9293931 ,  0.91802625,
+        0.91691301,  0.92937769,  0.93158597,  0.91763184,  0.92718699,
+        0.97045402,  1.11412907])
+        ]
+
+    @property
+    def allRhos(self):
+        return np.array([
+               [ 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ],
+               [ 0.96418127,  0.96495962,  0.96593903,  0.96688393,  0.96801058,
+                 0.96905276,  0.97011957,  0.97133446,  0.9724159 ,  0.9736226 ,
+                 0.97467798,  0.97571055,  0.97671527,  0.97780737,  0.97874097,
+                 0.97963756,  0.98060058,  0.98141555,  0.98228646,  0.98302055,
+                 0.98371807,  0.98446084,  0.98508562,  0.98567892,  0.98624267,
+                 0.98684407,  0.9873517 ,  0.98783605,  0.98835558,  0.98879694,
+                 0.98927281,  0.98967936,  0.99007211,  0.99049935,  0.99086767,
+                 0.99122658,  0.99157723,  0.99196319,  0.99229977,  0.99263112,
+                 0.99299862,  0.99332135,  0.99368078,  0.9939976 ,  0.99431239,
+                 0.99466456,  0.99497623,  0.99528688,  0.99559674,  0.99594462,
+                 0.99625336,  0.99656176,  0.99690841,  0.99721631,  0.99756249,
+                 0.99787003,  0.99817737,  0.99852288,  0.99882972,  0.99913625,
+                 0.99948066,  0.99978633,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ,  1.        ,
+                 1.        ,  1.        ,  1.        ,  1.        ],
+               [ 0.59696328,  0.59763032,  0.59850763,  0.59938136,  0.60044872,
+                 0.60145538,  0.60250148,  0.60370895,  0.60479614,  0.6060209 ,
+                 0.60710063,  0.60816338,  0.60920219,  0.61033496,  0.61130474,
+                 0.61223567,  0.61323307,  0.61407313,  0.61496432,  0.61570801,
+                 0.61640613,  0.61713771,  0.61774122,  0.61830204,  0.61882173,
+                 0.61935945,  0.61979785,  0.62020117,  0.62061567,  0.62095169,
+                 0.6212961 ,  0.62157484,  0.62183009,  0.62209183,  0.62230423,
+                 0.62249968,  0.62268013,  0.62286756,  0.62302228,  0.6231676 ,
+                 0.62332184,  0.62345242,  0.62359382,  0.62371611,  0.6238365 ,
+                 0.62397111,  0.62409124,  0.62421287,  0.62433694,  0.62448049,
+                 0.62461253,  0.6247495 ,  0.62491032,  0.62505995,  0.62523652,
+                 0.62540135,  0.62557408,  0.62577838,  0.62596925,  0.62616922,
+                 0.62640542,  0.62662567,  0.62685586,  0.62712695,  0.62737892,
+                 0.62767495,  0.62794941,  0.62823464,  0.62856852,  0.62887693,
+                 0.62923705,  0.62952681,  0.62991182,  0.63026584,  0.63063095,
+                 0.63105495,  0.63144359,  0.63189401,  0.63230605,  0.63272904,
+                 0.63321792,  0.63366398,  0.63417865,  0.6345883 ],
+               [ 0.64112709,  0.64434789,  0.64806092,  0.65143148,  0.65529161,
+                 0.65877507,  0.66230041,  0.66630866,  0.66990288,  0.67397531,
+                 0.6776163 ,  0.68127338,  0.68494357,  0.68908512,  0.69277547,
+                 0.69647261,  0.70063849,  0.7043463 ,  0.7085221 ,  0.7122374 ,
+                 0.71595559,  0.72014171,  0.72386532,  0.72759126,  0.73131944,
+                 0.73551618,  0.73924875,  0.74298319,  0.74718647,  0.75092431,
+                 0.75513083,  0.75887095,  0.76261165,  0.76682018,  0.77056086,
+                 0.77430085,  0.77803968,  0.78224385,  0.78597852,  0.7897104 ,
+                 0.7939047 ,  0.79762874,  0.80181277,  0.80552636,  0.8092341 ,
+                 0.81339761,  0.81709101,  0.82077676,  0.82445429,  0.828581  ,
+                 0.83223925,  0.83588761,  0.83997954,  0.84360519,  0.84767036,
+                 0.85127118,  0.85485963,  0.85888133,  0.86244214,  0.86598935,
+                 0.86996326,  0.87348042,  0.87698295,  0.88090543,  0.8843759 ,
+                 0.88826164,  0.89169891,  0.8951202 ,  0.89894981,  0.9023365 ,
+                 0.90612675,  0.9090601 ,  0.9128126 ,  0.91613013,  0.91943057,
+                 0.92312304,  0.92638689,  0.93003799,  0.93326493,  0.93647441,
+                 0.94006419,  0.94323649,  0.94678438,  0.94952851]])
 
 
 exampleData = """
@@ -1073,3 +1195,65 @@ exampleData = """
     }
 ]
 """
+
+def read_xl_doc():
+    # We want the data in the first columns of the various sheets.
+    alldata = []
+    print_data = []
+    import xlrd
+    with xlrd.open_workbook('SchwartzSmithMultiMarketExampleData.xls') as wb:
+        for sheet_name in wb.sheet_names():
+            sheet = wb.sheet_by_name(sheet_name)
+            month_col_title = sheet.cell_value(1, 0)
+            assert month_col_title == 'Month', month_col_title
+            from xlrd import xldate_as_tuple
+            months = [datetime.datetime(*xldate_as_tuple(c.value, wb.datemode)) for c in sheet.col_slice(0)[2:]]
+
+            fo_col_title = sheet.cell_value(1, 1)
+            assert fo_col_title == 'F0', fo_col_title
+            futures = [c.value for c in sheet.col_slice(1)[2:]]
+
+            iv_col_title = sheet.cell_value(1, 2)
+            assert iv_col_title == "Vol", iv_col_title
+            impvols = [c.value for c in sheet.col_slice(2)[2:]]
+
+            def param(params, key, row, col):
+                v = sheet.cell_value(row, col)
+                if isinstance(key, basestring) and key.lower()[-4:] == 'date':
+                    v = datetime.datetime(*xldate_as_tuple(v, wb.datemode))
+                params[key] = v
+
+            observation_date = datetime.datetime(*xldate_as_tuple(sheet.cell_value(21, 15), wb.datemode))
+
+            seasonal_factors = [1] * 12
+            for month_int in range(12):
+                param(seasonal_factors, month_int, month_int+24, 14)
+
+            params = {}
+            param(params, 'kappa', 18, 13)
+            param(params, 'mue', 18, 14)
+            param(params, 'sigmax', 18, 15)
+            param(params, 'sigmae', 18, 16)
+            param(params, 'lambdae', 18, 17)
+            param(params, 'lambdax', 18, 18)
+            param(params, 'pxe', 18, 19)
+            param(params, 'x0', 18, 20)
+            param(params, 'e0', 18, 21)
+
+            alldata.append([observation_date, months, futures, impvols, seasonal_factors, params])
+            idata = {
+                'observationDate': "%04d-%02d-%02d" % (observation_date.year, observation_date.month, observation_date.day),
+                'months': ["%04d-%02d-%02d" % (m.year, m.month, m.day) for m in months],
+                'futures': [i for i in futures],
+                'impvols': [i for i in impvols]
+            }
+            print_data.append(idata)
+
+    import json
+    print "import datetime"
+    print "from numpy import array"
+    print
+    print json.dumps(print_data, indent=4)
+
+    return alldata
+
