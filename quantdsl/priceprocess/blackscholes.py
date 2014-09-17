@@ -92,14 +92,13 @@ class BlackScholesPriceProcess(PriceProcess):
             raise DslError("Couldn't do Cholesky decomposition with correlation matrix: %s: %s" % (correlationMatrix, e))
 
         # Correlated increments from uncorrelated increments.
-        brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works.
+        #brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works.
         try:
-            brownianMotionsCorrelated = brownianMotions.dot(U)
+            brownianMotionsCorrelated = brownianMotions.T.dot(U)
         except Exception, e:
-            msg = "Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: %s, %s" % (brownianMotions, U)
+            msg = "Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: %s, %s: %s" % (brownianMotions, U, e)
             raise DslError(msg)
         brownianMotionsCorrelated = brownianMotionsCorrelated.transpose() # Put markets back on the first dimension.
-
         brownianMotionsDict = {}
         for i, marketName in enumerate(marketNames):
             marketRvs = {}
@@ -109,3 +108,17 @@ class BlackScholesPriceProcess(PriceProcess):
             brownianMotionsDict[marketName] = marketRvs
 
         return brownianMotionsDict
+
+
+class BlackScholesVolatility(object):
+
+    def calcActualHistoricalVolatility(self, market, observationTime):
+        priceHistory = market.getPriceHistory(observationTime=observationTime)
+        prices = scipy.array([i.value for i in priceHistory])
+        dates = [i.observationTime for i in priceHistory]
+        volatility = 100 * prices.std() / prices.mean()
+        duration = max(dates) - min(dates)
+        years = (duration.days) / 365.0 # Assumes zero seconds.
+        if years == 0:
+            raise Exception, "Can't calculate volatility for price series with zero duration: %s" % (priceHistory)
+        return float(volatility) / math.sqrt(years)
