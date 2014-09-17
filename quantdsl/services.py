@@ -72,6 +72,10 @@ def eval(dslSource, filename='<unknown>', isParallel=None, dslClasses=None, comp
         observationTime = evaluationKwds['observationTime']
         assert isinstance(observationTime, datetime.datetime)
 
+        if isVerbose:
+            print "Observation time: %s" % observationTime
+            print
+
         if 'presentTime' in evaluationKwds:
             msg = "Don't set presentTime here, set observationTime instead. Adjust presentTime with a Fixing or a Wait."
             raise DslError(msg)
