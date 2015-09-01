@@ -51,9 +51,9 @@ class TestDslParser(unittest.TestCase):
     def test_num(self):
         self.assertDslExprTypeValue("0", Number, 0)
         self.assertDslExprTypeValue("5", Number, 5)
-        self.assertDslExprTypeValue("-5", Number, -5)
+        self.assertDslExprTypeValue("-5", (Number, UnarySub), -5)
         self.assertDslExprTypeValue("5.1", Number, 5.1)
-        self.assertDslExprTypeValue("-5.1", Number, -5.1)
+        self.assertDslExprTypeValue("-5.1", (Number, UnarySub), -5.1)
 
     def test_str(self):
         self.assertDslExprTypeValue("''", String, "")
