@@ -577,6 +577,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
                 '#1': dict([(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10])) for i in range(0, 30)])
 
             },
+            # 'poolSize': 3,
         }
 
 

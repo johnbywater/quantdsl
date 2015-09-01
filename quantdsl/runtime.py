@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from time import sleep
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
 from quantdsl.semantics import Module, DslNamespace, DslExpression, Stub
 
@@ -71,7 +72,6 @@ class DependencyGraph(object):
         for _, stubbedExpr, _ in self.stubbedExprsData:
             [instances.append(i) for i in stubbedExpr.findInstances(dslType=dslType)]
         return instances
-
 
     def evaluate(self, dependencyGraphRunnerClass=None, poolSize=None, **kwds):
         # Make sure we've got a dependency graph runner.
@@ -159,15 +159,15 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
     def initQueuesAndDicts(self):
         # Make shared memory objects, from the native Python data objects.
         import multiprocessing
-        self.executionQueueManager = multiprocessing.Manager()
-        self.executionQueue = self.executionQueueManager.Queue()
-        self.resultsDict = self.executionQueueManager.dict()
-        self.resultIds = self.executionQueueManager.dict()
-        self.callsDict = self.executionQueueManager.dict()
+        self.manager = multiprocessing.Manager()
+        self.executionQueue = self.manager.Queue()
+        self.resultsDict = self.manager.dict()
+        self.resultIds = self.manager.dict()
+        self.callsDict = self.manager.dict()
         self.callsDict.update(self.dependencyGraph.callRequirements)
-        self.dependencyDict = self.executionQueueManager.dict()
+        self.dependencyDict = self.manager.dict()
         self.dependencyDict.update(self.dependencyGraph.dependencyIds)
-        self.notifyDict = self.executionQueueManager.dict()
+        self.notifyDict = self.manager.dict()
         self.notifyDict.update(self.dependencyGraph.notifyIds)
         # if 'allMarketPrices' in self.runKwds:
         #     allMarketPrices = self.runKwds.pop('allMarketPrices')
@@ -182,11 +182,16 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
     def executeWaitingCalls(self):
         batchCallRequirementIds = []
         while not self.executionQueue.empty():
-            batchCallRequirementIds.append(self.executionQueue.get())
-        self.multiProcessingPool.map_async(executeCallRequirement,
-                       [(i, self.runKwds, self.resultsDict, self.resultIds, self.executionQueue, self.callsDict, self.dependencyDict, self.notifyDict) for i in
-                        batchCallRequirementIds]
+            callRequirementId = self.executionQueue.get()
+            self.multiProcessingPool.apply_async(executeCallRequirement,
+                                                 ([callRequirementId, self.runKwds, self.resultsDict, self.resultIds, self.executionQueue, self.callsDict, self.dependencyDict, self.notifyDict],)
         ).get(99999999)  # Do this rather than just call map(), because otherwise Ctrl-C doesn't work.
+
+            # batchCallRequirementIds.append(self.executionQueue.get())
+        # self.multiProcessingPool.map_async(executeCallRequirement,
+        #                [(i, self.runKwds, self.resultsDict, self.resultIds, self.executionQueue, self.callsDict, self.dependencyDict, self.notifyDict) for i in
+        #                 batchCallRequirementIds]
+        # ).get(99999999)  # Do this rather than just call map(), because otherwise Ctrl-C doesn't work.
         self.callCount += len(batchCallRequirementIds)
 
 
@@ -220,17 +225,25 @@ def executeCallRequirement(args):
         # Get all the required stub expr result values in a namespace object.
         dslNamespace = DslNamespace()
         for stubId in dependencyDict[callRequirementId]:
-            stubResult = resultsDict[stubId]
-            dslNamespace[stubId] = stubResult
+            try:
+                stubResult = resultsDict[stubId]
+            except KeyError:
+                keys = resultsDict.keys()
+                raise KeyError("{} not in {} (really? {})".format(stubId, keys, stubId not in keys))
+            else:
+                dslNamespace[stubId] = stubResult
 
         simpleExpr = stubbedModule.compile(dslLocals=dslNamespace, dslGlobals={})
         assert isinstance(simpleExpr, DslExpression), "Reduced parsed stubbed expr string is not an " \
                                                       "expression: %s" % type(simpleExpr)
         resultValue = simpleExpr.evaluate(**evaluationKwds)
 
-        # Create result object and check if subscribers are ready to be executed.
+
+        # Store result.
         resultsDict[callRequirementId] = resultValue
         resultIds[callRequirementId] = None
+
+        # Check if subscribers are ready to be executed.
         for subscriberId in notifyDict[callRequirementId]:
             if subscriberId in resultsDict:
                 continue
@@ -247,8 +260,8 @@ def executeCallRequirement(args):
                 executionQueue.put(subscriberId)
 
         # Check if we can delete dependency results.
+        # - are there results for all dependents of this result?
         for notifierId in dependencyDict[callRequirementId]:
-            # - are there results for all dependents of this result?
             isNotifierDone = True
             for subscriberId in notifyDict[notifierId]:
                 if subscriberId == callRequirementId:
@@ -257,7 +270,10 @@ def executeCallRequirement(args):
                     isNotifierDone = False
                     break
             if isNotifierDone:
-                resultsDict.pop(notifierId)
+                try:
+                    resultsDict.pop(notifierId)
+                except KeyError:
+                    raise
 
         return "OK"
     except Exception:
