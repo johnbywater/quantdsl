@@ -2,11 +2,12 @@ language: python
 python:
   - "2.7_with_system_site_packages"
   - "3.2_with_system_site_packages"
+  - "3.3"
 before_install:
- - sudo apt-get install -qq python-numpy python-scipy
+ - sudo apt-get install -qq python-numpy python-scipy python3-numpy python3-scipy
 install:
  - pip install coveralls
- - pip install . --use-mirrors
+ - pip install .
 script:
  - coverage run --source quantdsl -m unittest quantdsl.test
 after_success:
