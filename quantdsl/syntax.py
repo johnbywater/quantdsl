@@ -1,4 +1,5 @@
 import ast
+import six
 
 from quantdsl.exceptions import DslSyntaxError
 
@@ -14,14 +15,14 @@ class DslParser(object):
             assert isinstance(dslClasses, dict)
             self.dslClasses.update(dslClasses)
 
-        if not isinstance(dslSource, basestring):
+        if not isinstance(dslSource, six.string_types):
             raise DslSyntaxError("Can't parse non-string object", dslSource)
 
-        assert isinstance(dslSource, basestring)
+        assert isinstance(dslSource, six.string_types)
         try:
             # Parse as Python source code, into a Python abstract syntax tree.
             astModule = ast.parse(dslSource, filename=filename, mode='exec')
-        except SyntaxError, e:
+        except SyntaxError as e:
             raise DslSyntaxError("DSL source code is not valid Python code", e)
 
         # Generate Quant DSL from Python AST.
@@ -209,7 +210,11 @@ class DslParser(object):
         """
         name = node.name
         dslFunctionArgClass = self.dslClasses['FunctionArg']
-        callArgDefs = [dslFunctionArgClass(arg.id, '') for arg in node.args.args]
+        if six.PY2:
+            arg_name_attr = 'id'
+        else:
+            arg_name_attr = 'arg'
+        callArgDefs = [dslFunctionArgClass(getattr(arg, arg_name_attr), '') for arg in node.args.args]
         assert len(node.body) == 1, "Function defs with more than one body statement are not supported at the moment."
         decoratorNames = [astName.id for astName in node.decorator_list]
         body = self.visitAstNode(node.body[0])

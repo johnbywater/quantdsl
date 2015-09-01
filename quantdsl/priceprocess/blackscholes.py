@@ -1,4 +1,6 @@
 from __future__ import division
+import math
+import scipy
 from quantdsl.exceptions import DslError
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.priceprocess.base import getDurationYears
@@ -53,8 +55,8 @@ class BlackScholesPriceProcess(PriceProcess):
                 endRv = startRv + scipy.sqrt(T) * draws
                 try:
                     brownianMotions[i][j + 1] = endRv
-                except ValueError, e:
-                    raise ValueError, "Can't set endRv in brownianMotions: %s" % e
+                except ValueError as e:
+                    raise ValueError("Can't set endRv in brownianMotions: %s" % e)
                 _startDate = fixingDate
                 startRv = endRv
 
@@ -65,7 +67,7 @@ class BlackScholesPriceProcess(PriceProcess):
             calibrationName = "%s-%s-CORRELATION" % marketNamePairs
             try:
                 correlation = marketCalibration[calibrationName]
-            except KeyError, e:
+            except KeyError as e:
                 msg = "Can't find correlation between '%s' and '%s': '%s' not defined in market calibration: %s" % (
                     marketNamePairs[0],
                     marketNamePairs[1],
@@ -88,14 +90,14 @@ class BlackScholesPriceProcess(PriceProcess):
 
         try:
             U = scipy.linalg.cholesky(correlationMatrix)
-        except LinAlgError, e:
+        except LinAlgError as e:
             raise DslError("Couldn't do Cholesky decomposition with correlation matrix: %s: %s" % (correlationMatrix, e))
 
         # Correlated increments from uncorrelated increments.
         #brownianMotions = brownianMotions.transpose() # Put markets on the last dimension, so the broadcasting works.
         try:
             brownianMotionsCorrelated = brownianMotions.T.dot(U)
-        except Exception, e:
+        except Exception as e:
             msg = "Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: %s, %s: %s" % (brownianMotions, U, e)
             raise DslError(msg)
         brownianMotionsCorrelated = brownianMotionsCorrelated.transpose() # Put markets back on the first dimension.
@@ -120,5 +122,5 @@ class BlackScholesVolatility(object):
         duration = max(dates) - min(dates)
         years = (duration.days) / 365.0 # Assumes zero seconds.
         if years == 0:
-            raise Exception, "Can't calculate volatility for price series with zero duration: %s" % (priceHistory)
+            raise Exception("Can't calculate volatility for price series with zero duration: %s" % (priceHistory))
         return float(volatility) / math.sqrt(years)

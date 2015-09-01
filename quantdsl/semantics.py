@@ -1,6 +1,6 @@
 from __future__ import division
 from abc import ABCMeta, abstractmethod
-import Queue as queue
+import six.moves.queue as queue
 import datetime
 import itertools
 import math
@@ -8,6 +8,7 @@ import re
 import uuid
 
 import dateutil.parser
+import six
 
 from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
 from quantdsl.priceprocess.base import getDurationYears
@@ -48,7 +49,7 @@ class DslObject(object):
                     if isinstance(arg, list):
                         arg = tuple(arg)
                     hashes += str(hash(arg))
-            except TypeError, e:
+            except TypeError as e:
                 raise DslSystemError(e)
             self._hash = hash(hashes)
         return self._hash
@@ -119,12 +120,17 @@ class DslObject(object):
         return list(self.findInstancesGenerator(dslType))
 
     def hasInstances(self, dslType):
-        try:
-            self.findInstancesGenerator(dslType).next()
-        except StopIteration:
-            return False
-        else:
+        for i in self.findInstancesGenerator(dslType):
             return True
+        else:
+            return False
+        # try:
+        #     self.findInstancesGenerator(dslType).next()
+        #     # self.findInstancesGenerator(dslType)
+        # except StopIteration:
+        #     return False
+        # else:
+        #     return True
 
     def findInstancesGenerator(self, dslType):
         if isinstance(self, dslType):
@@ -173,7 +179,7 @@ class DslConstant(DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=1)
         if self.requiredType == None:
-            raise Exception, "requiredType attribute not set on %s" % self.__class__
+            raise Exception("requiredType attribute not set on %s" % self.__class__)
         self.assertArgsPosn(args, posn=0, requiredType=self.requiredType)
         self.parse(args[0])
 
@@ -191,7 +197,7 @@ class DslConstant(DslExpression):
 
 
 class String(DslConstant):
-    requiredType = basestring
+    requiredType = six.string_types
 
 
 class Number(DslConstant):
@@ -203,21 +209,21 @@ class Number(DslConstant):
 
 
 class Date(DslConstant):
-    requiredType = (basestring, String, datetime.datetime)
+    requiredType = (six.string_types, String, datetime.datetime)
 
     def __str__(self, indent=0):
         return "Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)
 
     def parse(self, value):
         # Return a datetime.datetime.
-        if isinstance(value, (basestring, String)):
+        if isinstance(value, (six.string_types, String)):
             if isinstance(value, String):
                 dateStr = value.evaluate()
             else:
                 dateStr = value
             try:
                 return dateutil.parser.parse(dateStr).replace(tzinfo=utc)
-            except ValueError, inst:
+            except ValueError:
                 raise DslSyntaxError("invalid date string", dateStr, node=self.node)
         elif isinstance(value, datetime.datetime):
             return value
@@ -239,7 +245,7 @@ class TimeDelta(DslConstant):
                 raise DslSyntaxError('invalid time delta string', durationStr, node=self.node)
             parts = parts.groupdict()
             time_params = {}
-            for (name, param) in parts.iteritems():
+            for (name, param) in six.iteritems(parts):
                 if param:
                     time_params[name] = int(param)
             return datetime.timedelta(**time_params)
@@ -359,7 +365,7 @@ class BinOp(DslExpression):
             assert leftOrig == left, "Can't %s timedelta and fractional number '%s'" % leftOrig
         try:
             return self.op(left, right)
-        except TypeError, e:
+        except TypeError as e:
             raise DslSyntaxError("unable to %s" % self.__class__.__name__.lower(), "%s %s: %s" % (left, right, e),
                                  node=self.node)
 
@@ -449,7 +455,7 @@ class Name(DslExpression):
         return self.name
 
     def validate(self, args):
-        assert isinstance(args[0], (basestring, String)), type(args[0])
+        assert isinstance(args[0], (six.string_types, String)), type(args[0])
 
     @property
     def name(self):
@@ -457,7 +463,7 @@ class Name(DslExpression):
         Returns a Python string.
         """
         name = self._args[0]
-        if isinstance(name, basestring):
+        if isinstance(name, six.string_types):
             return name
         elif isinstance(name, String):
             return name.evaluate()
@@ -471,7 +477,7 @@ class Name(DslExpression):
 
         from numpy import ndarray
         value = self.evaluate(**combinedNamespace)
-        if isinstance(value, basestring):
+        if isinstance(value, six.string_types):
             return String(value, node=self.node)
         elif isinstance(value, (int, float, ndarray)):
             return Number(value, node=self.node)
@@ -661,7 +667,7 @@ class FunctionDef(DslObject):
         return selected
 
     def createHash(self, obj):
-        if isinstance(obj, (int, float, basestring, datetime.datetime, datetime.timedelta)):
+        if isinstance(obj, (int, float, six.string_types, datetime.datetime, datetime.timedelta)):
             return hash(obj)
         if isinstance(obj, dict):
             return hash(tuple(sorted([(a, self.createHash(b)) for a, b in obj.items()])))
@@ -861,7 +867,7 @@ class Compare(DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, 3)
         self.assertArgsPosn(args, 0, requiredType=(
-            DslExpression, Date))  #, Date, Number, String, int, float, basestring, datetime.datetime))
+            DslExpression, Date))  #, Date, Number, String, int, float, six.string_types, datetime.datetime))
         self.assertArgsPosn(args, 1, requiredType=list)
         self.assertArgsPosn(args, 2, requiredType=list)
         for opName in args[1]:
@@ -1045,7 +1051,7 @@ class DatedDslObject(DslObject):
                 raise DslSyntaxError("date value name '%s' must be resolved to a datetime before it can be used" % date.name, node=self.node)
             if isinstance(date, datetime.datetime):
                 pass
-            if isinstance(date, basestring):
+            if isinstance(date, six.string_types):
                 date = String(date)
             if isinstance(date, String):
                 date = Date(date, node=date.node)
@@ -1089,7 +1095,7 @@ functionalDslClasses = {
 class Market(StochasticObject, DslExpression):
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=1)
-        self.assertArgsPosn(args, posn=0, requiredType=(basestring, String, Name))
+        self.assertArgsPosn(args, posn=0, requiredType=(six.string_types, String, Name))
 
     @property
     def name(self):
@@ -1164,7 +1170,7 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
 
     def validate(self, args):
         self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=(basestring, String, Date, Name, BinOp))
+        self.assertArgsPosn(args, posn=0, requiredType=(six.string_types, String, Date, Name, BinOp))
         self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
 
     @property
@@ -1177,7 +1183,7 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
         fixingDate = self._args[0]
         if isinstance(fixingDate, datetime.datetime):
             pass
-        if isinstance(fixingDate, basestring):
+        if isinstance(fixingDate, six.string_types):
             fixingDate = String(fixingDate)
         if isinstance(fixingDate, String):
             fixingDate = Date(fixingDate, node=fixingDate.node)
@@ -1255,7 +1261,7 @@ class LongstaffSchwartz(object):
             raise DslSystemError("'allMarketPrices' not in evaluation kwds", kwds.keys(), node=None)
         if len(allMarketPrices) == 0:
             raise DslSystemError('no rvs', str(kwds))
-        firstMarketPrices = allMarketPrices.values()[0]
+        firstMarketPrices = list(allMarketPrices.values())[0]
         allStates = self.getStates()
         allStates.reverse()
         valueOfBeingIn = {}
@@ -1276,7 +1282,7 @@ class LongstaffSchwartz(object):
                         marketPrices = allMarketPrices[marketName]
                         try:
                             marketPrice = marketPrices[state.time]
-                        except KeyError, inst:
+                        except KeyError as inst:
                             msg = "Couldn't find time '%s' in random variables. Times are: %s" % (
                                 state.time, marketPrices.keys())
                             raise Exception(msg)
@@ -1307,7 +1313,7 @@ class LongstaffSchwartz(object):
                 if isinstance(stateValue, (int, float)):
                     try:
                         underlyingValue = firstMarketPrices[state.time]
-                    except KeyError, inst:
+                    except KeyError:
                         msg = "Couldn't find time '%s' in random variables. Times are: %s" % (
                             state.time, sorted(firstMarketPrices.keys()))
                         raise Exception(msg)
@@ -1376,7 +1382,7 @@ class LeastSquares(object):
         self.pathCount = len(y)
         for x in xs:
             if len(x) != self.pathCount:
-                raise Exception, "Regression won't work with uneven path counts."
+                raise Exception("Regression won't work with uneven path counts.")
         self.xs = xs
         self.y = y
 
@@ -1404,7 +1410,7 @@ class LeastSquares(object):
         a = scipy.matrix(regressions).transpose()
         b = scipy.matrix(self.y).transpose()
         if a.shape[0] != b.shape[0]:
-            raise Exception, "Regression won't work with uneven path counts."
+            raise Exception("Regression won't work with uneven path counts.")
         c = self.solve(a, b)
         c = scipy.matrix(c)
         #print "a: ", a
@@ -1414,7 +1420,7 @@ class LeastSquares(object):
         #print "c: ", c.shape, type(c)
         #print "c: ", c
         if a.shape[1] != c.shape[0]:
-            raise Exception, "Matrices are not aligned: %s and %s" % (a.shape, c.shape)
+            raise Exception("Matrices are not aligned: %s and %s" % (a.shape, c.shape))
         #else:
         #    raise Exception, "Matrices are aligned: %s and %s" % (a.shape, c.shape)
         d = a * c
@@ -1427,9 +1433,9 @@ class LeastSquares(object):
         import scipy.linalg
         try:
             c,resid,rank,sigma = scipy.linalg.lstsq(a, b)
-        except Exception, inst:
+        except Exception as inst:
             msg = "Couldn't solve a and b: %s %s: %s" % (a, b, inst)
-            raise Exception, msg
+            raise Exception(msg)
         return c
 
 defaultDslClasses = functionalDslClasses.copy()
@@ -1446,7 +1452,7 @@ defaultDslClasses.update({
 class FunctionDefCallStack(queue.Queue):
 
     def put(self, stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime):
-        assert isinstance(stubId, basestring), type(stubId)
+        assert isinstance(stubId, six.string_types), type(stubId)
         assert isinstance(stackedCall, FunctionDef), type(stackedCall)
         assert isinstance(stackedLocals, DslNamespace), type(stackedLocals)
         assert isinstance(stackedGlobals, DslNamespace), type(stackedGlobals)
@@ -1457,7 +1463,7 @@ class FunctionDefCallStack(queue.Queue):
 class StubbedExpressionStack(queue.LifoQueue):
 
     def put(self, stubId, stubbedExpr, effectivePresentTime):
-        assert isinstance(stubId, basestring), type(stubId)
+        assert isinstance(stubId, six.string_types), type(stubId)
         assert isinstance(stubbedExpr, DslExpression), type(stubbedExpr)
         assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
         queue.LifoQueue.put(self, (stubId, stubbedExpr, effectivePresentTime))

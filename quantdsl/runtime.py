@@ -88,7 +88,7 @@ class DependencyGraph(object):
 
         try:
             return self.runner.resultsDict[self.rootStubId]
-        except KeyError, e:
+        except KeyError:
             errorData = (self.rootStubId, self.runner.resultsDict.keys())
             raise DslSystemError("root value not found", str(errorData))
 
@@ -124,7 +124,10 @@ class DependencyGraphRunner(object):
 class SingleThreadedDependencyGraphRunner(DependencyGraphRunner):
 
     def initQueuesAndDicts(self):
-        import Queue as queue
+        try:
+            import Queue as queue
+        except ImportError:
+            import queue
         self.executionQueue = queue.Queue()
         self.resultsDict = {}
         self.resultIds = {}
@@ -257,8 +260,7 @@ def executeCallRequirement(args):
                 resultsDict.pop(notifierId)
 
         return "OK"
-    except Exception, e:
+    except Exception:
         import traceback
         msg = "Error whilst calling 'executeCallRequirement': %s" % traceback.format_exc()
-        msg += str(e)
         raise Exception(msg)

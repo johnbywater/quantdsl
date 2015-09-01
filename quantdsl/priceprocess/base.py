@@ -16,6 +16,6 @@ class PriceProcess(object):
 def getDurationYears(startDate, endDate, daysPerYear=365):
     try:
         timeDelta = endDate - startDate
-    except TypeError, inst:
+    except TypeError as inst:
         raise TypeError("%s: start: %s end: %s" % (inst, startDate, endDate))
     return timeDelta.days / float(daysPerYear)
