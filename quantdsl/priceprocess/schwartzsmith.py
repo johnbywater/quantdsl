@@ -60,33 +60,33 @@ schwartzparamnames = [
 
 NUM_MONTHS_IN_YEAR = 12
 
-enableOptimizeSeasonalParams = True
+enable_optimize_seasonal_params = True
 
 
-def calibrate(allData, niter=100, pathCount=1000):
+def calibrate(allData, niter=100, path_count=1000):
     results = []
 
-    numCommodities = len(allData)
-    initialSeasonalParams = [1.0] * 12
+    num_commodities = len(allData)
+    initial_seasonal_params = [1.0] * 12
 
-    observationDate = allData[0]['observationDate']
+    observation_date = allData[0]['observation_date']
     months = allData[0]['months']
-    maturities = calcMaturities(months, observationDate)
+    maturities = calc_maturities(months, observation_date)
 
-    for commodityData in allData:
-        commodityName = commodityData['name']
-        futures = commodityData['futures']
-        impvols = commodityData['impliedAtmVols']
+    for commodity_data in allData:
+        commodity_name = commodity_data['name']
+        futures = commodity_data['futures']
+        impvols = commodity_data['impliedAtmVols']
 
         def objective(x):
             # print "Calling objective function with x:", x
-            schwartzParams = convertToSchwartzParamsDict(x)
-            if enableOptimizeSeasonalParams:
+            schwartz_params = convert_to_schwartz_params_dict(x)
+            if enable_optimize_seasonal_params:
                 seasonalParams = x[-NUM_MONTHS_IN_YEAR:]
             else:
-                seasonalParams = initialSeasonalParams
+                seasonalParams = initial_seasonal_params
             try:
-                score = scoreSchwartz(months, maturities, futures, impvols, seasonalParams, schwartzParams)
+                score = scoreSchwartz(months, maturities, futures, impvols, seasonalParams, schwartz_params)
             except FloatingPointError:
                 score = np.inf
             if np.isnan(score):
@@ -112,36 +112,36 @@ def calibrate(allData, niter=100, pathCount=1000):
             (0, 100),  # e0
         ]
 
-        if enableOptimizeSeasonalParams:
+        if enable_optimize_seasonal_params:
             bounds += [(0.2, 5)] * NUM_MONTHS_IN_YEAR
 
         minimizer_kwargs = dict(method="L-BFGS-B", bounds=bounds)
 
         x0 = [0.1] * len(schwartzparamnames)
-        if enableOptimizeSeasonalParams:
-            x0 += [1] * len(initialSeasonalParams)
+        if enable_optimize_seasonal_params:
+            x0 += [1] * len(initial_seasonal_params)
 
         # Run the "basin hopping" routine.
         result = basinhopping(objective, x0, T=0.5, stepsize=0.1, niter=niter, minimizer_kwargs=minimizer_kwargs)
 
         results.append(result)
-        print commodityName, result.fun, convertToSchwartzParamsDict(result.x), result.x[9:]
-    allOptimizedSchwartzParams = []
-    allOptimizedSeasonalParams = []
-    for c in range(numCommodities):
+        print commodity_name, result.fun, convert_to_schwartz_params_dict(result.x), result.x[9:]
+    all_optimized_schwartz_params = []
+    all_optimized_seasonal_params = []
+    for c in range(num_commodities):
         result = results[c]
-        commodityData = allData[c]
-        observationDate = commodityData['observationDate']
-        months = commodityData['months']
-        futures = commodityData['futures']
-        impvols = commodityData['impliedAtmVols']
+        commodity_data = allData[c]
+        observation_date = commodity_data['observation_date']
+        months = commodity_data['months']
+        futures = commodity_data['futures']
+        impvols = commodity_data['impliedAtmVols']
         if len(result.x) - len(schwartzparamnames) == NUM_MONTHS_IN_YEAR:
-            seasonalParams = result.x[-NUM_MONTHS_IN_YEAR:]
+            seasonal_params = result.x[-NUM_MONTHS_IN_YEAR:]
         else:
-            seasonalParams = initialSeasonalParams
-        allOptimizedSeasonalParams.append(seasonalParams)
-        optimizedSchwartzParams = convertToSchwartzParamsDict(result.x)
-        allOptimizedSchwartzParams.append(optimizedSchwartzParams)
+            seasonal_params = initial_seasonal_params
+        all_optimized_seasonal_params.append(seasonal_params)
+        optimized_schwartz_params = convert_to_schwartz_params_dict(result.x)
+        all_optimized_schwartz_params.append(optimized_schwartz_params)
         #print result.fun, schwartzparamsdictfromlistx(result.x), result.x[9:]
 
         #schwartzftT, blackstdev, schwartzSDFT = calc_schwartz(observation_date, months, futures, impvols,
@@ -155,100 +155,100 @@ def calibrate(allData, niter=100, pathCount=1000):
         #     plt.plot(schwartzSDFT, '-r')
         #     plt.show()
 
-    correlationMatrix, allRhos = fixCorrelations(allData, allOptimizedSchwartzParams)
+    correlation_matrix, all_rhos = fix_correlations(allData, all_optimized_schwartz_params)
 
-    simulatedPrices = simulatePrices(observationDate, months, allOptimizedSchwartzParams,
-                                         allOptimizedSeasonalParams, allRhos, pathCount=pathCount)
+    simulated_prices = simulate_prices(observation_date, months, all_optimized_schwartz_params,
+                                         all_optimized_seasonal_params, all_rhos, path_count=path_count)
 
     # Estimate empirical correlation matrix
-    spath0 = simulatedPrices[0][0]
+    spath0 = simulated_prices[0][0]
     spath0T = spath0.T
-    simCorrelations = []
-    for i in range(1, numCommodities):
-        spath = simulatedPrices[i][0]
+    sim_correlations = []
+    for i in range(1, num_commodities):
+        spath = simulated_prices[i][0]
         spathT = spath.T
         coefs = []
-        numObservations = len(spathT)
-        for t in range(numObservations):
+        num_observations = len(spathT)
+        for t in range(num_observations):
             coef = np.corrcoef(spath0T[t], spathT[t])[0][1]
             coefs.append(coef)
 
-        simCorrelations.append(np.mean(coefs))
+        sim_correlations.append(np.mean(coefs))
     #
     # MarketCorrelations = cmatrix[0,1:]
     # SimCorrelations = empc[1:]
 
 
-    return allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices
+    return all_optimized_schwartz_params, all_optimized_seasonal_params, all_rhos, correlation_matrix, sim_correlations, simulated_prices
 
 
-def scoreSchwartz(months, maturities, forwards, impvols, seasonalParams, schwartzParams):
-    schwartzftT, blackstdev, schwartzSDFT = calcSchwartz(months, maturities, forwards, impvols, seasonalParams, schwartzParams)
-    fwdErr = (forwards - schwartzftT)**2
-    stdevErr = (blackstdev - schwartzSDFT)**2
-    return fwdErr.sum() + stdevErr.sum()
+def scoreSchwartz(months, maturities, forwards, impvols, seasonalParams, schwartz_params):
+    schwartzftT, blackstdev, schwartzSDFT = calc_schwartz(months, maturities, forwards, impvols, seasonalParams, schwartz_params)
+    fwd_err = (forwards - schwartzftT)**2
+    stdev_err = (blackstdev - schwartzSDFT)**2
+    return fwd_err.sum() + stdev_err.sum()
 
 
-def calcSchwartz(months, maturities, forwards, impvols, seasonalParams, schwartzParams):
+def calc_schwartz(months, maturities, forwards, impvols, seasonal_params, schwartz_params):
 
-    seasonalWeightings = getSeasonalWeightings(months, seasonalParams)
+    seasonal_weightings = get_seasonal_weightings(months, seasonal_params)
 
-    kappa = schwartzParams['kappa']
-    x0 = schwartzParams['x0']
-    e0 = schwartzParams['e0']
-    lambdax = schwartzParams['lambdax']
-    mue = schwartzParams['mue']
-    lambdae = schwartzParams['lambdae']
-    sigmax = schwartzParams['sigmax']
-    sigmae = schwartzParams['sigmae']
-    pxe = schwartzParams['pxe']
-    kappaTimesMaturities = kappa * maturities
-    expMinusKappaTimesMaturities = np.exp(-kappaTimesMaturities)
-    sigmaeSquaredTimesMaturities = sigmae ** 2 * maturities
+    kappa = schwartz_params['kappa']
+    x0 = schwartz_params['x0']
+    e0 = schwartz_params['e0']
+    lambdax = schwartz_params['lambdax']
+    mue = schwartz_params['mue']
+    lambdae = schwartz_params['lambdae']
+    sigmax = schwartz_params['sigmax']
+    sigmae = schwartz_params['sigmae']
+    pxe = schwartz_params['pxe']
+    kappa_times_maturities = kappa * maturities
+    exp_minus_kappa_times_maturities = np.exp(-kappa_times_maturities)
+    sigmae_squared_times_maturities = sigmae ** 2 * maturities
 
     # Black Stdev
     blackstdev = np.sqrt(forwards * forwards * (np.exp(impvols * impvols * maturities) - 1))
 
     # Calc Schw E[ln(S(T))]
-    schwartzES = expMinusKappaTimesMaturities * x0 + e0 - (1 - expMinusKappaTimesMaturities) * lambdax / kappa + (mue - lambdae) * maturities
+    schwartzES = exp_minus_kappa_times_maturities * x0 + e0 - (1 - exp_minus_kappa_times_maturities) * lambdax / kappa + (mue - lambdae) * maturities
 
     # Calc Schw V[ln(S(T))]
-    schwartzVS = (1 - np.exp(-2 * kappaTimesMaturities)) * (sigmax **2 / (2 * kappa)) \
-                 + sigmaeSquaredTimesMaturities \
-                 + (2 * (1 - expMinusKappaTimesMaturities) * pxe * sigmax * sigmae / kappa)
+    schwartzVS = (1 - np.exp(-2 * kappa_times_maturities)) * (sigmax **2 / (2 * kappa)) \
+                 + sigmae_squared_times_maturities \
+                 + (2 * (1 - exp_minus_kappa_times_maturities) * pxe * sigmax * sigmae / kappa)
 
     # Calc Schw F(t,T)
-    schwartzftT = seasonalWeightings * np.exp(schwartzES + 0.5 * schwartzVS)
+    schwartzftT = seasonal_weightings * np.exp(schwartzES + 0.5 * schwartzVS)
 
     # Calc Schw V[ln(F(T))]
     # Todo: Find out why schwartzVFT is same expression as schwartzVS - is that correct?
-    # schwartzVFT = (1 - np.exp(-2 * kappaTimesMaturities)) * sigmax ** 2 / (2 * kappa) \
-    #               + sigmaeSquaredTimesMaturities \
-    #               + 2 * (1 - expMinusKappaTimesMaturities) * pxe * sigmax * sigmae / kappa
+    # schwartzVFT = (1 - np.exp(-2 * kappa_times_maturities)) * sigmax ** 2 / (2 * kappa) \
+    #               + sigmae_squared_times_maturities \
+    #               + 2 * (1 - exp_minus_kappa_times_maturities) * pxe * sigmax * sigmae / kappa
     schwartzVFT = schwartzVS
 
-    schwartzSDFT = seasonalWeightings * np.sqrt((np.exp(schwartzVFT) - 1) * np.exp(2 * schwartzES + schwartzVS))
+    schwartzSDFT = seasonal_weightings * np.sqrt((np.exp(schwartzVFT) - 1) * np.exp(2 * schwartzES + schwartzVS))
 
     return schwartzftT, blackstdev, schwartzSDFT
 
 
-def calcMaturities(months, observationDate):
-    convertMonthsToMaturities = np.vectorize(lambda month: round((month - observationDate).days / 365, 2))
+def calc_maturities(months, observation_date):
+    convertMonthsToMaturities = np.vectorize(lambda month: round((month - observation_date).days / 365, 2))
     return convertMonthsToMaturities(months)
 
 
-def getSeasonalWeightings(months, seasonalParams):
+def get_seasonal_weightings(months, seasonalParams):
     convertMonthsToSeasonalWeightings = np.vectorize(lambda month: seasonalParams[month.month - 1])
     return convertMonthsToSeasonalWeightings(months)
 
 
-def convertToSchwartzParamsDict(x):
+def convert_to_schwartz_params_dict(x):
     x = x[:len(schwartzparamnames)]
     return dict(zip(schwartzparamnames, x))
 
 
-def fixCorrelations(allData, allOptimizedSchwartzParams):
-    numCommodities = len(allData)
+def fix_correlations(allData, allOptimizedSchwartzParams):
+    num_commodities = len(allData)
 
     fwds = []
     kappas = []
@@ -262,16 +262,16 @@ def fixCorrelations(allData, allOptimizedSchwartzParams):
     ves = []
     covxes = []
 
-    for c in range(numCommodities):
-        commodityData = allData[c]
-        observationDate = commodityData['observationDate']
-        months = commodityData['months']
-        futures = commodityData['futures']
+    for c in range(num_commodities):
+        commodity_data = allData[c]
+        observation_date = commodity_data['observation_date']
+        months = commodity_data['months']
+        futures = commodity_data['futures']
         params = allOptimizedSchwartzParams[c]
 
         fwd = futures
         fwds.append(fwd)
-        maturities = calcMaturities(months, observationDate)
+        maturities = calc_maturities(months, observation_date)
         T = maturities
         Ts.append(T)
 
@@ -295,22 +295,22 @@ def fixCorrelations(allData, allOptimizedSchwartzParams):
         covxes.append(covxe)
 
     # Compute Correlation matrix from observed forward curves
-    allFutures = np.array([c['futures'] for c in allData])
-    logAllFutures = np.log(allFutures)
-    correlationMatrix = np.corrcoef(logAllFutures)
+    all_futures = np.array([c['futures'] for c in allData])
+    log_all_futures = np.log(all_futures)
+    correlation_matrix = np.corrcoef(log_all_futures)
 
     import scipy.linalg
 
-#    print "Cholesky:", scipy.linalg.cholesky(correlationMatrix)
+#    print "Cholesky:", scipy.linalg.cholesky(correlation_matrix)
 
     # Find correlation structures needed to keep observed correlation structure
     # during simulation
-    numObservations = len(T)
-    allRhos = []
-    allRhos.append([1.0] * numObservations)
-    for c in range(1, numCommodities):
+    num_observations = len(T)
+    all_rhos = []
+    all_rhos.append([1.0] * num_observations)
+    for c in range(1, num_commodities):
         acorxys = []
-        for t in range(numObservations):
+        for t in range(num_observations):
 
             atop1 = (1 - np.exp(-(kappas[0] + kappas[c]) * Ts[c][t])) * sigmaxs[0] * sigmaxs[c] / (kappas[0] + kappas[c])
 
@@ -324,41 +324,41 @@ def fixCorrelations(allData, allOptimizedSchwartzParams):
 
             acorxys.append((atop1 + atop2 + atop3 + atop4) / (abot1 * abot2))
 
-        rhos = correlationMatrix[c,0] / acorxys
-        allRhos.append(rhos)
+        rhos = correlation_matrix[c,0] / acorxys
+        all_rhos.append(rhos)
 
     # Clip all the rhos to <= 1.0.
-    allRhos = np.array(allRhos).clip(max=1.0)
+    all_rhos = np.array(all_rhos).clip(max=1.0)
 
-    return correlationMatrix, allRhos
+    return correlation_matrix, all_rhos
 
 
-def simulatePrices(observationDate, months, allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, pathCount):
-    numCommodities = len(allRhos)
-    simulatedPrices = []
-    numObservations = len(months)
-    maturities = calcMaturities(months, observationDate)
+def simulate_prices(observation_date, months, all_optimized_schwartz_params, all_optimized_seasonal_params, all_rhos, path_count):
+    num_commodities = len(all_rhos)
+    simulated_prices = []
+    num_observations = len(months)
+    maturities = calc_maturities(months, observation_date)
 
-    rmatrix0 = np.random.standard_normal((numObservations, pathCount))
+    rmatrix0 = np.random.standard_normal((num_observations, path_count))
 
-    for c in range(numCommodities):
-        rmatrix = np.zeros((numObservations, pathCount))
+    for c in range(num_commodities):
+        rmatrix = np.zeros((num_observations, path_count))
 
-        for t in range(numObservations):
-            rmatrix[t] = allRhos[c][t] * rmatrix0[t] +\
-                         np.sqrt(1 - allRhos[c][t]**2) * np.random.standard_normal(pathCount)
+        for t in range(num_observations):
+            rmatrix[t] = all_rhos[c][t] * rmatrix0[t] +\
+                         np.sqrt(1 - all_rhos[c][t]**2) * np.random.standard_normal(path_count)
 
-        optimizedSchwartzParams = allOptimizedSchwartzParams[c]
-        optimizedSeasonalParams = allOptimizedSeasonalParams[c]
+        optimized_schwartz_params = all_optimized_schwartz_params[c]
+        optimized_seasonal_params = all_optimized_seasonal_params[c]
 
-        seasonalWeightings = getSeasonalWeightings(months, optimizedSeasonalParams)
+        seasonal_weightings = get_seasonal_weightings(months, optimized_seasonal_params)
 
-        (spath, tmpath, tstdpath, tefwd, testdfwd, xpath1, epath1, r1, r2) = simulateSingleSchwartzSmithProcess(
-            optimizedSchwartzParams,
-            seasonalWeightings,
+        (spath, tmpath, tstdpath, tefwd, testdfwd, xpath1, epath1, r1, r2) = simulate_single_schwartz_smith_process(
+            optimized_schwartz_params,
+            seasonal_weightings,
             maturities,
             rmatrix,
-            pathCount)
+            path_count)
 
         spath = spath
         mpath = tmpath
@@ -371,12 +371,12 @@ def simulatePrices(observationDate, months, allOptimizedSchwartzParams, allOptim
         r1path = r1
         r2path = r2
 
-        simulatedPrices.append((spath, mpath, estdfwd, stdpath))
+        simulated_prices.append((spath, mpath, estdfwd, stdpath))
 
-    return simulatedPrices
+    return simulated_prices
 
 
-def simulateSingleSchwartzSmithProcess(params, seasonalWeightings, maturities, rmatrix, pathCount):
+def simulate_single_schwartz_smith_process(params, seasonal_weightings, maturities, rmatrix, path_count):
     kappa = params['kappa']
     mue = params['mue']
     sigmax = params['sigmax']
@@ -387,49 +387,49 @@ def simulateSingleSchwartzSmithProcess(params, seasonalWeightings, maturities, r
     x0 = params['x0']
     e0 = params['e0']
 
-    kappaTimesMaturities = kappa * maturities
-    expMinusKappaTimesMaturities = np.exp(-kappaTimesMaturities)
-    sigmaeSquaredTimesMaturities = sigmae ** 2 * maturities
-    sigmaxSquared = sigmax ** 2
+    kappa_times_maturities = kappa * maturities
+    exp_minus_kappa_times_maturities = np.exp(-kappa_times_maturities)
+    sigmae_squared_times_maturities = sigmae ** 2 * maturities
+    sigmax_squared = sigmax ** 2
 
-    explns = expMinusKappaTimesMaturities * x0 \
+    explns = exp_minus_kappa_times_maturities * x0 \
              + e0 \
-             - (1 - expMinusKappaTimesMaturities) * lambdax / kappa \
+             - (1 - exp_minus_kappa_times_maturities) * lambdax / kappa \
              + (mue - lambdae) * maturities
-    varlns = sigmaeSquaredTimesMaturities \
-             + (1 - np.exp(-2 * kappaTimesMaturities)) * sigmaxSquared / (2 * kappa) \
-             + 2 * (1 - expMinusKappaTimesMaturities) * pxe * sigmax * sigmae / kappa
-    fwd = seasonalWeightings * np.exp(explns + 0.5 * varlns)
+    varlns = sigmae_squared_times_maturities \
+             + (1 - np.exp(-2 * kappa_times_maturities)) * sigmax_squared / (2 * kappa) \
+             + 2 * (1 - exp_minus_kappa_times_maturities) * pxe * sigmax * sigmae / kappa
+    fwd = seasonal_weightings * np.exp(explns + 0.5 * varlns)
 
     # Todo: Find out why varlnfwd is same expression as varlns - is that correct?
-    # varlnfwd = sigmaeSquaredTimesMaturities \
-    #            + (1 - np.exp(-2 * kappaTimesMaturities)) * (sigmaxSquared) / (2 * kappa) \
-    #            + 2 * (1 - expMinusKappaTimesMaturities) * pxe * sigmax * sigmae / kappa
+    # varlnfwd = sigmae_squared_times_maturities \
+    #            + (1 - np.exp(-2 * kappa_times_maturities)) * (sigmax_squared) / (2 * kappa) \
+    #            + 2 * (1 - exp_minus_kappa_times_maturities) * pxe * sigmax * sigmae / kappa
     varlnfwd = varlns
 
-    stdfwd = seasonalWeightings * np.sqrt((np.exp(varlnfwd) - 1) * np.exp(2 * explns + varlnfwd))
+    stdfwd = seasonal_weightings * np.sqrt((np.exp(varlnfwd) - 1) * np.exp(2 * explns + varlnfwd))
 
     r1 = rmatrix
-    numMaturities = len(maturities)
-    r2 = pxe * r1 + np.sqrt((1 - pxe**2)) * np.random.standard_normal((numMaturities, pathCount))
+    num_maturities = len(maturities)
+    r2 = pxe * r1 + np.sqrt((1 - pxe**2)) * np.random.standard_normal((num_maturities, path_count))
 
-    x = np.zeros((numMaturities, pathCount))
-    e = np.zeros((numMaturities, pathCount))
-    s = np.zeros((numMaturities, pathCount))
+    x = np.zeros((num_maturities, path_count))
+    e = np.zeros((num_maturities, path_count))
+    s = np.zeros((num_maturities, path_count))
 
-    epath = np.zeros((pathCount, numMaturities))
-    xpath = np.zeros((pathCount, numMaturities))
-    spath = np.zeros((pathCount, numMaturities))
-    lnpath = np.zeros((pathCount, numMaturities))
+    epath = np.zeros((path_count, num_maturities))
+    xpath = np.zeros((path_count, num_maturities))
+    spath = np.zeros((path_count, num_maturities))
+    lnpath = np.zeros((path_count, num_maturities))
 
     x[0] = x0 - lambdax * maturities[0] - kappa * x0 * maturities[0] + sigmax * np.sqrt(maturities[0]) * r1[0]
     e[0] = e0 + (mue-lambdae) * maturities[0] + sigmae * np.sqrt(maturities[0]) * r2[0]
-    s[0] = seasonalWeightings[0] * np.exp(e[0] + x[0])
+    s[0] = seasonal_weightings[0] * np.exp(e[0] + x[0])
 
-    for t in range(numMaturities - 1):
+    for t in range(num_maturities - 1):
         x[t+1] = x[t] - lambdax * (maturities[t+1] - maturities[t]) - kappa * x[t] * (maturities[t+1] - maturities[t]) + sigmax * np.sqrt(maturities[t+1] - maturities[t]) * r1[t+1]
         e[t+1] = e[t] + (mue-lambdae) * (maturities[t+1] - maturities[t]) + (sigmae * np.sqrt(maturities[t+1]-maturities[t])) * r2[t+1]
-        s[t+1] = seasonalWeightings[t+1] * np.exp(e[t+1] + x[t+1])
+        s[t+1] = seasonal_weightings[t+1] * np.exp(e[t+1] + x[t+1])
 
     epath = e.T
     xpath = x.T
@@ -444,20 +444,20 @@ def simulateSingleSchwartzSmithProcess(params, seasonalWeightings, maturities, r
     return [spath, mpath, stdpath, fwd, stdfwd, xpath, epath, r1, r2]
 
 
-def plotSimulatedPrices(allData, allSimulatedPrices):
-    assert len(allData) == len(allSimulatedPrices)
-    for i in range(len(allSimulatedPrices)):
-        commodityData = allData[i]
-        spath, mpath, estdfwd, stdpath = allSimulatedPrices[i]
-        name = commodityData['name']
-        futures = commodityData['futures']
+def plot_simulated_prices(all_data, all_simulated_prices):
+    assert len(all_data) == len(all_simulated_prices)
+    for i in range(len(all_simulated_prices)):
+        commodity_data = all_data[i]
+        spath, mpath, estdfwd, stdpath = all_simulated_prices[i]
+        name = commodity_data['name']
+        futures = commodity_data['futures']
 
-        plt.subplot(len(allData), 2, 2*i+1)
+        plt.subplot(len(all_data), 2, 2*i+1)
         plt.title('%s Market Fwd (blue) vs Sim Fwd (red)' % name)
         plt.plot(futures)
         plt.plot(mpath, 'r')
 
-        plt.subplot(len(allData), 2., 2*i+2)
+        plt.subplot(len(all_data), 2., 2*i+2)
         plt.title('%s Market Vol (blue) vs Sim Vol (red)' % name)
         plt.plot(estdfwd)
         plt.plot(stdpath, 'r')

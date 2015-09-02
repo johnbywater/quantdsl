@@ -11,7 +11,7 @@ import dateutil.parser
 import six
 
 from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
-from quantdsl.priceprocess.base import getDurationYears
+from quantdsl.priceprocess.base import get_duration_years
 from quantdsl import utc
 
 
@@ -85,64 +85,64 @@ class DslObject(object):
         pass
 
     # Todo: Rework validation, perhaps by considering a declarative form in which to express the requirements.
-    def assertArgsLen(self, args, requiredLen=None, minLen=None):
-        if minLen != None and len(args) < minLen:
+    def assertArgsLen(self, args, required_len=None, min_len=None):
+        if min_len != None and len(args) < min_len:
             error = "%s is broken" % self.__class__.__name__
-            descr = "requires at least %s arguments (%s were given)" % (minLen, len(args))
+            descr = "requires at least %s arguments (%s were given)" % (min_len, len(args))
             raise DslSyntaxError(error, descr, self.node)
-        if requiredLen != None and len(args) != requiredLen:
+        if required_len != None and len(args) != required_len:
             error = "%s is broken" % self.__class__.__name__
-            descr = "requires %s arguments (%s were given)" % (requiredLen, len(args))
+            descr = "requires %s arguments (%s were given)" % (required_len, len(args))
             raise DslSyntaxError(error, descr, self.node)
 
-    def assertArgsPosn(self, args, posn, requiredType):
-        if isinstance(requiredType, list):
+    def assertArgsPosn(self, args, posn, required_type):
+        if isinstance(required_type, list):
             # Ahem, this is a way of saying we require a list of the type (should be a list length 1).
             self.assertArgsPosn(args, posn, list)
-            assert len(requiredType) == 1, "List def should only have one item."
-            requiredType = requiredType[0]
-            listOfArgs = args[posn]
-            for i in range(len(listOfArgs)):
-                self.assertArgsPosn(listOfArgs, i, requiredType)
-        elif not isinstance(args[posn], requiredType):
+            assert len(required_type) == 1, "List def should only have one item."
+            required_type = required_type[0]
+            list_of_args = args[posn]
+            for i in range(len(list_of_args)):
+                self.assertArgsPosn(list_of_args, i, required_type)
+        elif not isinstance(args[posn], required_type):
             error = "%s is broken" % self.__class__.__name__
-            if isinstance(requiredType, tuple):
-                requiredTypeNames = [i.__name__ for i in requiredType]
-                requiredTypeNames = ", ".join(requiredTypeNames)
+            if isinstance(required_type, tuple):
+                required_type_names = [i.__name__ for i in required_type]
+                required_type_names = ", ".join(required_type_names)
             else:
-                requiredTypeNames = requiredType.__name__
-            desc = "argument %s must be %s" % (posn, requiredTypeNames)
+                required_type_names = required_type.__name__
+            desc = "argument %s must be %s" % (posn, required_type_names)
             desc += " (but a %s was found): " % (args[posn].__class__.__name__)
             desc += str(args[posn])
             raise DslSyntaxError(error, desc, self.node)
 
-    def findInstances(self, dslType):
-        return list(self.findInstancesGenerator(dslType))
+    def find_instances(self, dslType):
+        return list(self.find_instances_generator(dslType))
 
-    def hasInstances(self, dslType):
-        for i in self.findInstancesGenerator(dslType):
+    def has_instances(self, dslType):
+        for i in self.find_instances_generator(dslType):
             return True
         else:
             return False
         # try:
-        #     self.findInstancesGenerator(dslType).next()
-        #     # self.findInstancesGenerator(dslType)
+        #     self.find_instances_generator(dslType).next()
+        #     # self.find_instances_generator(dslType)
         # except StopIteration:
         #     return False
         # else:
         #     return True
 
-    def findInstancesGenerator(self, dslType):
+    def find_instances_generator(self, dslType):
         if isinstance(self, dslType):
             yield self
         for arg in self._args:
             if isinstance(arg, DslObject):
-                for dslObj in arg.findInstancesGenerator(dslType):
+                for dslObj in arg.find_instances_generator(dslType):
                     yield dslObj
             elif isinstance(arg, list):
                 for arg in arg:
                     if isinstance(arg, DslObject):
-                        for dslObj in arg.findInstances(dslType):
+                        for dslObj in arg.find_instances(dslType):
                             yield dslObj
 
     def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=None):
@@ -165,8 +165,8 @@ class DslExpression(DslObject):
         pass
 
     def discount(self, value, date, **kwds):
-        r = float(kwds['interestRate']) / 100
-        T = getDurationYears(kwds['presentTime'], date)
+        r = float(kwds['interest_rate']) / 100
+        T = get_duration_years(kwds['present_time'], date)
         return value * math.exp(- r * T)
 
 
@@ -177,10 +177,10 @@ class DslConstant(DslExpression):
         return repr(self.value)
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=1)
+        self.assertArgsLen(args, required_len=1)
         if self.requiredType == None:
             raise Exception("requiredType attribute not set on %s" % self.__class__)
-        self.assertArgsPosn(args, posn=0, requiredType=self.requiredType)
+        self.assertArgsPosn(args, posn=0, required_type=self.requiredType)
         self.parse(args[0])
 
     @property
@@ -262,8 +262,8 @@ class UnaryOp(DslExpression):
         return str(self.opchar) + str(self.operand)
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=1)
-        self.assertArgsPosn(args, posn=0, requiredType=DslExpression)
+        self.assertArgsLen(args, required_len=1)
+        self.assertArgsPosn(args, posn=0, required_type=DslExpression)
 
     @property
     def operand(self):
@@ -286,21 +286,21 @@ class UnarySub(UnaryOp):
 
 class BoolOp(DslExpression):
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=1)
-        self.assertArgsPosn(args, posn=0, requiredType=list)
+        self.assertArgsLen(args, required_len=1)
+        self.assertArgsPosn(args, posn=0, required_type=list)
 
     @property
     def values(self):
         return self._args[0]
 
     def evaluate(self, **kwds):
-        lenValues = len(self.values)
-        assert lenValues >= 2
-        for dslExpr in self.values:
-            assert isinstance(dslExpr, DslExpression)
-            value = dslExpr.evaluate(**kwds)
+        len_values = len(self.values)
+        assert len_values >= 2
+        for dsl_expr in self.values:
+            assert isinstance(dsl_expr, DslExpression)
+            value = dsl_expr.evaluate(**kwds)
             # Assert value is a simple value.
-            if not isinstance(dslExpr, DslExpression):
+            if not isinstance(dsl_expr, DslExpression):
                 raise DslSyntaxError("not a simple value", str(value), node=self.node)
             if self.op(value):
                 return self.op(True)
@@ -330,9 +330,9 @@ class BinOp(DslExpression):
 
     def __str__(self, indent=0):
         if self.opchar:
-            def makeStr(dslExpr):
-                dslString = str(dslExpr)
-                if isinstance(dslExpr, BinOp):
+            def makeStr(dsl_expr):
+                dslString = str(dsl_expr)
+                if isinstance(dsl_expr, BinOp):
                     dslString = "(" + dslString + ")"
                 return dslString
             return makeStr(self.left) + " " + self.opchar + " " + makeStr(self.right)
@@ -340,9 +340,9 @@ class BinOp(DslExpression):
             return '%s(%s, %s)' % (self.__class__.__name__, self.left, self.right)
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=(DslExpression, Date, TimeDelta, Underlying))
-        self.assertArgsPosn(args, posn=1, requiredType=(DslExpression, Date, TimeDelta, Underlying))
+        self.assertArgsLen(args, required_len=2)
+        self.assertArgsPosn(args, posn=0, required_type=(DslExpression, Date, TimeDelta, Underlying))
+        self.assertArgsPosn(args, posn=1, required_type=(DslExpression, Date, TimeDelta, Underlying))
 
     @property
     def left(self):
@@ -557,7 +557,7 @@ class FunctionDef(DslObject):
         self.enclosedNamespace = DslNamespace()
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=4)
+        self.assertArgsLen(args, required_len=4)
 
     @property
     def name(self):
@@ -627,7 +627,7 @@ class FunctionDef(DslObject):
             )
             # Return the stub so that the containing DSL can be fully evaluated
             # once the stacked function call has been evaluated.
-            dslExpr = dslStub
+            dsl_expr = dslStub
         else:
             # Todo: Make sure the expression can be selected with the dslLocals?
             # - ie the conditional expressions should be functions only of call arg
@@ -639,31 +639,31 @@ class FunctionDef(DslObject):
             newDslGlobals[self.name] = self
 
             # Reduce the selected expression.
-            dslExpr = selectedExpression.reduce(dslLocals, newDslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+            dsl_expr = selectedExpression.reduce(dslLocals, newDslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
 
         # Cache the result.
         if not isDestacking:
-            self.callCache[callCacheKey] = dslExpr
+            self.callCache[callCacheKey] = dsl_expr
 
-        return dslExpr
+        return dsl_expr
 
-    def selectExpression(self, dslExpr, callArgNamespace):
+    def selectExpression(self, dsl_expr, callArgNamespace):
         # If the DSL expression is an instance of If, then evaluate
         # the test and accordingly select body or orelse expressions. Repeat
         # this method with the selected expression (supports if-elif-elif-else).
         # Otherwise just return the DSL express as the selected expression.
 
-        if isinstance(dslExpr, BaseIf):
+        if isinstance(dsl_expr, BaseIf):
             # Todo: Implement a check that this test expression can be evaluated? Or handle case when it can't?
             # Todo: Also allow user defined functions that just do dates or numbers in test expression.
             # it doesn't have or expand into DSL elements that are the functions of time (Wait, Choice, Market, etc).
-            if dslExpr.test.evaluate(**callArgNamespace):
-                selected = dslExpr.body
+            if dsl_expr.test.evaluate(**callArgNamespace):
+                selected = dsl_expr.body
             else:
-                selected = dslExpr.orelse
+                selected = dsl_expr.orelse
             selected = self.selectExpression(selected, callArgNamespace)
         else:
-            selected = dslExpr
+            selected = dsl_expr
         return selected
 
     def createHash(self, obj):
@@ -687,9 +687,9 @@ class FunctionCall(DslExpression):
             ", ".join([str(arg) for arg in self.callArgExprs]))
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=Name)
-        self.assertArgsPosn(args, posn=1, requiredType=list)
+        self.assertArgsLen(args, required_len=2)
+        self.assertArgsPosn(args, posn=0, required_type=Name)
+        self.assertArgsPosn(args, posn=1, required_type=list)
 
     @property
     def functionDefName(self):
@@ -741,7 +741,7 @@ class FunctionCall(DslExpression):
                 if isinstance(callArgExpr, Underlying):
                     # It's explicitly wrapped as an "underlying", so unwrap it as expected.
                     callArgValue = callArgExpr.evaluate()
-                elif callArgExpr.hasInstances((Market, Fixing, Choice, Settlement, FunctionDef, Stub)):
+                elif callArgExpr.has_instances((Market, Fixing, Choice, Settlement, FunctionDef, Stub)):
                     # It's an underlying contract, or a stub. In any case, can't evaluate here, so.pass it through.
                     callArgValue = callArgExpr
                 else:
@@ -753,12 +753,12 @@ class FunctionCall(DslExpression):
             newDslLocals[callArgDef.name] = callArgValue
 
         # Evaluate the function def with the dict of call arg values.
-        dslExpr = functionDef.apply(dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack, isDestacking=False, **newDslLocals)
+        dsl_expr = functionDef.apply(dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack, isDestacking=False, **newDslLocals)
 
         # The result of this function call (stubbed or otherwise) should be a DSL expression.
-        assert isinstance(dslExpr, DslExpression)
+        assert isinstance(dsl_expr, DslExpression)
 
-        return dslExpr
+        return dsl_expr
 
     def evaluate(self, **kwds):
         raise DslSyntaxError('call to undefined name', self.functionDefName.name, node=self.node)
@@ -767,7 +767,7 @@ class FunctionCall(DslExpression):
 class FunctionArg(DslObject):
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=2)
+        self.assertArgsLen(args, required_len=2)
 
     @property
     def name(self):
@@ -781,10 +781,10 @@ class FunctionArg(DslObject):
 class BaseIf(DslExpression):
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=3)
-        self.assertArgsPosn(args, posn=0, requiredType=DslExpression)
-        self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
-        self.assertArgsPosn(args, posn=2, requiredType=DslExpression)
+        self.assertArgsLen(args, required_len=3)
+        self.assertArgsPosn(args, posn=0, required_type=DslExpression)
+        self.assertArgsPosn(args, posn=1, required_type=DslExpression)
+        self.assertArgsPosn(args, posn=2, required_type=DslExpression)
 
     @property
     def test(self):
@@ -866,10 +866,10 @@ class Compare(DslExpression):
 
     def validate(self, args):
         self.assertArgsLen(args, 3)
-        self.assertArgsPosn(args, 0, requiredType=(
+        self.assertArgsPosn(args, 0, required_type=(
             DslExpression, Date))  #, Date, Number, String, int, float, six.string_types, datetime.datetime))
-        self.assertArgsPosn(args, 1, requiredType=list)
-        self.assertArgsPosn(args, 2, requiredType=list)
+        self.assertArgsPosn(args, 1, required_type=list)
+        self.assertArgsPosn(args, 2, required_type=list)
         for opName in args[1]:
             if opName not in self.validOps.keys():
                 raise DslSyntaxError("Op name '%s' not supported" % opName)
@@ -944,8 +944,8 @@ class Module(DslObject):
 
         if len(expressions) == 1:
             # Return the expression, but reduce it with function defs if any are defined.
-            dslExpr = expressions[0]
-            assert isinstance(dslExpr, DslExpression)
+            dsl_expr = expressions[0]
+            assert isinstance(dsl_expr, DslExpression)
             if len(functionDefs):
                 # Compile the expression
                 if dependencyGraphClass:
@@ -965,7 +965,7 @@ class Module(DslObject):
                     # Of course if the module's expression doesn't have a function call, there
                     # will just be one expression on the stack of "stubbed" expressions, and it will
                     # not have any stubs.
-                    stubbedExpr = dslExpr.reduce(
+                    stubbedExpr = dsl_expr.reduce(
                         dslLocals,
                         DslNamespace(dslGlobals),
                         pendingCallStack=pendingCallStack
@@ -1004,11 +1004,11 @@ class Module(DslObject):
                 else:
                     # Compile the module expression as and for a single threaded recursive operation (faster but not
                     # distributed, so also limited in space and perhaps time). For smaller computations only.
-                    dslObj = dslExpr.reduce(dslLocals, DslNamespace(dslGlobals))
+                    dslObj = dsl_expr.reduce(dslLocals, DslNamespace(dslGlobals))
             else:
                 # The module just has an expression. Can't break up a monolithic DSL expression in an expression stack
                 # yet. So Compile the module expression as and for a single threaded recursive operation.
-                dslObj = dslExpr.reduce(dslLocals, DslNamespace(dslGlobals))
+                dslObj = dsl_expr.reduce(dslLocals, DslNamespace(dslGlobals))
             return dslObj
         elif len(expressions) > 1:
             # Can't meaningfully evaluate more than one expression (since assignments are not supported).
@@ -1094,8 +1094,8 @@ functionalDslClasses = {
 
 class Market(StochasticObject, DslExpression):
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=1)
-        self.assertArgsPosn(args, posn=0, requiredType=(six.string_types, String, Name))
+        self.assertArgsLen(args, required_len=1)
+        self.assertArgsPosn(args, posn=0, required_type=(six.string_types, String, Name))
 
     @property
     def name(self):
@@ -1103,36 +1103,36 @@ class Market(StochasticObject, DslExpression):
 
     def evaluate(self, **kwds):
         try:
-            presentTime = kwds['presentTime']
+            present_time = kwds['present_time']
         except KeyError:
             raise DslSyntaxError(
-                "Can't evaluate Market '%s' without 'presentTime' in context variables" % self.name,
+                "Can't evaluate Market '%s' without 'present_time' in context variables" % self.name,
                 ", ".join(kwds.keys()),
                 node=self.node
             )
         try:
-            allMarketPrices = kwds['allMarketPrices']
+            all_market_prices = kwds['all_market_prices']
         except KeyError:
             raise DslError(
-                "Can't evaluate Market '%s' without 'allMarketPrices' in context variables" % self.name,
+                "Can't evaluate Market '%s' without 'all_market_prices' in context variables" % self.name,
                 ", ".join(kwds.keys()),
                 node=self.node
             )
 
         try:
-            marketPrices = allMarketPrices[self.name]
+            marketPrices = all_market_prices[self.name]
         except KeyError:
             raise DslError(
-                "Can't evaluate Market '%s' without market name in 'allMarketPrices'" % self.name,
-                ", ".join(allMarketPrices.keys()),
+                "Can't evaluate Market '%s' without market name in 'all_market_prices'" % self.name,
+                ", ".join(all_market_prices.keys()),
                 node=self.node
             )
 
         try:
-            marketPrice = marketPrices[presentTime]
+            marketPrice = marketPrices[present_time]
         except KeyError:
             raise DslError(
-                "Can't evaluate Market '%s' without present time '%s in market prices" % (self.name, presentTime),
+                "Can't evaluate Market '%s' without present time '%s in market prices" % (self.name, present_time),
                 ", ".join(marketPrices.keys()),
                 node=self.node
             )
@@ -1142,13 +1142,13 @@ class Market(StochasticObject, DslExpression):
 
 class Settlement(StochasticObject, DatedDslObject, DslExpression):
     """
-    Discounts value of expression to 'presentTime'.
+    Discounts value of expression to 'present_time'.
     """
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=(String, Date, Name,BinOp))
-        self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
+        self.assertArgsLen(args, required_len=2)
+        self.assertArgsPosn(args, posn=0, required_type=(String, Date, Name,BinOp))
+        self.assertArgsPosn(args, posn=1, required_type=DslExpression)
 
     def evaluate(self, **kwds):
         value = self._args[1].evaluate(**kwds)
@@ -1157,7 +1157,7 @@ class Settlement(StochasticObject, DatedDslObject, DslExpression):
 
 class Fixing(StochasticObject, DatedDslObject, DslExpression):
     """
-    A fixing defines the 'presentTime' used for evaluating its expression.
+    A fixing defines the 'present_time' used for evaluating its expression.
     """
 
     def __str__(self):
@@ -1169,9 +1169,9 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
             self.expr)
 
     def validate(self, args):
-        self.assertArgsLen(args, requiredLen=2)
-        self.assertArgsPosn(args, posn=0, requiredType=(six.string_types, String, Date, Name, BinOp))
-        self.assertArgsPosn(args, posn=1, requiredType=DslExpression)
+        self.assertArgsLen(args, required_len=2)
+        self.assertArgsPosn(args, posn=0, required_type=(six.string_types, String, Date, Name, BinOp))
+        self.assertArgsPosn(args, posn=1, required_type=DslExpression)
 
     @property
     def expr(self):
@@ -1196,7 +1196,7 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
 
     def evaluate(self, **kwds):
         kwds = kwds.copy()
-        kwds['presentTime'] = self.date
+        kwds['present_time'] = self.date
         return self.expr.evaluate(**kwds)
 
 
@@ -1208,7 +1208,7 @@ class On(Fixing):
 
 class Wait(Fixing):
     """
-    A fixing with discounting of the resulting value from date arg to presentTime.
+    A fixing with discounting of the resulting value from date arg to present_time.
     """
     def evaluate(self, **kwds):
         value = super(Wait, self).evaluate(**kwds)
@@ -1220,9 +1220,9 @@ class Choice(StochasticObject, DslExpression):
     Encapsulates the Longstaff-Schwartz routine as an element of the language.
     """
     def validate(self, args):
-        self.assertArgsLen(args, minLen=2)
+        self.assertArgsLen(args, min_len=2)
         for i in range(len(args)):
-            self.assertArgsPosn(args, posn=i, requiredType=DslExpression)
+            self.assertArgsPosn(args, posn=i, required_type=DslExpression)
 
     def evaluate(self, **kwds):
         # Check the results cache, to see whether this function
@@ -1233,9 +1233,9 @@ class Choice(StochasticObject, DslExpression):
         kwdsHash = hash(tuple(sorted(cacheKeyKwdItems)))
         if kwdsHash not in self.resultsCache:
             # Run the least-squares monte-carlo routine.
-            presentTime = kwds['presentTime']
-            initialState = LongstaffSchwartzState(self, presentTime)
-            finalStates = [LongstaffSchwartzState(a, presentTime) for a in self._args]
+            present_time = kwds['present_time']
+            initialState = LongstaffSchwartzState(self, present_time)
+            finalStates = [LongstaffSchwartzState(a, present_time) for a in self._args]
             longstaffSchwartz = LongstaffSchwartz(initialState, finalStates)
             result = longstaffSchwartz.evaluate(**kwds)
             self.resultsCache[kwdsHash] = result
@@ -1256,12 +1256,12 @@ class LongstaffSchwartz(object):
 
     def evaluate(self, **kwds):
         try:
-            allMarketPrices = kwds['allMarketPrices']
+            all_market_prices = kwds['all_market_prices']
         except KeyError:
-            raise DslSystemError("'allMarketPrices' not in evaluation kwds", kwds.keys(), node=None)
-        if len(allMarketPrices) == 0:
+            raise DslSystemError("'all_market_prices' not in evaluation kwds", kwds.keys(), node=None)
+        if len(all_market_prices) == 0:
             raise DslSystemError('no rvs', str(kwds))
-        firstMarketPrices = list(allMarketPrices.values())[0]
+        firstMarketPrices = list(all_market_prices.values())[0]
         allStates = self.getStates()
         allStates.reverse()
         valueOfBeingIn = {}
@@ -1276,10 +1276,10 @@ class LongstaffSchwartz(object):
                 underlyingValue = firstMarketPrices[state.time]
                 for subsequentState in state.subsequentStates:
                     regressionVariables = []
-                    dslMarkets = subsequentState.dslObject.findInstances(Market)
+                    dslMarkets = subsequentState.dslObject.find_instances(Market)
                     marketNames = set([m.name for m in dslMarkets])
                     for marketName in marketNames:
-                        marketPrices = allMarketPrices[marketName]
+                        marketPrices = all_market_prices[marketName]
                         try:
                             marketPrice = marketPrices[state.time]
                         except KeyError as inst:
@@ -1314,14 +1314,14 @@ class LongstaffSchwartz(object):
                     try:
                         underlyingValue = firstMarketPrices[state.time]
                     except KeyError:
-                        msg = "Couldn't find time '%s' in random variables. Times are: %s" % (
+                        msg = "Couldn't find market price at time %s, available times: %s" % (
                             state.time, sorted(firstMarketPrices.keys()))
-                        raise Exception(msg)
-                    pathCount = len(underlyingValue)
+                        raise KeyError(msg)
+                    path_count = len(underlyingValue)
                     if stateValue == 0:
-                        stateValue = scipy.zeros(pathCount)
+                        stateValue = scipy.zeros(path_count)
                     else:
-                        ones = scipy.ones(pathCount)
+                        ones = scipy.ones(path_count)
                         stateValue = ones * stateValue
                 if not isinstance(stateValue, numpy.ndarray):
                     raise Exception("State value type is '%s' when numpy.ndarray is required: %s" % (
@@ -1379,9 +1379,9 @@ class LeastSquares(object):
     """
 
     def __init__(self, xs, y):
-        self.pathCount = len(y)
+        self.path_count = len(y)
         for x in xs:
-            if len(x) != self.pathCount:
+            if len(x) != self.path_count:
                 raise Exception("Regression won't work with uneven path counts.")
         self.xs = xs
         self.y = y
@@ -1390,7 +1390,7 @@ class LeastSquares(object):
         import scipy
         regressions = list()
         # Regress against unity.
-        regressions.append(scipy.ones(self.pathCount))
+        regressions.append(scipy.ones(self.path_count))
         # Regress against each variable.
         for x in self.xs:
             regressions.append(x)

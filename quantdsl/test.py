@@ -13,7 +13,7 @@ from quantdsl.exceptions import DslSyntaxError
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
     FloorDiv, Max, On, LeastSquares, FunctionCall, FunctionDef, Name, If, IfExp, Compare, Module, DslNamespace
-from quantdsl.services import eval, compile, parse
+from quantdsl.services import dsl_eval, dsl_compile, parse
 from quantdsl.syntax import DslParser
 
 
@@ -28,25 +28,25 @@ class TestDslParser(unittest.TestCase):
 
     def test_empty_string(self):
         self.assertTrue(isinstance(parse(""), Module))
-        self.assertRaises(DslSyntaxError, compile, "")
-        self.assertRaises(DslSyntaxError, eval, "")
+        self.assertRaises(DslSyntaxError, dsl_compile, "")
+        self.assertRaises(DslSyntaxError, dsl_eval, "")
 
-    def assertDslExprTypeValue(self, dslSource, expectedDslType, expectedDslValue, **compileKwds):
-        # Assumes dslSource is just one statement.
-        dslModule = parse(dslSource)
+    def assertDslExprTypeValue(self, dsl_source, expectedDslType, expectedDslValue, **compile_kwds):
+        # Assumes dsl_source is just one statement.
+        dslModule = parse(dsl_source)
 
         # Check the parsed DSL can be rendered as a string that is equal to the original source.
-        self.assertEqual(str(dslModule).strip(), dslSource.strip())
+        self.assertEqual(str(dslModule).strip(), dsl_source.strip())
 
         # Check the statement's expression type.
-        dslExpr = dslModule.body[0]
-        self.assertIsInstance(dslExpr, expectedDslType)
+        dsl_expr = dslModule.body[0]
+        self.assertIsInstance(dsl_expr, expectedDslType)
 
         # Compile the module into an simple DSL expression object (no variables or calls to function defs).
-        dslExpr = dslModule.compile(compileKwds)
+        dsl_expr = dslModule.compile(compile_kwds)
 
         # Evaluate the compiled expression.
-        self.assertEqual(dslExpr.evaluate(), expectedDslValue)
+        self.assertEqual(dsl_expr.evaluate(), expectedDslValue)
 
     def test_num(self):
         self.assertDslExprTypeValue("0", Number, 0)
@@ -60,7 +60,7 @@ class TestDslParser(unittest.TestCase):
         self.assertDslExprTypeValue("'#1'", String, "#1")
 
         # We can have comments too, but comments and trailing whitespaces are ignored.
-        dsl = compile("'#1'  # This is a comment.")
+        dsl = dsl_compile("'#1'  # This is a comment.")
         self.assertIsInstance(dsl, String)
         self.assertEqual(dsl.evaluate(), '#1')
 
@@ -128,18 +128,18 @@ class TestDslParser(unittest.TestCase):
         self.assertDslExprTypeValue("6 if 0 else 7 if 0 else 8", IfExp, 8)
 
     def test_if(self):
-        dslSource = """
+        dsl_source = """
 if bar:
     foo
 else:
     0
 """
-        self.assertDslExprTypeValue(dslSource, If, 0, foo=0, bar=1)
-        self.assertDslExprTypeValue(dslSource, If, 2, foo=2, bar=1)
-        self.assertDslExprTypeValue(dslSource, If, 4, foo=4, bar=1)
-        self.assertDslExprTypeValue(dslSource, If, 0, foo=5, bar=0)
+        self.assertDslExprTypeValue(dsl_source, If, 0, foo=0, bar=1)
+        self.assertDslExprTypeValue(dsl_source, If, 2, foo=2, bar=1)
+        self.assertDslExprTypeValue(dsl_source, If, 4, foo=4, bar=1)
+        self.assertDslExprTypeValue(dsl_source, If, 0, foo=5, bar=0)
 
-        dslSource = """
+        dsl_source = """
 if bar:
     foo
 elif hee:
@@ -147,11 +147,11 @@ elif hee:
 else:
     -1
 """
-        self.assertDslExprTypeValue(dslSource, If, 0, foo=0, bar=1, hee=1, haa=3)
-        self.assertDslExprTypeValue(dslSource, If, 2, foo=2, bar=1, hee=1, haa=3)
-        self.assertDslExprTypeValue(dslSource, If, 4, foo=4, bar=1, hee=1, haa=3)
-        self.assertDslExprTypeValue(dslSource, If, 3, foo=6, bar=0, hee=1, haa=3)
-        self.assertDslExprTypeValue(dslSource, If, -1, foo=6, bar=0, hee=0, haa=3)
+        self.assertDslExprTypeValue(dsl_source, If, 0, foo=0, bar=1, hee=1, haa=3)
+        self.assertDslExprTypeValue(dsl_source, If, 2, foo=2, bar=1, hee=1, haa=3)
+        self.assertDslExprTypeValue(dsl_source, If, 4, foo=4, bar=1, hee=1, haa=3)
+        self.assertDslExprTypeValue(dsl_source, If, 3, foo=6, bar=0, hee=1, haa=3)
+        self.assertDslExprTypeValue(dsl_source, If, -1, foo=6, bar=0, hee=0, haa=3)
 
     def test_call(self):
         self.assertDslExprTypeValue("Max(1, 2)", Max, 2)
@@ -166,15 +166,15 @@ else:
 
     def test_date_timedelta(self):
         # Some date arithmetic...
-        dsl = compile("Date('2014-12-31') - TimeDelta('1d')")
+        dsl = dsl_compile("Date('2014-12-31') - TimeDelta('1d')")
         self.assertIsInstance(dsl, Sub)
         self.assertEqual(dsl.evaluate(), datetime.datetime(2014, 12, 30, tzinfo=utc))
 
-        dsl = compile("Date('2014-12-29') + TimeDelta('1d')")
+        dsl = dsl_compile("Date('2014-12-29') + TimeDelta('1d')")
         self.assertIsInstance(dsl, Add)
         self.assertEqual(dsl.evaluate(), datetime.datetime(2014, 12, 30, tzinfo=utc))
 
-        dsl = compile("2 * TimeDelta('1d')")
+        dsl = dsl_compile("2 * TimeDelta('1d')")
         self.assertIsInstance(dsl, Mult)
         self.assertEqual(dsl.evaluate(), datetime.timedelta(2))
 
@@ -188,15 +188,15 @@ else:
 
 
     def test_on(self):
-        dslSource = "On('2012-01-01', 5)"
-        dsl = compile(dslSource)
-        self.assertEqual(dslSource, str(dsl))
+        dsl_source = "On('2012-01-01', 5)"
+        dsl = dsl_compile(dsl_source)
+        self.assertEqual(dsl_source, str(dsl))
         self.assertIsInstance(dsl, On)
         self.assertEqual(dsl.evaluate(), 5)
 
     def test_functiondef_simple(self):
         # Simple one-line body.
-        dsl = compile("def a(): 1")
+        dsl = dsl_compile("def a(): 1")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
         self.assertEqual(len(dsl.callArgNames), 0)
@@ -210,12 +210,12 @@ else:
         self.assertEqual(len(dsl.callCache), 1)
 
         # Check a freshly parsed function def has a fresh call cache.
-        dsl = compile("def a(): 1")
+        dsl = dsl_compile("def a(): 1")
         self.assertEqual(len(dsl.callCache), 0)
 
     def test_functiondef_dsl_max(self):
         # Simple one-line body.
-        dsl = compile("def a(b): return Max(b, 2)")
+        dsl = dsl_compile("def a(b): return Max(b, 2)")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
         self.assertEqual(dsl.callArgNames[0], 'b')
@@ -230,7 +230,7 @@ else:
         self.assertEqual(a4.evaluate(), 4)
 
         # Return statement is optional, value of last expression is returned.
-        dsl = compile("def a(b): Max(b, 2)")
+        dsl = dsl_compile("def a(b): Max(b, 2)")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
         self.assertEqual(dsl.apply(b=0).evaluate(), 2)
@@ -238,7 +238,7 @@ else:
 
     def test_functiondef_dsl_max_conditional(self):
         # Conditional call.
-        dsl = compile("def a(b): Max(b, 2) if b != 0 else 0")
+        dsl = dsl_compile("def a(b): Max(b, 2) if b != 0 else 0")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
         self.assertEqual(dsl.callArgNames[0], 'b')
@@ -269,7 +269,7 @@ else:
 
     def test_functiondef_recursive_cached(self):
         # Recursive call.
-        fibDef = compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
+        fibDef = dsl_compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
 
         # Check the parsed function def DSL object.
         self.assertIsInstance(fibDef, FunctionDef)
@@ -373,7 +373,7 @@ else:
         self.assertEqual(len(fibDef.callCache), 5)
 
         # Just check call cache with fib(5) with fresh parser.
-        fibDef = compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
+        fibDef = dsl_compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
         assert isinstance(fibDef, FunctionDef)
         self.assertEqual(len(fibDef.callCache), 0)
         fibExpr = fibDef.apply(n=5)
@@ -383,38 +383,38 @@ else:
 
     def test_module_block(self):
         # Expression with one function def.
-        dslSource = """
+        dsl_source = """
 def sqr(n):
     n ** 2
 sqr(3)
 """
-        dslModule = parse(dslSource)
+        dslModule = parse(dsl_source)
         self.assertIsInstance(dslModule, Module)
-        self.assertEqual(str(dslModule), dslSource.strip())
+        self.assertEqual(str(dslModule), dsl_source.strip())
 
-        dslExpr = compile(dslSource)
-        self.assertEqual(dslExpr.evaluate(), 9)
+        dsl_expr = dsl_compile(dsl_source)
+        self.assertEqual(dsl_expr.evaluate(), 9)
 
-        dslValue = eval(dslSource)
+        dslValue = dsl_eval(dsl_source)
         self.assertEqual(dslValue, 9)
 
         # Expression with two function defs.
-        dslSource = """
+        dsl_source = """
 def add(a, b):
     a + b
 def mul(a, b):
     a if b == 1 else add(a, mul(a, b - 1))
 mul(3, 3)
 """
-        dslModule = parse(dslSource)
+        dslModule = parse(dsl_source)
         self.assertIsInstance(dslModule, Module)
-        self.assertEqual(str(dslModule), dslSource.strip())
+        self.assertEqual(str(dslModule), dsl_source.strip())
 
-        dslExpr = compile(dslSource)
-#        self.assertEqual(str(dslExpr), "")
-        self.assertEqual(dslExpr.evaluate(), 9)
+        dsl_expr = dsl_compile(dsl_source)
+#        self.assertEqual(str(dsl_expr), "")
+        self.assertEqual(dsl_expr.evaluate(), 9)
 
-        dslValue = eval(dslSource)
+        dslValue = dsl_eval(dsl_source)
         self.assertEqual(dslValue, 9)
 
 
@@ -422,48 +422,48 @@ mul(3, 3)
         # Branching function calls.
 
         fibIndex = 6
-        expectedValue = 13
-        expectedLenStubbedExprs = fibIndex + 1
+        expected_value = 13
+        expected_len_stubbed_exprs = fibIndex + 1
 
-        dslSource = """
+        dsl_source = """
 def fib(n): fib(n-1) + fib(n-2) if n > 2 else n
 fib(%d)
 """ % fibIndex
 
         # # Check the source works as a serial operation.
-        # dslExpr = parse(dslSource, inParallel=False)
-        # self.assertIsInstance(dslExpr, Add)
-        # dslValue = dslExpr.evaluate()
-        # self.assertEqual(dslValue, expectedValue)
+        # dsl_expr = parse(dsl_source, inParallel=False)
+        # self.assertIsInstance(dsl_expr, Add)
+        # dslValue = dsl_expr.evaluate()
+        # self.assertEqual(dslValue, expected_value)
 
         # Check the source works as a parallel operation.
-        dslExpr = compile(dslSource, isParallel=True)
+        dsl_expr = dsl_compile(dsl_source, is_parallel=True)
 
         # Expect an expression stack object.
-        self.assertIsInstance(dslExpr, DependencyGraph)
+        self.assertIsInstance(dsl_expr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr.stubbedExprsData)
+        actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
 
         # Evaluate the stack.
-        dslValue = dslExpr.evaluate()
+        dslValue = dsl_expr.evaluate()
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expectedValue)
+        self.assertEqual(dslValue, expected_value)
 
         # Check the number of stubbed exprs is expected.
-        self.assertEqual(actualLenStubbedExprs, expectedLenStubbedExprs)
+        self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
 
         # Also check the runner call count is the same.
-        self.assertEqual(dslExpr.runner.callCount, expectedLenStubbedExprs)
+        self.assertEqual(dsl_expr.runner.call_count, expected_len_stubbed_exprs)
 
     def test_parallel_american_option(self):
         # Branching function calls.
 
-        expectedValue = 5
-        expectedLenStubbedExprs = 7
+        expected_value = 5
+        expected_len_stubbed_exprs = 7
 
-        dslSource = """
+        dsl_source = """
 # NB using Max instead of Choice, to save development time.
 
 def Option(date, strike, underlying, alternative):
@@ -476,37 +476,37 @@ def American(starts, ends, strike, underlying, step):
 American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
 """
 
-        dslExpr = compile(dslSource, isParallel=True)
+        dsl_expr = dsl_compile(dsl_source, is_parallel=True)
 
         # Expect an expression stack object.
-        self.assertIsInstance(dslExpr, DependencyGraph)
+        self.assertIsInstance(dsl_expr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr.stubbedExprsData)
+        actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
 
         # Evaluate the stack.
         image = mock.Mock()
-        image.priceProcess.getDurationYears.return_value = 1
+        image.price_process.get_duration_years.return_value = 1
         kwds = {
             'image': image,
-            'interestRate': 0,
-            'presentTime': datetime.datetime(2011, 1, 1, tzinfo=utc),
+            'interest_rate': 0,
+            'present_time': datetime.datetime(2011, 1, 1, tzinfo=utc),
         }
-        dslValue = dslExpr.evaluate(**kwds)
+        dslValue = dsl_expr.evaluate(**kwds)
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expectedValue)
+        self.assertEqual(dslValue, expected_value)
 
         # Check the number of stubbed exprs is expected.
-        self.assertEqual(actualLenStubbedExprs, expectedLenStubbedExprs)
+        self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
 
     def test_parallel_swing_option(self):
         # Branching function calls.
 
-        expectedValue = 20
-        expectedLenStubbedExprs = 7
+        expected_value = 20
+        expected_len_stubbed_exprs = 7
 
-        dslSource = """
+        dsl_source = """
 def Swing(starts, ends, underlying, quantity):
     if (quantity != 0) and (starts < ends):
         return Max(
@@ -516,38 +516,38 @@ def Swing(starts, ends, underlying, quantity):
         )
     else:
         return 0
-Swing(Date('2012-01-01'), Date('2012-01-03'), 10, 500)
+Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 5)
 """
 
-        dslExpr = compile(dslSource, isParallel=True)
+        dsl_expr = dsl_compile(dsl_source, is_parallel=True)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr)
+        actual_len_stubbed_exprs = len(dsl_expr)
 
         # Evaluate the stack.
         image = mock.Mock()
-        image.priceProcess.getDurationYears.return_value = 1
+        image.price_process.get_duration_years.return_value = 1
         kwds = {
             'image': image,
-            'interestRate': 0,
-            'presentTime': datetime.datetime(2011, 1, 1),
+            'interest_rate': 0,
+            'present_time': datetime.datetime(2011, 1, 1),
         }
 
-        dslValue = dslExpr.evaluate(**kwds)
+        dslValue = dsl_expr.evaluate(**kwds)
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expectedValue)
+        self.assertEqual(dslValue, expected_value)
 
         # Check the number of stubbed exprs is expected.
-        self.assertEqual(actualLenStubbedExprs, expectedLenStubbedExprs)
+        self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
 
     def test_multiprocessed_swing_option(self):
         # Branching function calls.
 
-        expectedValue = 20
-        expectedLenStubbedExprs = 7
+        expected_value = 20
+        expected_len_stubbed_exprs = 7
 
-        dslSource = """
+        dsl_source = """
 def Swing(starts, ends, underlying, quantity):
     if (quantity == 0) or (starts >= ends):
         0
@@ -559,42 +559,40 @@ def Swing(starts, ends, underlying, quantity):
 Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 500)
 """
 
-        dslExpr = compile(dslSource, isParallel=True)
-        assert isinstance(dslExpr, DependencyGraph)
+        dsl_expr = dsl_compile(dsl_source, is_parallel=True)
+        assert isinstance(dsl_expr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actualLenStubbedExprs = len(dslExpr.stubbedExprsData)
+        actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
 
-        # Create a mock valuation environment.
-        # image = mock.Mock()
-        # image.priceProcess.getDurationYears.return_value = 1
-        # mock isn't pickleable :( so that doesn't work with multiprocessing
         kwds = {
-#            'image': MockImage(MockPriceProcess()),
-            'interestRate': 0,
-            'presentTime': datetime.datetime(2011, 1, 1, tzinfo=utc),
-            'allMarketPrices': {
-                '#1': dict([(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10])) for i in range(0, 30)])
-
+            'interest_rate': 0,
+            'present_time': datetime.datetime(2011, 1, 1, tzinfo=utc),
+            'all_market_prices': {
+                '#1': dict(
+                    [(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10]))
+                        for i in range(0, 3)])  # NB Need enough days to cover the date range in the dsl_source.
             },
-            # 'poolSize': 3,
+            # 'pool_size': 8,
+            'dependency_graph_runner_class': MultiProcessingDependencyGraphRunner,
         }
 
-
         # Evaluate the stack.
-        dslValue = dslExpr.evaluate(dependencyGraphRunnerClass=MultiProcessingDependencyGraphRunner, **kwds).mean()
+        dsl_value = dsl_expr.evaluate(**kwds)
+        if hasattr(dsl_value, 'mean'):
+            dsl_value = dsl_value.mean()
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expectedValue)
+        self.assertEqual(dsl_value, expected_value)
 
         # Check the number of stubbed exprs is expected.
-        self.assertEqual(actualLenStubbedExprs, expectedLenStubbedExprs)
+        self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
 
 
 class MockImage(object):
 
-    def __init__(self, priceProcess):
-        self.priceProcess = priceProcess
+    def __init__(self, price_process):
+        self.price_process = price_process
 
 
 class MockPriceProcess(object): pass
@@ -604,74 +602,74 @@ class TestLeastSquares(unittest.TestCase):
 
     DECIMALS = 12
 
-    def assertFit(self, fixtureX, fixtureY, expectedValues):
-        assert expectedValues != None
-        ls = LeastSquares(scipy.array(fixtureX), scipy.array(fixtureY))
-        fitData = ls.fit()
-        for i, expectedValue in enumerate(expectedValues):
-            fitValue = round(fitData[i], self.DECIMALS)
-            msg = "expectedValues value: %s, fit value: %s, expectedValues data: %s, fit data: %s" % (
-                expectedValue, fitValue, expectedValues, fitData)
-            self.assertEqual(expectedValue, fitValue, msg)
+    def assertFit(self, fixture_x, fixture_y, expected_values):
+        assert expected_values != None
+        ls = LeastSquares(scipy.array(fixture_x), scipy.array(fixture_y))
+        fit_data = ls.fit()
+        for i, expected_value in enumerate(expected_values):
+            fit_value = round(fit_data[i], self.DECIMALS)
+            msg = "expected_values value: %s, fit value: %s, expected_values data: %s, fit data: %s" % (
+                expected_value, fit_value, expected_values, fit_data)
+            self.assertEqual(expected_value, fit_value, msg)
 
     def test_fit1(self):
         self.assertFit(
-            fixtureX=[
+            fixture_x=[
                 [0, 1, 2],
                 [3, 4, 5]],
-            fixtureY=[1, 1, 1],
-            expectedValues=[1, 1, 1],
+            fixture_y=[1, 1, 1],
+            expected_values=[1, 1, 1],
         )
 
     def test_fit2(self):
         self.assertFit(
-            fixtureX=[[0, 1, 2], [3, 4, 5]],
-            fixtureY=[0, 1, 2],
-            expectedValues=[0, 1, 2],
+            fixture_x=[[0, 1, 2], [3, 4, 5]],
+            fixture_y=[0, 1, 2],
+            expected_values=[0, 1, 2],
         )
 
 
 class DslTestCase(unittest.TestCase):
 
-    def assertValuation(self, dslSource=None, expectedValue=None, expectedDelta=None, expectedGamma=None,
-            toleranceValue=0.02, toleranceDelta = 0.1, toleranceGamma=0.1):
+    def assertValuation(self, dsl_source=None, expected_value=None, expected_delta=None, expected_gamma=None,
+            tolerance_value=0.02, tolerance_delta = 0.1, tolerance_gamma=0.1):
 
         # Check option value.
-        observationDate = datetime.datetime(2011, 1, 1, tzinfo=utc)
-        estimatedValue = self.calcValue(dslSource, observationDate)
-        self.assertTolerance(estimatedValue, expectedValue, toleranceValue)
+        observation_date = datetime.datetime(2011, 1, 1, tzinfo=utc)
+        estimated_value = self.calc_value(dsl_source, observation_date)
+        self.assertTolerance(estimated_value, expected_value, tolerance_value)
 
         # Todo: Reinstate the delta tests.
         return
         # Check deltas.
-        markets = self.pricer.getMarkets()
+        markets = self.pricer.get_markets()
         if not markets:
-            assert self.expectedDelta == None
+            assert self.expected_delta == None
             return
         market = list(markets)[0]
         # Check option delta.
-        estimatedDelta = self.pricer.calcDelta(market)
-        self.assertTolerance(estimatedDelta, expectedDelta, toleranceDelta)
+        estimated_delta = self.pricer.calc_delta(market)
+        self.assertTolerance(estimated_delta, expected_delta, tolerance_delta)
 
         # Todo: Decide what to do with gamma (too much noise to pass tests consistently at the mo). Double-side differentials?
         # Check option gamma.
         #estimatedGamma = self.pricer.calcGamma(market)
         #roundedGamma = round(estimatedGamma, self.DECIMALS)
-        #expectedGamma = round(self.expectedGamma, self.DECIMALS)
-        #msg = "Value: %s  Expected: %s" % (roundedGamma, expectedGamma)
-        #self.assertEqual(roundedGamma, expectedGamma, msg)
+        #expected_gamma = round(self.expected_gamma, self.DECIMALS)
+        #msg = "Value: %s  Expected: %s" % (roundedGamma, expected_gamma)
+        #self.assertEqual(roundedGamma, expected_gamma, msg)
 
     def assertTolerance(self, estimated, expected, tolerance):
         upper = expected + tolerance
         lower = expected - tolerance
         assert lower <= estimated <= upper, "Estimated '%s' not close enough to expected '%s' (tolerance '%s')." % (estimated, expected, tolerance)
 
-    def calcValue(self, dslSource, observationTime):
+    def calc_value(self, dsl_source, observation_time):
         # Todo: Rename 'allRvs' to 'simulatedPrices'?
-        evaluationKwds = DslNamespace({
-            'observationTime': observationTime,
-            'interestRate': '2.5',
-            'marketCalibration': {
+        evaluation_kwds = DslNamespace({
+            'observation_time': observation_time,
+            'interest_rate': '2.5',
+            'market_calibration': {
                 '#1-LAST-PRICE': 10,
                 '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
                 '#2-LAST-PRICE': 10,
@@ -687,27 +685,27 @@ class DslTestCase(unittest.TestCase):
                 'BRENT-TTF-CORRELATION': 0.5,
                 'BRENT-NBP-CORRELATION': 0.3,
             },
-            'pathCount': 500000,
+            'path_count': 500000,
         })
-        return eval(dslSource, evaluationKwds=evaluationKwds)['mean']
+        return dsl_eval(dsl_source, evaluation_kwds=evaluation_kwds)['mean']
 
 
-        dslExpr = compile(dslSource)
+        dsl_expr = dsl_compile(dsl_source)
 
-        evaluationKwds = DslNamespace({
-            'observationTime': observationTime,
-            'presentTime': observationTime,
-            'interestRate': '2.5',
+        evaluation_kwds = DslNamespace({
+            'observation_time': observation_time,
+            'present_time': observation_time,
+            'interest_rate': '2.5',
             'calibration': {
                 '#1-LAST-PRICE': 10,
                 '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
                 '#2-LAST-PRICE': 10,
                 '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
             },
-            'allRvs': BlackScholesPriceProcess().getAllRvs(dslExpr, observationTime, pathCount=100000),
+            'allRvs': BlackScholesPriceProcess().getAllRvs(dsl_expr, observation_time, path_count=100000),
         })
-        assert isinstance(dslExpr, DslExpression)
-        value = dslExpr.evaluate(**evaluationKwds)
+        assert isinstance(dsl_expr, DslExpression)
+        value = dsl_expr.evaluate(**evaluation_kwds)
         if hasattr(value, 'mean'):
             value = value.mean()
         return value

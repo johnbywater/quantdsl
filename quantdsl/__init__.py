@@ -41,7 +41,7 @@ __version__ = '0.1.1'
 # Todo: Raise Quant DSL-specific type mismatch errors at run time (ie e.g. handle situation where datetime and string can't be added).
 # Todo: Anyway, identify when type mismatches will occur - can't multiply a date by a number, can't add a date to a date or to a number, can't add a number to a timedelta. Etc?
 # Todo: (Long one) Go through all ways of writing broken DSL source code, and make sure there are sensible errors.
-# Todo: Figure out behaviour for observationTime > any fixing date, currently leads to a complex numbers (square root of negative time delta).
+# Todo: Figure out behaviour for observation_time > any fixing date, currently leads to a complex numbers (square root of negative time delta).
 # Todo: Think/talk about regressing on correlated brownian motions, rather than uncorrelated ones - is there actually a difference? If no difference, there is no need to keep the uncorrelated Brownian motions.
 # Todo: Review the test coverage of the code.
 # Todo: Review the separation of concerns between the various test cases.

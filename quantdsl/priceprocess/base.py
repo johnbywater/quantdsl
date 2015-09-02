@@ -7,15 +7,15 @@ class PriceProcess(object):
     __metaclass__ = ABCMeta
 
     @abstractmethod
-    def simulateFuturePrices(self, marketNames, fixingDates, observationTime, pathCount, marketCalibration):
+    def simulateFuturePrices(self, market_names, fixing_dates, observation_time, path_count, market_calibration):
         """
         Returns dict (keyed by market name) of dicts (keyed by fixing date) with correlated random future prices.
         """
 
 
-def getDurationYears(startDate, endDate, daysPerYear=365):
+def get_duration_years(start_date, end_date, days_per_year=365):
     try:
-        timeDelta = endDate - startDate
+        time_delta = end_date - start_date
     except TypeError as inst:
-        raise TypeError("%s: start: %s end: %s" % (inst, startDate, endDate))
-    return timeDelta.days / float(daysPerYear)
+        raise TypeError("%s: start: %s end: %s" % (inst, start_date, end_date))
+    return time_delta.days / float(days_per_year)

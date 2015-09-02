@@ -7,37 +7,39 @@ import multiprocessing as mp
 import json
 import quantdsl
 from quantdsl.exceptions import DslError
-from quantdsl.services import eval, DEFAULT_PRICE_PROCESS_NAME, DEFAULT_PATH_COUNT
+from quantdsl.services import dsl_eval, DEFAULT_PRICE_PROCESS_NAME, DEFAULT_PATH_COUNT
 
 now = datetime.datetime.now(tz=quantdsl.utc)
 defaultObservationTime = int("%04d%02d%02d" % (now.year, now.month, now.day))
 
 
-@argh.arg('SOURCE', help='DSL source URL or file path ("-" to read from STDIN)')
+@argh.arg('source', help='DSL source URL or file path ("-" to read from STDIN)')
 @argh.arg('-o', '--observation-time', help='observation time, format YYYYMMDD', type=int)
 @argh.arg('-c', '--calibration', help='market calibration URL or file path')
 @argh.arg('-n', '--num-paths', help='number of paths in price simulations', type=int)
 @argh.arg('-p', '--price-process', help='price process model of market dynamics')
 @argh.arg('-i', '--interest-rate', help='annual percent interest rate', type=float)
-@argh.arg('-m', '--multiprocessing-pool', help='evaluate with multiprocessing pool (option value is pool size, which defaults to cpu count)', nargs='?', type=int)
+@argh.arg('-m', '--multiprocessing-pool', help='evaluate with multiprocessing pool (option value is pool size, which '
+                                               'defaults to cpu count)', nargs='?', type=int)
 @argh.arg('-q', '--quiet', help='don\'t show progress info')
 @argh.arg('-s', '--show-source', help='show source code and compiled expression stack')
-
-
-def main(SOURCE, observation_time=defaultObservationTime, calibration=None, num_paths=DEFAULT_PATH_COUNT, price_process=DEFAULT_PRICE_PROCESS_NAME,
-         interest_rate=2.5, multiprocessing_pool=0, quiet=False, show_source=False):
-    """Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION."""
+def main(source, observation_time=defaultObservationTime, calibration=None, num_paths=DEFAULT_PATH_COUNT,
+         price_process=DEFAULT_PRICE_PROCESS_NAME, interest_rate=2.5, multiprocessing_pool=0, quiet=False,
+         show_source=False):
+    """
+    Evaluates 'Quant DSL' code in SOURCE, given price process parameters in CALIBRATION.
+    """
     import quantdsl
     import quantdsl.semantics
 
     if multiprocessing_pool is None:
         multiprocessing_pool = mp.cpu_count()
 
-    source_url = SOURCE
+    source_url = source
     calibration_url = calibration
-    isVerbose = not quiet
+    is_verbose = not quiet
 
-    def getResource(url):
+    def get_resource(url):
         if url == '-':
             return sys.stdin.read()
         elif url.startswith('file://'):
@@ -52,48 +54,49 @@ def main(SOURCE, observation_time=defaultObservationTime, calibration=None, num_
 
     print "DSL source from: %s" % source_url
     print
-    dslSource = getResource(source_url)
+    dsl_source = get_resource(source_url)
 
     if calibration_url:
         print "Calibration from: %s" % calibration_url
         print
-        marketCalibrationJson = getResource(calibration_url)
+        market_calibration_json = get_resource(calibration_url)
         try:
-            marketCalibration = json.loads(marketCalibrationJson)
+            market_calibration = json.loads(market_calibration_json)
         except Exception, e:
-            msg = "Unable to load JSON from %s: %s: %s" % (calibration_url, e, marketCalibrationJson)
+            msg = "Unable to load JSON from %s: %s: %s" % (calibration_url, e, market_calibration_json)
             raise ValueError(msg)
     else:
-        marketCalibration = {}
+        market_calibration = {}
 
-    observationTime = datetime.datetime(
+    observation_time = datetime.datetime(
         int(''.join(str(observation_time)[0:4])),
         int(''.join(str(observation_time)[4:6])),
         int(''.join(str(observation_time)[6:8]))
     ).replace(tzinfo=quantdsl.semantics.utc)
 
     try:
-        result = eval(dslSource,
+        result = dsl_eval(
+            dsl_source,
             filename=source_url if source_url != '-' else 'STDIN',
-            isParallel=True,
-            marketCalibration=marketCalibration,
-            interestRate=interest_rate,
-            pathCount=num_paths,
-            observationTime=observationTime,
-            isMultiprocessing=bool(multiprocessing_pool),
-            poolSize=multiprocessing_pool,
-            isVerbose=isVerbose,
-            isShowSource=show_source,
-            priceProcessName=price_process,
+            is_parallel=True,
+            market_calibration=market_calibration,
+            interest_rate=interest_rate,
+            path_count=num_paths,
+            observation_time=observation_time,
+            is_multiprocessing=bool(multiprocessing_pool),
+            pool_size=multiprocessing_pool,
+            is_verbose=is_verbose,
+            is_show_source=show_source,
+            price_process_name=price_process,
         )
     except DslError, e:
-        print "Failed to eval DSL source:"
-        print dslSource
+        print "Failed to dsl_eval DSL source:"
+        print dsl_source
         print
         print "Error:", e
         print
     else:
-        if isVerbose:
+        if is_verbose:
             sys.stdout.write("Result: ")
             sys.stdout.flush()
         print json.dumps(result, indent=4, sort_keys=True)

@@ -158,7 +158,7 @@ Primitive *Quant DSL* expressions generated in this way can be much more extensi
 
 Evaluation of *Quant DSL* expressions can be optimised so that computational redundancy is eliminated, and so that any branches can be executed in parallel. Parallel computation can be distributed across multiple processes on a single machine, or across multiple nodes on a network. A dependency graph for the computation can be constructed, and progressively worked through in an event driven manner, until the value of the expression is known, so that there is no need for long running processes. Intermediate values can be stored, so that there is no need to keep them in memory. Alternatively, the evaluation work can be completed entirely in memory using a single thread.
 
-The *Quant DSL* syntax is a strict subset of the Python language syntax. There are various restrictions, which can lead to parse- and compile-time syntax errors. Here is a basic summary of the restrictions:
+The *Quant DSL* syntax is a strict subset of the Python language syntax. There are various restrictions, which can lead to parse- and dsl_compile-time syntax errors. Here is a basic summary of the restrictions:
 * a module is restricted to have any number of function definitions, and one expression;
 * there are no assignments, loops, comprehensions, or generators;
 * the only valid names in a function body are the names of the call arguments, plus the names of the other functions, plus the built-in elements of the language;
@@ -183,7 +183,7 @@ Getting Started In Python
 
 The `quantdsl` Python package is designed to be integrated into other software applications. This can be done by using the command line interface (see above), by writing a Python program which imports code from `quantdsl`, or as a service accessed via HTTP. This section shows how to use `quantdsl` in Python code.
 
-The `quantdsl`  package provides three convenience functions: `parse()`, `compile()`, and `eval()`.
+The `quantdsl`  package provides three convenience functions: `parse()`, `dsl_compile()`, and `dsl_eval()`.
 
 Let's get started by opening an interactive Python session.
 
@@ -217,32 +217,32 @@ When converted to a string, a *Quant DSL* Module (and all other *Quant DSL* obje
 When a Module object is compiled, an Expression object is obtained. In the case of `10 + 20`, an Add expression is obtained.
 
 ```python
->>> parse("10 + 20").compile()
+>>> parse("10 + 20").dsl_compile()
 <quantdsl.semantics.Add object at 0x7fadb8888510>
 ```
 
-The convenience function `compile()` takes *Quant DSL* source code and directly returns an Expression.
+The convenience function `dsl_compile()` takes *Quant DSL* source code and directly returns an Expression.
 
 ```python
->>> from quantdsl.services import compile
->>> compile("10 + 20")
+>>> from quantdsl.services import dsl_compile
+>>> dsl_compile("10 + 20")
 <quantdsl.semantics.Add object at 0x7fadb8888510>
->>> print compile("10 + 20")
+>>> print dsl_compile("10 + 20")
 10 + 20
 ```
 
 An Expression can be evaluated to a numeric value.
 
 ```python
->>> compile("10 + 20").evaluate()
+>>> dsl_compile("10 + 20").evaluate()
 30
 ```
 
-The convenience function `eval()` takes *Quant DSL* source code and directly returns a numeric result.
+The convenience function `dsl_eval()` takes *Quant DSL* source code and directly returns a numeric result.
 
 ```python
->>> from quantdsl.services import eval
->>> eval("10 + 20")
+>>> from quantdsl.services import dsl_eval
+>>> dsl_eval("10 + 20")
 30
 ```
 
@@ -251,7 +251,7 @@ The convenience function `eval()` takes *Quant DSL* source code and directly ret
 As we have seen, *Quant DSL* expressions can be evaluated to produce a numeric value. Here is a negative floating point number.
 
 ```python
->>> eval("-1.2345")
+>>> dsl_eval("-1.2345")
 -1.2345
 ```
 
@@ -260,16 +260,16 @@ As we have seen, *Quant DSL* expressions can be evaluated to produce a numeric v
 Various binary operations are supported, such as addition, substraction, multiplication and division.
 
 ```python
->>> eval("10 + 4")
+>>> dsl_eval("10 + 4")
 14
 
->>> eval("10 - 4")
+>>> dsl_eval("10 - 4")
 6
 
->>> eval("10 * 4")
+>>> dsl_eval("10 * 4")
 40
 
->>> eval("10 / 4")
+>>> dsl_eval("10 / 4")
 2.5
 ```
 
@@ -288,23 +288,23 @@ Python's native precedence rules are followed. Parentheses can be used to change
 Dates (`Date`) and time deltas (`TimeDelta`) are also supported.
 
 ```python
->>> eval("Date('2014-1-1')")
+>>> dsl_eval("Date('2014-1-1')")
 datetime.datetime(2014, 1, 1, 0, 0, tzinfo=<UTC>)
 
->>> eval("TimeDelta('1d')")
+>>> dsl_eval("TimeDelta('1d')")
 datetime.timedelta(1)
 ```
 
 Time deltas can be multiplied by integer numbers. They can be added to (and subtracted from) dates and other time deltas.
 
 ```python
->>> eval("10 * TimeDelta('1d')")
+>>> dsl_eval("10 * TimeDelta('1d')")
 datetime.timedelta(10)
 
->>> eval("Date('2014-1-1') + TimeDelta('1d')")
+>>> dsl_eval("Date('2014-1-1') + TimeDelta('1d')")
 datetime.datetime(2014, 1, 2, 0, 0, tzinfo=<UTC>)
 
->>> eval("Date('2014-1-1') + 10 * TimeDelta('1d')")
+>>> dsl_eval("Date('2014-1-1') + 10 * TimeDelta('1d')")
 datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 ```
 
@@ -314,7 +314,7 @@ datetime.datetime(2014, 1, 11, 0, 0, tzinfo=<UTC>)
 
 #### Market
 
-A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples which approximate a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `eval` convenience function.
+A *Market* is an expression of value that refers by name to a simulated future price, fixed at a given "present time". In `quantdsl`, a  *Market* will evaluate to a number of samples which approximate a continuous random variable. A summary of the random variable (the mean and standard error of the random variable as a normal distribution) is returned by the `dsl_eval` convenience function.
 
 The simulation of future prices involves a number of "paths" that allow an evolution of prices. Before an expression which contains *Market* objects can be evaluated, future prices for each *Market* are evolved from an initial "observation time" to the effective "present times".
 
@@ -323,13 +323,13 @@ As expected, the simulated value of an expression made simply of a single market
 ```python
 >>> import datetime
 >>> from quantdsl import utc
->>> observationTime = datetime.datetime(2011,1,1, tzinfo=utc)
->>> marketCalibration = {'NBP-LAST-PRICE': 10, 'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50}
->>> eval("Market('NBP')", observationTime=observationTime, marketCalibration=marketCalibration)
+>>> observation_time = datetime.datetime(2011,1,1, tzinfo=utc)
+>>> market_calibration = {'NBP-LAST-PRICE': 10, 'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50}
+>>> dsl_eval("Market('NBP')", observation_time=observation_time, market_calibration=market_calibration)
 {'stderr': 0.0, 'mean': 10.0}
 
 >>> ttfMarketCalibration = {'TTF-LAST-PRICE': 11, 'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40}
->>> eval("Market('TTF')", observationTime=observationTime, marketCalibration=ttfMarketCalibration)
+>>> dsl_eval("Market('TTF')", observation_time=observation_time, market_calibration=ttfMarketCalibration)
 {'stderr': 0.0, 'mean': 11.0}
 ```
 
@@ -342,21 +342,21 @@ In *Quant DSL*, a *"Fixing"* is an expression that contains a date and an expres
 For example, a *Fixing* can set the future date of a simulated *Market* price.
 
 ```python
->>> eval("Fixing('2014-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
+>>> dsl_eval("Fixing('2014-01-01', Market('NBP'))", observation_time=observation_time, market_calibration=market_calibration)
 {'stderr': 0.076084630666974587, 'mean': 10.031075387271349}
 ```
 
 With the default one-factor price process, when the present time of the *Market* is greater than the observation time, and the actual historical volatility is non-zero, the standard error of the result will be non-zero. The result's mean is different from the last price in the calibration, but the difference is near to the result's standard error (normally within a multiple of three of the standard error). The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer.
 
 ```python
->>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration)
+>>> dsl_eval("Fixing('2024-01-01', Market('NBP'))", observation_time=observation_time, market_calibration=market_calibration)
 {'stderr': 0.31753140739522445, 'mean': 10.211252506318367}
 ```
 
 The standard error can be reduced by increasing the number of paths in the simulation, from the default path count of 20000. Memory usage will increase, and computation steps will take longer, but since `quantdsl` discards intermediate results, once the price simulations have been generated, the memory profile is flat even for large computations.
 
 ```python
->>> eval("Fixing('2024-01-01', Market('NBP'))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
+>>> dsl_eval("Fixing('2024-01-01', Market('NBP'))", observation_time=observation_time, market_calibration=market_calibration, path_count=200000)
 {'stderr': 0.11179458389825998, 'mean': 10.082329861847562}
 ```
 
@@ -365,17 +365,17 @@ The standard error can be reduced by increasing the number of paths in the simul
 In *Quant DSL*, a *"Settlement"* is an expression that contains a date and an expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
 
 ```python
->>> eval("Settlement('2024-01-01', 10)", interestRate=2.5, observationTime=observationTime)
+>>> dsl_eval("Settlement('2024-01-01', 10)", interest_rate=2.5, observation_time=observation_time)
 7.2237890436951115
 
->>> eval("Settlement('2024-01-01', Market('NBP'))", interestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration)
+>>> dsl_eval("Settlement('2024-01-01', Market('NBP'))", interest_rate=2.5, observation_time=observation_time, market_calibration=market_calibration)
 {'stderr': 2.1918490723225498e-15, 'mean': 7.2237890436954215}
 ```
 
 To settle a future value at a future time, a *Settlement* can be used with a *Fixing*.
 
 ```python
->>> eval("Settlement('2024-01-01', Fixing('2024-01-01', Market('NBP')))", interestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration)
+>>> dsl_eval("Settlement('2024-01-01', Fixing('2024-01-01', Market('NBP')))", interest_rate=2.5, observation_time=observation_time, market_calibration=market_calibration)
 {'stderr': 0.23780365491871699, 'mean': 7.2177797811573576}
 ```
 
@@ -384,17 +384,17 @@ To settle a future value at a future time, a *Settlement* can be used with a *Fi
 In *Quant DSL*, a *"Wait"* is an expression that contains a date and an expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
 
 ```python
->>> eval("Wait('2024-01-01', Market('NBP'))", iterestRate=2.5, observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
+>>> dsl_eval("Wait('2024-01-01', Market('NBP'))", iterestRate=2.5, observation_time=observation_time, market_calibration=market_calibration, path_count=200000)
 {'stderr': 0.07408744084390774, 'mean': 7.1879953747314556}
 ```
 
 In *Quant DSL*, a `Choice` is an expression that contains two other expressions. A *Choice* implements a single step of the least-squares monte-carlo algorithm suggested by Longstaff-Schwartz. The `Choice` object simulates the maximum of two expected continuation values given the filtration of the process conditioned at the given "present time".
 
 ```python
->>> eval("Fixing('2012-01-01', Choice(Market('NBP') - 9, 0))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
+>>> dsl_eval("Fixing('2012-01-01', Choice(Market('NBP') - 9, 0))", observation_time=observation_time, market_calibration=market_calibration, path_count=200000)
 {'stderr': 0.0094642193212442546, 'mean': 2.3986347807223685}
 
->>> eval("Fixing('2024-01-01', Choice(Market('NBP') - 9, 0))", observationTime=observationTime, marketCalibration=marketCalibration, pathCount=200000)
+>>> dsl_eval("Fixing('2024-01-01', Choice(Market('NBP') - 9, 0))", observation_time=observation_time, market_calibration=market_calibration, path_count=200000)
 {'stderr': 0.094987250860534209, 'mean': 6.532595149839465}
 ```
 
@@ -404,17 +404,17 @@ In *Quant DSL*, a `Choice` is an expression that contains two other expressions.
 Variables, such as those defined as function parameters, can be used in expressions. In general, variables must be defined before the expression is compiled.
 
 ```python
->>> eval("a", compileKwds={'a': 2})
+>>> dsl_eval("a", compileKwds={'a': 2})
 2
 ```
 
 Variables can be combined with numbers and dates.
 
 ```python
->>> eval("a + 4", compileKwds={'a': 2})
+>>> dsl_eval("a + 4", compileKwds={'a': 2})
 6
 
->>> eval("TimeDelta('1d') * a", compileKwds={'a': 2})
+>>> dsl_eval("TimeDelta('1d') * a", compileKwds={'a': 2})
 datetime.timedelta(2)
 ```
 
@@ -429,7 +429,7 @@ Expressions can invoke user defined functions.
 ...    x * x
 ... sqr(4)
 ... """
->>> eval(source)
+>>> dsl_eval(source)
 16
 ```
 
@@ -440,7 +440,7 @@ Functions return a *Quant DSL* expression, rather than a numeric result.
 ... def sqr(x):
 ...    x * x
 ... """
->>> print compile(source).apply(x=10)
+>>> print dsl_compile(source).apply(x=10)
 10 * 10
 ```
 
@@ -459,7 +459,7 @@ When the function is called, the test compare expression is evaluated. According
 ...     else:
 ...         1.0 + x
 ... """
->>> func = compile(source)
+>>> func = dsl_compile(source)
 >>> print func.apply(x=-1)
 0.0
 >>> print func.apply(x=0.5)
@@ -471,10 +471,10 @@ When the function is called, the test compare expression is evaluated. According
 All the usual compare operators are supported (`==`, `!=`, `<`, `>`, `<=`, `>=`). The compare operators can be used with numerical expressions, and also expressions involving dates and time deltas. Numbers can be compared with numbers, dates can be compared with dates, and time deltas can be compared with time deltas. (Numbers cannot be compared with dates or time deltas, and dates cannot be compared with time deltas.)
 
 ```python
->>> eval("10 > 4")
+>>> dsl_eval("10 > 4")
 True
 
->>> eval("Date('2011-01-01') < Date('2011-01-03')")
+>>> dsl_eval("Date('2011-01-01') < Date('2011-01-03')")
 True
 ```
 
@@ -482,10 +482,10 @@ Comparisons can involve variables, and expressions that combine variables with n
 
 ```python
 >>> source = "Date('2011-01-01') + a * TimeDelta('1d') < Date('2011-01-03')"
->>> eval(source, compileKwds={'a': 1})
+>>> dsl_eval(source, compileKwds={'a': 1})
 True
 
->>> eval(source, compileKwds={'a': 3})
+>>> dsl_eval(source, compileKwds={'a': 3})
 False
 ```
 
@@ -495,7 +495,7 @@ Functions are reentrant and can recurse.
 >>> source = """
 ... def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n
 ... """
->>> print compile(source).apply(n=5)
+>>> print dsl_compile(source).apply(n=5)
 ((2 + 1) + 2) + (2 + 1)
 ```
 
