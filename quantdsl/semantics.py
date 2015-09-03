@@ -5,6 +5,7 @@ import datetime
 import itertools
 import math
 import re
+from time import sleep
 import uuid
 
 import dateutil.parser
@@ -1255,6 +1256,7 @@ class LongstaffSchwartz(object):
         self.statesByTime = None
 
     def evaluate(self, **kwds):
+        # sleep(1)
         try:
             all_market_prices = kwds['all_market_prices']
         except KeyError:

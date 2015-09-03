@@ -131,18 +131,8 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
                 print_("Finding all Market names and Fixing dates...")
                 print_()
 
-            # Find all unique market names.
-            market_names = set()
-            for dsl_market in dsl_expr.find_instances(dslType=Market):
-                assert isinstance(dsl_market, Market)
-                market_names.add(dsl_market.name)
-
-            # Find all unique fixing dates.
-            fixing_dates = set()
-            for dslFixing in dsl_expr.find_instances(dslType=Fixing):
-                assert isinstance(dslFixing, Fixing)
-                fixing_dates.add(dslFixing.date)
-            fixing_dates = sorted(list(fixing_dates))
+            market_names = get_market_names(dsl_expr)
+            fixing_dates = get_fixing_dates(dsl_expr)
 
             if is_verbose:
                 print_("Simulating future prices for Market%s '%s' from observation time %s through fixing dates: %s." % (
@@ -274,6 +264,29 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         }
     else:
         return value
+
+
+def get_fixing_dates(dsl_expr):
+    # Find all unique fixing dates.
+    fixing_dates = set()
+    for dslFixing in dsl_expr.find_instances(dslType=Fixing):
+        assert isinstance(dslFixing, Fixing)
+        if dslFixing.date is not None:
+            fixing_dates.add(dslFixing.date)
+        else:
+            pass
+    fixing_dates = sorted(list(fixing_dates))
+    return fixing_dates
+
+
+def get_market_names(dsl_expr):
+    # Find all unique market names.
+    market_names = set()
+    for dsl_market in dsl_expr.find_instances(dslType=Market):
+        assert isinstance(dsl_market, Market)
+        market_names.add(dsl_market.name)
+
+    return market_names
 
 
 def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None, **extraCompileKwds):

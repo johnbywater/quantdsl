@@ -129,12 +129,27 @@ class DependencyGraphRunner(object):
                 dependency_values[stub_id] = stub_result
         return dependency_values
 
-    def get_evaluation_kwds(self):
+    def get_evaluation_kwds(self, stubbed_expr_str, effective_present_time):
         evaluation_kwds = self.run_kwds.copy()
+
+        from quantdsl.services import parse, get_market_names, get_fixing_dates
+        stubbed_module = parse(stubbed_expr_str)
+        assert isinstance(stubbed_module, Module)
+        # market_names = get_market_names(stubbed_module)
+        fixing_dates = get_fixing_dates(stubbed_module)
+        if effective_present_time is not None:
+            fixing_dates.append(effective_present_time)
+
+        # return evaluation_kwds
         if 'all_market_prices' in evaluation_kwds:
             all_market_prices = evaluation_kwds.pop('all_market_prices')
             evaluation_kwds['all_market_prices'] = dict()
-            for market_name, market_prices in all_market_prices.items():
+            for market_name in all_market_prices.keys():
+                # if market_name not in market_names:
+                #     continue
+                market_prices = dict()
+                for date in fixing_dates:
+                    market_prices[date] = all_market_prices[market_name][date]
                 evaluation_kwds['all_market_prices'][market_name] = market_prices
         return evaluation_kwds
 
@@ -153,13 +168,16 @@ class SingleThreadedDependencyGraphRunner(DependencyGraphRunner):
         for call_requirement_id in self.dependency_graph.leaf_ids:
             self.call_queue.put(call_requirement_id)
         # Loop over the required call queue.
+        from quantdsl.services import parse, get_market_names, get_fixing_dates
         while not self.call_queue.empty():
             call_requirement_id = self.call_queue.get()
             self.call_count += 1
-            # Handling calls puts further requirements on the queue.
-            evaluation_kwds = self.get_evaluation_kwds()
             dependency_values = self.get_dependency_values(call_requirement_id)
             stubbed_expr_str, effective_present_time = self.calls_dict[call_requirement_id]
+            stubbed_module = parse(stubbed_expr_str)
+
+            assert isinstance(stubbed_module, Module)
+            evaluation_kwds = self.get_evaluation_kwds(stubbed_expr_str, effective_present_time)
             handle_call_requirement(call_requirement_id, evaluation_kwds, dependency_values, self.result_queue,
                                     stubbed_expr_str, effective_present_time)
             while not self.result_queue.empty():
@@ -233,9 +251,10 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
                 if call_requirement_id is None:
                     break
                 else:
-                    evaluation_kwds = self.get_evaluation_kwds()
                     dependency_values = self.get_dependency_values(call_requirement_id)
                     stubbed_expr_str, effective_present_time = self.calls_dict[call_requirement_id]
+
+                    evaluation_kwds = self.get_evaluation_kwds(stubbed_expr_str, effective_present_time)
 
                     def target():
                         async_result = self.evaluation_pool.apply_async(handle_call_requirement, (
