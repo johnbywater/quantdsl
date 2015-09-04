@@ -4,8 +4,8 @@ python:
   - 3.2
   - 3.3
   - 3.4
-  - 3.5.0b3
-  - 3.5-dev
+#  - 3.5.0b3
+#  - 3.5-dev
 
 # Setup anaconda
 before_install:
@@ -20,7 +20,7 @@ before_install:
 
 # Install packages
 install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose dateutil pandas statsmodels
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib dateutil
   # Coverage packages are on my binstar channel
   - conda install --yes -c dan_blanchard python-coveralls nose-cov
   - pip install .
