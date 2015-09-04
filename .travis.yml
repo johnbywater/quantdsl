@@ -22,7 +22,7 @@ before_install:
 install:
   - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib dateutil
   # Coverage packages are on my binstar channel
-  - conda install --yes -c dan_blanchard python-coveralls nose-cov
+  - conda install --yes -c dan_blanchard python-coveralls
   - pip install .
 
 script:
