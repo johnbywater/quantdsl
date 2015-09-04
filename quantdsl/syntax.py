@@ -1,27 +1,28 @@
 import ast
+import six
 
 from quantdsl.exceptions import DslSyntaxError
 
 
 class DslParser(object):
 
-    def parse(self, dslSource, filename='<unknown>', dslClasses=None):
+    def parse(self, dsl_source, filename='<unknown>', dsl_classes=None):
         """
         Creates a DSL Module object from a DSL source text.
         """
-        self.dslClasses = {}
-        if dslClasses:
-            assert isinstance(dslClasses, dict)
-            self.dslClasses.update(dslClasses)
+        self.dsl_classes = {}
+        if dsl_classes:
+            assert isinstance(dsl_classes, dict)
+            self.dsl_classes.update(dsl_classes)
 
-        if not isinstance(dslSource, basestring):
-            raise DslSyntaxError("Can't parse non-string object", dslSource)
+        if not isinstance(dsl_source, six.string_types):
+            raise DslSyntaxError("Can't parse non-string object", dsl_source)
 
-        assert isinstance(dslSource, basestring)
+        assert isinstance(dsl_source, six.string_types)
         try:
             # Parse as Python source code, into a Python abstract syntax tree.
-            astModule = ast.parse(dslSource, filename=filename, mode='exec')
-        except SyntaxError, e:
+            astModule = ast.parse(dsl_source, filename=filename, mode='exec')
+        except SyntaxError as e:
             raise DslSyntaxError("DSL source code is not valid Python code", e)
 
         # Generate Quant DSL from Python AST.
@@ -67,7 +68,7 @@ class DslParser(object):
         """
         assert isinstance(node, ast.Module)
         body = [self.visitAstNode(n) for n in node.body]
-        return self.dslClasses['Module'](body, node=node)
+        return self.dsl_classes['Module'](body, node=node)
 
     def visitExpr(self, node):
         """
@@ -88,7 +89,7 @@ class DslParser(object):
         Returns a DSL Number object, with the number value.
         """
         assert isinstance(node, ast.Num)
-        return self.dslClasses['Number'](node.n, node=node)
+        return self.dsl_classes['Number'](node.n, node=node)
 
     def visitStr(self, node):
         """
@@ -97,7 +98,7 @@ class DslParser(object):
         Returns a DSL String object, with the string value.
         """
         assert isinstance(node, ast.Str)
-        return self.dslClasses['String'](node.s, node=node)
+        return self.dsl_classes['String'](node.s, node=node)
 
     def visitUnaryOp(self, node):
         """
@@ -108,7 +109,7 @@ class DslParser(object):
         assert isinstance(node, ast.UnaryOp)
         args = [self.visitAstNode(node.operand)]
         if isinstance(node.op, ast.USub):
-            dslUnaryOpClass = self.dslClasses['UnarySub']
+            dslUnaryOpClass = self.dsl_classes['UnarySub']
         else:
             raise DslSyntaxError("Unsupported unary operator token: %s" % node.op)
         return dslUnaryOpClass(node=node, *args)
@@ -121,13 +122,13 @@ class DslParser(object):
         """
         assert isinstance(node, ast.BinOp)
         typeMap = {
-            ast.Add: self.dslClasses['Add'],
-            ast.Sub: self.dslClasses['Sub'],
-            ast.Mult: self.dslClasses['Mult'],
-            ast.Div: self.dslClasses['Div'],
-            ast.Pow: self.dslClasses['Pow'],
-            ast.Mod: self.dslClasses['Mod'],
-            ast.FloorDiv: self.dslClasses['FloorDiv'],
+            ast.Add: self.dsl_classes['Add'],
+            ast.Sub: self.dsl_classes['Sub'],
+            ast.Mult: self.dsl_classes['Mult'],
+            ast.Div: self.dsl_classes['Div'],
+            ast.Pow: self.dsl_classes['Pow'],
+            ast.Mod: self.dsl_classes['Mod'],
+            ast.FloorDiv: self.dsl_classes['FloorDiv'],
         }
         try:
             dslClass = typeMap[type(node.op)]
@@ -144,8 +145,8 @@ class DslParser(object):
         """
         assert isinstance(node, ast.BoolOp)
         typeMap = {
-            ast.And: self.dslClasses['And'],
-            ast.Or: self.dslClasses['Or'],
+            ast.And: self.dsl_classes['And'],
+            ast.Or: self.dsl_classes['Or'],
         }
         try:
             dslClass = typeMap[type(node.op)]
@@ -162,7 +163,7 @@ class DslParser(object):
 
         Returns a DSL Name object, along with the name's string.
         """
-        return self.dslClasses['Name'](node.id, node=node)
+        return self.dsl_classes['Name'](node.id, node=node)
 
     def visitCall(self, node):
         """
@@ -189,15 +190,15 @@ class DslParser(object):
         # Construct a DSL object for this call.
         try:
             # Resolve the name with a new instance of a DSL class.
-            dslClass = self.dslClasses[calledNodeName]
+            dslClass = self.dsl_classes[calledNodeName]
         except KeyError:
             # Resolve as a FunctionCall, and expect
             # to resolve the name to a function def later.
-            dslNameClass = self.dslClasses['Name']
+            dslNameClass = self.dsl_classes['Name']
             dslArgs = [dslNameClass(calledNodeName, node=calledNode), callArgExprs]
-            return self.dslClasses['FunctionCall'](node=node, *dslArgs)
+            return self.dsl_classes['FunctionCall'](node=node, *dslArgs)
         else:
-            baseDslObjectClass = self.dslClasses['DslObject']
+            baseDslObjectClass = self.dsl_classes['DslObject']
             assert issubclass(dslClass, baseDslObjectClass), dslClass
             return dslClass(node=node, *callArgExprs)
 
@@ -208,13 +209,17 @@ class DslParser(object):
         Returns a named DSL FunctionDef, with a definition of the expected call argument values.
         """
         name = node.name
-        dslFunctionArgClass = self.dslClasses['FunctionArg']
-        callArgDefs = [dslFunctionArgClass(arg.id, '') for arg in node.args.args]
+        dslFunctionArgClass = self.dsl_classes['FunctionArg']
+        if six.PY2:
+            arg_name_attr = 'id'
+        else:
+            arg_name_attr = 'arg'
+        callArgDefs = [dslFunctionArgClass(getattr(arg, arg_name_attr), '') for arg in node.args.args]
         assert len(node.body) == 1, "Function defs with more than one body statement are not supported at the moment."
         decoratorNames = [astName.id for astName in node.decorator_list]
         body = self.visitAstNode(node.body[0])
         dslArgs = [name, callArgDefs, body, decoratorNames]
-        functionDef = self.dslClasses['FunctionDef'](node=node, *dslArgs)
+        functionDef = self.dsl_classes['FunctionDef'](node=node, *dslArgs)
         return functionDef
 
     def visitIfExp(self, node):
@@ -228,7 +233,7 @@ class DslParser(object):
         body = self.visitAstNode(node.body)
         orelse = self.visitAstNode(node.orelse)
         args = [test, body, orelse]
-        return self.dslClasses['IfExp'](node=node, *args)
+        return self.dsl_classes['IfExp'](node=node, *args)
 
     def visitIf(self, node):
         """
@@ -244,7 +249,7 @@ class DslParser(object):
             node.orelse) == 1, "If statements with more than one orelse statement are not supported at the moment."
         orelse = self.visitAstNode(node.orelse[0])
         args = [test, body, orelse]
-        return self.dslClasses['If'](node=node, *args)
+        return self.dsl_classes['If'](node=node, *args)
 
     def visitCompare(self, node):
         """
@@ -257,4 +262,4 @@ class DslParser(object):
         opNames = [o.__class__.__name__ for o in node.ops]
         comparators = [self.visitAstNode(c) for c in node.comparators]
         args = [left, opNames, comparators]
-        return self.dslClasses['Compare'](node=node, *args)
+        return self.dsl_classes['Compare'](node=node, *args)

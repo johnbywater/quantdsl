@@ -1,5 +1,5 @@
 from unittest import TestCase
-from quantdsl.priceprocess.schwartzsmith import calibrate, simulatePrices, plotSimulatedPrices
+from quantdsl.priceprocess.schwartzsmith import calibrate, simulate_prices, plot_simulated_prices
 import json
 import datetime
 import numpy as np
@@ -9,11 +9,11 @@ class TestSchwartzSmithPriceProcess(TestCase):
 
     def testCalibrateAndSimulateAndPlot(self):
         allData = self.allObservedData[:]
-        allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(allData, niter=100, pathCount=50000)
+        allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(allData, niter=100, path_count=50000)
 
         print "allOptimizedSchwartzParams:", repr(allOptimizedSchwartzParams), "allOptimizedSeasonalParams:", repr(allOptimizedSeasonalParams), "allRhos:", repr(allRhos), "correlationMatrix:", repr(correlationMatrix), "simCorrelations:", repr(simCorrelations)
 
-        plotSimulatedPrices(allData, simulatedPrices)
+        plot_simulated_prices(allData, simulatedPrices)
 
     def testCalibrate(self):
         allOptimizedParams, allOptimizedSeasonalFactors, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(self.allObservedData, niter=3)
@@ -21,27 +21,27 @@ class TestSchwartzSmithPriceProcess(TestCase):
 
     def testSimulate(self):
         months = self.allObservedData[0]['months']
-        observationDate = self.allObservedData[0]['observationDate']
+        observation_date = self.allObservedData[0]['observation_date']
 
-        simulatedPrices = simulatePrices(observationDate, months, self.allOptimizedParams,
-                                         self.allOptimizedSeasonalFactors, self.allRhos, pathCount=100000)
+        simulatedPrices = simulate_prices(observation_date, months, self.allOptimizedParams,
+                                         self.allOptimizedSeasonalFactors, self.allRhos, path_count=100000)
 
-        plotSimulatedPrices(self.allObservedData, simulatedPrices)
+        plot_simulated_prices(self.allObservedData, simulatedPrices)
 
     @property
     def allObservedData(self):
         if not hasattr(self, '_allObservedData'):
             alldata = json.loads(exampleData)
-            for i, commodityData in enumerate(alldata):
-                observationDate = datetime.datetime(*[int(x) for x in commodityData['observationDate'].split('-')])
-                commodityData['observationDate'] = observationDate
-                months = np.array([datetime.datetime(*[int(x) for x in m.split('-')]) for m in commodityData['months']])
-                commodityData['months'] = months
-                futures = np.array(commodityData['futures'])
-                commodityData['futures'] = futures
-                impvols = np.array(commodityData['impliedAtmVols'])
-                commodityData['impliedAtmVols'] = impvols
-                alldata[i] = commodityData
+            for i, commodity_data in enumerate(alldata):
+                observation_date = datetime.datetime(*[int(x) for x in commodity_data['observation_date'].split('-')])
+                commodity_data['observation_date'] = observation_date
+                months = np.array([datetime.datetime(*[int(x) for x in m.split('-')]) for m in commodity_data['months']])
+                commodity_data['months'] = months
+                futures = np.array(commodity_data['futures'])
+                commodity_data['futures'] = futures
+                impvols = np.array(commodity_data['impliedAtmVols'])
+                commodity_data['impliedAtmVols'] = impvols
+                alldata[i] = commodity_data
             self._allObservedData = alldata
         return self._allObservedData
 
@@ -319,7 +319,7 @@ exampleData = """
             "2018-02-01", 
             "2018-03-01"
         ], 
-        "observationDate": "2011-01-21", 
+        "observation_date": "2011-01-21",
         "futures": [
             45.0, 
             44.75, 
@@ -581,7 +581,7 @@ exampleData = """
             "2018-02-01", 
             "2018-03-01"
         ], 
-        "observationDate": "2011-01-21", 
+        "observation_date": "2011-01-21",
         "futures": [
             39.1015, 
             39.15625, 
@@ -843,7 +843,7 @@ exampleData = """
             "2018-02-01", 
             "2018-03-01"
         ], 
-        "observationDate": "2011-01-21", 
+        "observation_date": "2011-01-21",
         "futures": [
             31.9791, 
             30.01532, 
@@ -1105,7 +1105,7 @@ exampleData = """
             "2018-02-01", 
             "2018-03-01"
         ], 
-        "observationDate": "2011-01-21", 
+        "observation_date": "2011-01-21",
         "futures": [
             4.2928, 
             4.2847, 
@@ -1242,7 +1242,7 @@ def read_xl_doc():
 
             alldata.append([observation_date, months, futures, impvols, seasonal_factors, params])
             idata = {
-                'observationDate': "%04d-%02d-%02d" % (observation_date.year, observation_date.month, observation_date.day),
+                'observation_date': "%04d-%02d-%02d" % (observation_date.year, observation_date.month, observation_date.day),
                 'months': ["%04d-%02d-%02d" % (m.year, m.month, m.day) for m in months],
                 'futures': [i for i in futures],
                 'impvols': [i for i in impvols]
