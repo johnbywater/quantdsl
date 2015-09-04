@@ -112,10 +112,6 @@ class DependencyGraphRunner(object):
         self.results_dict = {}
         self.dependency_dict = {}
 
-    @staticmethod
-    def handle_call_requirement(*args, **kwargs):
-        handle_call_requirement(*args, **kwargs)
-
     def get_dependency_values(self, call_requirement_id):
         dependency_values = {}
         dependency_stub_ids = self.dependency_dict[call_requirement_id]
@@ -331,6 +327,7 @@ def handle_call_requirement(call_requirement_id, evaluation_kwds, dependency_val
 def handle_result(call_requirement_id, result_value, results_dict, result_ids, notify_dict, dependency_dict,
                   execution_queue):
 
+    # Set the results.
     results_dict[call_requirement_id] = result_value
     result_ids[call_requirement_id] = None
 
