@@ -684,7 +684,7 @@ class DslTestCase(unittest.TestCase):
                 'BRENT-TTF-CORRELATION': 0.5,
                 'BRENT-NBP-CORRELATION': 0.3,
             },
-            'path_count': 100000,
+            'path_count': 200000,
         })
         return dsl_eval(dsl_source, evaluation_kwds=evaluation_kwds)['mean']
 
