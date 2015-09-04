@@ -1,7 +1,11 @@
 language: python
 python:
   - 2.7
+  - 3.2
   - 3.3
+  - 3.4
+  - 3.5.0b3
+  - 3.5-dev
 
 # Setup anaconda
 before_install:
