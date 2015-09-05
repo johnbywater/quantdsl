@@ -11,7 +11,7 @@ from quantdsl.exceptions import DslSyntaxError
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
     FloorDiv, Max, On, LeastSquares, FunctionCall, FunctionDef, Name, If, IfExp, Compare, Module, DslNamespace
-from quantdsl.services import dsl_eval, dsl_compile, parse
+from quantdsl.services import dsl_eval, dsl_compile, dsl_parse
 from quantdsl.syntax import DslParser
 from quantdsl.runtime import MultiProcessingDependencyGraphRunner, DependencyGraph
 
@@ -26,13 +26,13 @@ class TestDslParser(unittest.TestCase):
         self.p = DslParser()
 
     def test_empty_string(self):
-        self.assertTrue(isinstance(parse(""), Module))
+        self.assertTrue(isinstance(dsl_parse(""), Module))
         self.assertRaises(DslSyntaxError, dsl_compile, "")
         self.assertRaises(DslSyntaxError, dsl_eval, "")
 
     def assertDslExprTypeValue(self, dsl_source, expectedDslType, expectedDslValue, **compile_kwds):
         # Assumes dsl_source is just one statement.
-        dslModule = parse(dsl_source)
+        dslModule = dsl_parse(dsl_source)
 
         # Check the parsed DSL can be rendered as a string that is equal to the original source.
         self.assertEqual(str(dslModule).strip(), dsl_source.strip())
@@ -74,7 +74,7 @@ class TestDslParser(unittest.TestCase):
         self.assertDslExprTypeValue("-Max(bar - 4, -9)", UnarySub, 8, bar=-4)
 
         # Check unsupported unary operators cause DSL errors.
-        self.assertRaises(DslSyntaxError, parse, "~bar")
+        self.assertRaises(DslSyntaxError, dsl_parse, "~bar")
 
     def test_binop(self):
         self.assertDslExprTypeValue("5 + 2", Add, 7)
@@ -88,11 +88,11 @@ class TestDslParser(unittest.TestCase):
         self.assertDslExprTypeValue("5 % 2", Mod, 1)
 
         # Check unsupported binary operators cause DSL errors.
-        self.assertRaises(DslSyntaxError, parse, "2 << 1")  # Bit shift left.
-        self.assertRaises(DslSyntaxError, parse, "2 >> 1")  # Bit shift right.
-        self.assertRaises(DslSyntaxError, parse, "2 & 1")  # Bitwise 'and'.
-        self.assertRaises(DslSyntaxError, parse, "2 | 1")  # Complement
-        self.assertRaises(DslSyntaxError, parse, "2 ^ 1")  # Bitwise exclusive or.
+        self.assertRaises(DslSyntaxError, dsl_parse, "2 << 1")  # Bit shift left.
+        self.assertRaises(DslSyntaxError, dsl_parse, "2 >> 1")  # Bit shift right.
+        self.assertRaises(DslSyntaxError, dsl_parse, "2 & 1")  # Bitwise 'and'.
+        self.assertRaises(DslSyntaxError, dsl_parse, "2 | 1")  # Complement
+        self.assertRaises(DslSyntaxError, dsl_parse, "2 ^ 1")  # Bitwise exclusive or.
 
     def test_compare(self):
         self.assertDslExprTypeValue("1 == 1", Compare, True)
@@ -387,7 +387,7 @@ def sqr(n):
     n ** 2
 sqr(3)
 """
-        dslModule = parse(dsl_source)
+        dslModule = dsl_parse(dsl_source)
         self.assertIsInstance(dslModule, Module)
         self.assertEqual(str(dslModule), dsl_source.strip())
 
@@ -405,7 +405,7 @@ def mul(a, b):
     a if b == 1 else add(a, mul(a, b - 1))
 mul(3, 3)
 """
-        dslModule = parse(dsl_source)
+        dslModule = dsl_parse(dsl_source)
         self.assertIsInstance(dslModule, Module)
         self.assertEqual(str(dslModule), dsl_source.strip())
 
@@ -430,7 +430,7 @@ fib(%d)
 """ % fibIndex
 
         # # Check the source works as a serial operation.
-        # dsl_expr = parse(dsl_source, inParallel=False)
+        # dsl_expr = dsl_parse(dsl_source, inParallel=False)
         # self.assertIsInstance(dsl_expr, Add)
         # dslValue = dsl_expr.evaluate()
         # self.assertEqual(dslValue, expected_value)
@@ -941,7 +941,7 @@ Fixing( Date('2012-01-01'),
     Max(Market('#1') - 9, 0) + Market('#1') - 9
 )
 """
-        self.assertValuation(specification, 3.416, 1.677, 0.07, 0.05, 0.2, 0.2)
+        self.assertValuation(specification, 3.416, 1.677, 0.07, 0.07, 0.2, 0.2)
 
 
 class TestDslFunctionDefSwing(DslTestCase):

@@ -20,8 +20,8 @@ setup(
     version=__version__,
     packages=find_packages(),
     # just use auto-include and specify special items in MANIFEST.in
-    zip_safe = False,
-    install_requires = [
+    zip_safe=False,
+    install_requires=[
         'argh',
         'mock',
         'numpy',
@@ -29,7 +29,7 @@ setup(
         'scipy',
         'six',
     ],
-    scripts = [
+    scripts=[
         os.path.join('scripts', 'quant-dsl.py'),
     ],
     author='John Bywater',
@@ -37,8 +37,8 @@ setup(
     license='BSD',
     url='https://github.com/johnbywater/quantdsl',
     description='Domain specific language for quantitative analytics in finance.',
-    long_description = long_description,
-    classifiers = [
+    long_description=long_description,
+    classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
         'Intended Audience :: Developers',

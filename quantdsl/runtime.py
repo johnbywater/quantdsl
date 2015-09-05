@@ -53,9 +53,9 @@ class DependencyGraph(object):
                 self.leaf_ids.append(stub_id)
 
             # Stubbed expr has names that need to be replaced with results of other stubbed exprs.
-            stubbedExprStr = str(stubbed_expr)
+            stubbed_expr_str = str(stubbed_expr)
 
-            self.call_requirements[stub_id] = (stubbedExprStr, effective_present_time)
+            self.call_requirements[stub_id] = (stubbed_expr_str, effective_present_time)
             self.call_requirement_ids.append(stub_id)
 
         # Sanity check.
@@ -65,15 +65,15 @@ class DependencyGraph(object):
         return len(self.stubbed_exprs_data)
 
     def has_instances(self, dslType):
-        for _, stubbedExpr, _ in self.stubbed_exprs_data:
-            if stubbedExpr.has_instances(dslType=dslType):
+        for _, stubbed_expr, _ in self.stubbed_exprs_data:
+            if stubbed_expr.has_instances(dslType=dslType):
                 return True
         return False
 
     def find_instances(self, dslType):
         instances = []
-        for _, stubbedExpr, _ in self.stubbed_exprs_data:
-            [instances.append(i) for i in stubbedExpr.find_instances(dslType=dslType)]
+        for _, stubbed_expr, _ in self.stubbed_exprs_data:
+            [instances.append(i) for i in stubbed_expr.find_instances(dslType=dslType)]
         return instances
 
     def evaluate(self, dependency_graph_runner_class=None, pool_size=None, **kwds):
@@ -128,8 +128,8 @@ class DependencyGraphRunner(object):
     def get_evaluation_kwds(self, stubbed_expr_str, effective_present_time):
         evaluation_kwds = self.run_kwds.copy()
 
-        from quantdsl.services import parse, get_market_names, get_fixing_dates
-        stubbed_module = parse(stubbed_expr_str)
+        from quantdsl.services import dsl_parse, get_market_names, get_fixing_dates
+        stubbed_module = dsl_parse(stubbed_expr_str)
         assert isinstance(stubbed_module, Module)
         # market_names = get_market_names(stubbed_module)
         fixing_dates = get_fixing_dates(stubbed_module)
@@ -164,13 +164,13 @@ class SingleThreadedDependencyGraphRunner(DependencyGraphRunner):
         for call_requirement_id in self.dependency_graph.leaf_ids:
             self.call_queue.put(call_requirement_id)
         # Loop over the required call queue.
-        from quantdsl.services import parse, get_market_names, get_fixing_dates
+        from quantdsl.services import dsl_parse, get_market_names, get_fixing_dates
         while not self.call_queue.empty():
             call_requirement_id = self.call_queue.get()
             self.call_count += 1
             dependency_values = self.get_dependency_values(call_requirement_id)
             stubbed_expr_str, effective_present_time = self.calls_dict[call_requirement_id]
-            stubbed_module = parse(stubbed_expr_str)
+            stubbed_module = dsl_parse(stubbed_expr_str)
 
             assert isinstance(stubbed_module, Module)
             evaluation_kwds = self.get_evaluation_kwds(stubbed_expr_str, effective_present_time)
@@ -306,8 +306,8 @@ def handle_call_requirement(call_requirement_id, evaluation_kwds, dependency_val
     # Evaluate the stubbed expr str.
     try:
         # Todo: Rework this dependency. Figure out how to use alternative set of DSL classes when multiprocessing.
-        from quantdsl.services import parse
-        stubbed_module = parse(stubbed_expr_str)
+        from quantdsl.services import dsl_parse
+        stubbed_module = dsl_parse(stubbed_expr_str)
     except DslSyntaxError:
         raise
 
@@ -317,7 +317,7 @@ def handle_call_requirement(call_requirement_id, evaluation_kwds, dependency_val
     for stub_id, stub_result in dependency_values.items():
         dsl_namespace[stub_id] = stub_result
 
-    simple_expr = stubbed_module.compile(dslLocals=dsl_namespace, dslGlobals={})
+    simple_expr = stubbed_module.compile(dsl_locals=dsl_namespace, dsl_globals={})
     assert isinstance(simple_expr, DslExpression), "Reduced parsed stubbed expr string is not an " \
                                                    "expression: %s" % type(simple_expr)
     result_value = simple_expr.evaluate(**evaluation_kwds)

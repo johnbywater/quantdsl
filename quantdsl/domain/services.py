@@ -5,9 +5,9 @@ from quantdsl.infrastructure.registry import registry
 ## Domain services.
 
 
-# def createCallRequirement(id, stubbedExprStr, requiredStubIds, effectivePresentTime):
+# def createCallRequirement(id, stubbed_expr_str, requiredStubIds, effective_present_time):
 #     # Create the domain object.
-#     callRequirement = CallRequirement(id, stubbedExprStr, requiredStubIds, effectivePresentTime)
+#     callRequirement = CallRequirement(id, stubbed_expr_str, requiredStubIds, effective_present_time)
 #
 #     # Register the object with the registry.
 #     registry.calls[callRequirement.id] = callRequirement

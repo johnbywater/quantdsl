@@ -5,7 +5,6 @@ import datetime
 import itertools
 import math
 import re
-from time import sleep
 import uuid
 
 import dateutil.parser
@@ -146,7 +145,7 @@ class DslObject(object):
                         for dslObj in arg.find_instances(dslType):
                             yield dslObj
 
-    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=None):
+    def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pendingCallStack=None):
         """
         Reduces by reducing all args, and then using those args
         to create a new instance of self.
@@ -154,7 +153,7 @@ class DslObject(object):
         newDslArgs = []
         for dslArg in self._args:
             if isinstance(dslArg, DslObject):
-                dslArg = dslArg.reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+                dslArg = dslArg.reduce(dsl_locals, dsl_globals, effective_present_time, pendingCallStack=pendingCallStack)
             newDslArgs.append(dslArg)
         return self.__class__(node=self.node, *newDslArgs)
 
@@ -469,12 +468,12 @@ class Name(DslExpression):
         elif isinstance(name, String):
             return name.evaluate()
 
-    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=False):
+    def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pendingCallStack=False):
         """
         Replace name with named value in context (kwds).
         """
 
-        combinedNamespace = DslNamespace(itertools.chain(dslGlobals.items(), dslLocals.items()))
+        combinedNamespace = DslNamespace(itertools.chain(dsl_globals.items(), dsl_locals.items()))
 
         from numpy import ndarray
         value = self.evaluate(**combinedNamespace)
@@ -582,28 +581,28 @@ class FunctionDef(DslObject):
     def decoratorNames(self):
         return self._args[3]
 
-    def validateCallArgs(self, dslLocals):
+    def validateCallArgs(self, dsl_locals):
         for callArgName in self.callArgNames:
-            if callArgName not in dslLocals:
+            if callArgName not in dsl_locals:
                 raise DslSyntaxError('expected call arg not found',
-                                     "arg '%s' not in call arg namespace %s" % (callArgName, dslLocals.keys()))
+                                     "arg '%s' not in call arg namespace %s" % (callArgName, dsl_locals.keys()))
 
-    def apply(self, dslGlobals=None, effectivePresentTime=None, pendingCallStack=None, isDestacking=False, **dslLocals):
+    def apply(self, dsl_globals=None, effective_present_time=None, pendingCallStack=None, isDestacking=False, **dsl_locals):
         # It's a function call, so create a new namespace "context".
-        if dslGlobals is None:
-            dslGlobals = DslNamespace()
+        if dsl_globals is None:
+            dsl_globals = DslNamespace()
         else:
-           assert isinstance(dslGlobals, DslNamespace)
-        dslGlobals = DslNamespace(itertools.chain(self.enclosedNamespace.items(), dslGlobals.items()))
-        dslLocals = DslNamespace(dslLocals)
+           assert isinstance(dsl_globals, DslNamespace)
+        dsl_globals = DslNamespace(itertools.chain(self.enclosedNamespace.items(), dsl_globals.items()))
+        dsl_locals = DslNamespace(dsl_locals)
 
         # Validate the call args with the definition.
-        self.validateCallArgs(dslLocals)
+        self.validateCallArgs(dsl_locals)
 
         # Create the cache key.
-        callCacheKeyDict = dslLocals.copy()
-        callCacheKeyDict["__effectivePresentTime__"] = effectivePresentTime
-        callCacheKey = self.createHash(dslLocals)
+        callCacheKeyDict = dsl_locals.copy()
+        callCacheKeyDict["__effective_present_time__"] = effective_present_time
+        callCacheKey = self.createHash(dsl_locals)
 
         # Check the call cache, to see whether this function has already been evaluated with these args.
         if not isDestacking and callCacheKey in self.callCache:
@@ -614,33 +613,33 @@ class FunctionDef(DslObject):
             assert isinstance(pendingCallStack, queue.Queue)
 
             # Create a new stub - the stub ID is the name of the return value of the function call..
-            stubId = str(uuid.uuid4())
-            dslStub = Stub(stubId, node=self.node)
+            stub_id = str(uuid.uuid4())
+            dslStub = Stub(stub_id, node=self.node)
 
             # Put the function call on the call stack, with the stub ID.
             assert isinstance(pendingCallStack, FunctionDefCallStack)
             pendingCallStack.put(
-                stubId=stubId,
-                stackedCall=self,
-                stackedLocals=dslLocals.copy(),
-                stackedGlobals=dslGlobals.copy(),
-                effectivePresentTime=effectivePresentTime
+                stub_id=stub_id,
+                stacked_call=self,
+                stacked_locals=dsl_locals.copy(),
+                stacked_globals=dsl_globals.copy(),
+                effective_present_time=effective_present_time
             )
             # Return the stub so that the containing DSL can be fully evaluated
             # once the stacked function call has been evaluated.
             dsl_expr = dslStub
         else:
-            # Todo: Make sure the expression can be selected with the dslLocals?
+            # Todo: Make sure the expression can be selected with the dsl_locals?
             # - ie the conditional expressions should be functions only of call arg
             # values that can be fully evaluated without evaluating contractual DSL objects.
-            selectedExpression = self.selectExpression(self.body, dslLocals)
+            selectedExpression = self.selectExpression(self.body, dsl_locals)
 
             # Add this function to the dslNamespace (just in case it's called by itself).
-            newDslGlobals = DslNamespace(dslGlobals)
+            newDslGlobals = DslNamespace(dsl_globals)
             newDslGlobals[self.name] = self
 
             # Reduce the selected expression.
-            dsl_expr = selectedExpression.reduce(dslLocals, newDslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+            dsl_expr = selectedExpression.reduce(dsl_locals, newDslGlobals, effective_present_time, pendingCallStack=pendingCallStack)
 
         # Cache the result.
         if not isDestacking:
@@ -700,13 +699,13 @@ class FunctionCall(DslExpression):
     def callArgExprs(self):
         return self._args[1]
 
-    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=False):
+    def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pendingCallStack=False):
         """
         Reduces function call to result of evaluating function def with function call args.
         """
 
         # Replace functionDef names with things in kwds.
-        functionDef = self.functionDefName.reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+        functionDef = self.functionDefName.reduce(dsl_locals, dsl_globals, effective_present_time, pendingCallStack=pendingCallStack)
 
         # Function def should have changed from a Name to a FunctionDef.
         assert isinstance(functionDef, FunctionDef)
@@ -737,7 +736,7 @@ class FunctionCall(DslExpression):
                 callArgValue = callArgExpr
             else:
                 # Substitute names, etc.
-                callArgExpr = callArgExpr.reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+                callArgExpr = callArgExpr.reduce(dsl_locals, dsl_globals, effective_present_time, pendingCallStack=pendingCallStack)
                 # Decide whether to evaluate, or just pass the expression into the function call.
                 if isinstance(callArgExpr, Underlying):
                     # It's explicitly wrapped as an "underlying", so unwrap it as expected.
@@ -754,7 +753,7 @@ class FunctionCall(DslExpression):
             newDslLocals[callArgDef.name] = callArgValue
 
         # Evaluate the function def with the dict of call arg values.
-        dsl_expr = functionDef.apply(dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack, isDestacking=False, **newDslLocals)
+        dsl_expr = functionDef.apply(dsl_globals, effective_present_time, pendingCallStack=pendingCallStack, isDestacking=False, **newDslLocals)
 
         # The result of this function call (stubbed or otherwise) should be a DSL expression.
         assert isinstance(dsl_expr, DslExpression)
@@ -916,14 +915,14 @@ class Module(DslObject):
     def body(self):
         return self._args[0]
 
-    def compile(self, dslLocals=None, dslGlobals=None, dependencyGraphClass=None):
+    def compile(self, dsl_locals=None, dsl_globals=None, dependencyGraphClass=None):
         # It's a module compilation, so create a new namespace "context".
-        if dslLocals == None:
-            dslLocals = {}
-        dslLocals = DslNamespace(dslLocals)
-        if dslGlobals == None:
-            dslGlobals = {}
-        dslGlobals = DslNamespace(dslGlobals)
+        if dsl_locals == None:
+            dsl_locals = {}
+        dsl_locals = DslNamespace(dsl_locals)
+        if dsl_globals == None:
+            dsl_globals = {}
+        dsl_globals = DslNamespace(dsl_globals)
 
         # Can't do much with an empty module.
         if len(self.body) == 0:
@@ -934,9 +933,9 @@ class Module(DslObject):
         expressions = []
         for dslObj in self.body:
             if isinstance(dslObj, FunctionDef):
-                dslGlobals[dslObj.name] = dslObj
+                dsl_globals[dslObj.name] = dslObj
                 # Share the module level namespace (any function body can call any other function).
-                dslObj.enclosedNamespace = dslGlobals
+                dslObj.enclosedNamespace = dsl_globals
                 functionDefs.append(dslObj)
             elif isinstance(dslObj, DslExpression):
                 expressions.append(dslObj)
@@ -947,69 +946,64 @@ class Module(DslObject):
             # Return the expression, but reduce it with function defs if any are defined.
             dsl_expr = expressions[0]
             assert isinstance(dsl_expr, DslExpression)
-            if len(functionDefs):
+            if len(functionDefs) and dependencyGraphClass:
                 # Compile the expression
-                if dependencyGraphClass:
 
-                    # Create a stack of discovered calls to function defs.
-                    pendingCallStack = FunctionDefCallStack()
+                # Create a stack of discovered calls to function defs.
+                pendingCallStack = FunctionDefCallStack()
 
-                    # Create a stack for the stubbed exprs.
-                    stubbedExprs = StubbedExpressionStack()
+                # Create a stack for the stubbed exprs.
+                stubbed_exprs = StubbedExpressionStack()
 
-                    # Start things off. If an expression has a FunctionCall, it will cause a pending
-                    # call to be placed on the pending call stack, and the function call will be
-                    # replaced with a stub, which acts as a placeholder for the result of the function
-                    # call. By looping over the pending call stack until it is empty, evaluating
-                    # pending calls to generate stubbed expressions and further pending calls, the
-                    # module can be compiled into a stack of stubbed expressions.
-                    # Of course if the module's expression doesn't have a function call, there
-                    # will just be one expression on the stack of "stubbed" expressions, and it will
-                    # not have any stubs.
-                    stubbedExpr = dsl_expr.reduce(
-                        dslLocals,
-                        DslNamespace(dslGlobals),
-                        pendingCallStack=pendingCallStack
-                    )
+                # Start things off. If an expression has a FunctionCall, it will cause a pending
+                # call to be placed on the pending call stack, and the function call will be
+                # replaced with a stub, which acts as a placeholder for the result of the function
+                # call. By looping over the pending call stack until it is empty, evaluating
+                # pending calls to generate stubbed expressions and further pending calls, the
+                # module can be compiled into a stack of stubbed expressions.
+                # Of course if the module's expression doesn't have a function call, there
+                # will just be one expression on the stack of "stubbed" expressions, and it will
+                # not have any stubs.
+                stubbed_expr = dsl_expr.reduce(
+                    dsl_locals,
+                    DslNamespace(dsl_globals),
+                    pendingCallStack=pendingCallStack
+                )
 
-                    # Create the root stub ID, this will allow the final result to be retrieved.
-                    from quantdsl.domain.services import createUuid
-                    self.rootStubId = str(createUuid())
+                # Create the root stub ID, this will allow the final result to be retrieved.
+                from quantdsl.domain.services import createUuid
+                self.rootStubId = str(createUuid())
 
-                    # Put the module expression (now stubbed) on the stack.
-                    stubbedExprs.put(self.rootStubId, stubbedExpr, None)
+                # Put the module expression (now stubbed) on the stack.
+                stubbed_exprs.put(self.rootStubId, stubbed_expr, None)
 
-                    # Continue by looping over any pending calls that have resulted from the module's expression.
-                    while not pendingCallStack.empty():
-                        # Get the stacked call info.
-                        (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime) = pendingCallStack.get()
+                # Continue by looping over any pending calls that have resulted from the module's expression.
+                while not pendingCallStack.empty():
+                    # Get the stacked call info.
+                    (stub_id, stacked_call, stacked_locals, stacked_globals, effective_present_time) = pendingCallStack.get()
 
-                        # Check we've got a function def.
-                        assert isinstance(stackedCall, FunctionDef), type(stackedCall)
+                    # Check we've got a function def.
+                    assert isinstance(stacked_call, FunctionDef), type(stacked_call)
 
-                        # Apply the stacked call values to the called function def.
-                        stubbedExpr = stackedCall.apply(stackedGlobals,
-                                                        effectivePresentTime,
-                                                        pendingCallStack=pendingCallStack,
-                                                        isDestacking=True,
-                                                        **stackedLocals)
+                    # Apply the stacked call values to the called function def.
+                    stubbed_expr = stacked_call.apply(stacked_globals,
+                                                    effective_present_time,
+                                                    pendingCallStack=pendingCallStack,
+                                                    isDestacking=True,
+                                                    **stacked_locals)
 
-                        # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
-                        stubbedExprs.put(stubId, stubbedExpr, effectivePresentTime)
+                    # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
+                    stubbed_exprs.put(stub_id, stubbed_expr, effective_present_time)
 
-                    # Create an expression stack DSL object from the stack of stubbed expressions.
-                    stubbedExprsArray = []
-                    while not stubbedExprs.empty():
-                        stubbedExprsArray.append(stubbedExprs.get())
-                    dslObj = dependencyGraphClass(self.rootStubId, stubbedExprsArray)
-                else:
-                    # Compile the module expression as and for a single threaded recursive operation (faster but not
-                    # distributed, so also limited in space and perhaps time). For smaller computations only.
-                    dslObj = dsl_expr.reduce(dslLocals, DslNamespace(dslGlobals))
+                # Create an expression stack DSL object from the stack of stubbed expressions.
+                stubbed_exprsArray = []
+                while not stubbed_exprs.empty():
+                    stubbed_exprsArray.append(stubbed_exprs.get())
+                dslObj = dependencyGraphClass(self.rootStubId, stubbed_exprsArray)
             else:
-                # The module just has an expression. Can't break up a monolithic DSL expression in an expression stack
-                # yet. So Compile the module expression as and for a single threaded recursive operation.
-                dslObj = dsl_expr.reduce(dslLocals, DslNamespace(dslGlobals))
+                # Compile the module expression for a single threaded recursive operation (faster but not
+                # distributed, so also limited in space and perhaps time). For smaller computations only.
+                dslObj = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals))
             return dslObj
         elif len(expressions) > 1:
             # Can't meaningfully evaluate more than one expression (since assignments are not supported).
@@ -1040,7 +1034,12 @@ class DslNamespace(dict):
 
 
 class StochasticObject(DslObject):
-    pass
+
+    @abstractmethod
+    def validate(self, args):
+        pass
+
+
 
 class DatedDslObject(DslObject):
 
@@ -1092,6 +1091,7 @@ functionalDslClasses = {
     'UnarySub': UnarySub,
     'Underlying': Underlying,
 }
+
 
 class Market(StochasticObject, DslExpression):
     def validate(self, args):
@@ -1178,8 +1178,8 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
     def expr(self):
         return self._args[1]
 
-    def reduce(self, dslLocals, dslGlobals, effectivePresentTime=None, pendingCallStack=None):
-        # Figure out the effectivePresentTime from the fixing date, which might still be a Name.
+    def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pendingCallStack=None):
+        # Figure out the effective_present_time from the fixing date, which might still be a Name.
         # Todo: It might also be a date expression, and so might the
         fixingDate = self._args[0]
         if isinstance(fixingDate, datetime.datetime):
@@ -1189,11 +1189,11 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
         if isinstance(fixingDate, String):
             fixingDate = Date(fixingDate, node=fixingDate.node)
         if isinstance(fixingDate, (Date, BinOp, Name)):
-            fixingDate = fixingDate.evaluate(**dslLocals)
+            fixingDate = fixingDate.evaluate(**dsl_locals)
         if not isinstance(fixingDate, datetime.datetime):
             raise DslSyntaxError("fixing date value should be a datetime.datetime by now, but it's a %s" % fixingDate, node=self.node)
-        effectivePresentTime = fixingDate
-        return super(Fixing, self).reduce(dslLocals, dslGlobals, effectivePresentTime, pendingCallStack=pendingCallStack)
+        effective_present_time = fixingDate
+        return super(Fixing, self).reduce(dsl_locals, dsl_globals, effective_present_time, pendingCallStack=pendingCallStack)
 
     def evaluate(self, **kwds):
         kwds = kwds.copy()
@@ -1205,7 +1205,6 @@ class On(Fixing):
     """
     A shorter name for Fixing.
     """
-
 
 class Wait(Fixing):
     """
@@ -1453,19 +1452,19 @@ defaultDslClasses.update({
 
 class FunctionDefCallStack(queue.Queue):
 
-    def put(self, stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime):
-        assert isinstance(stubId, six.string_types), type(stubId)
-        assert isinstance(stackedCall, FunctionDef), type(stackedCall)
-        assert isinstance(stackedLocals, DslNamespace), type(stackedLocals)
-        assert isinstance(stackedGlobals, DslNamespace), type(stackedGlobals)
-        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
-        queue.Queue.put(self, (stubId, stackedCall, stackedLocals, stackedGlobals, effectivePresentTime))
+    def put(self, stub_id, stacked_call, stacked_locals, stacked_globals, effective_present_time):
+        assert isinstance(stub_id, six.string_types), type(stub_id)
+        assert isinstance(stacked_call, FunctionDef), type(stacked_call)
+        assert isinstance(stacked_locals, DslNamespace), type(stacked_locals)
+        assert isinstance(stacked_globals, DslNamespace), type(stacked_globals)
+        assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
+        queue.Queue.put(self, (stub_id, stacked_call, stacked_locals, stacked_globals, effective_present_time))
 
 
 class StubbedExpressionStack(queue.LifoQueue):
 
-    def put(self, stubId, stubbedExpr, effectivePresentTime):
-        assert isinstance(stubId, six.string_types), type(stubId)
-        assert isinstance(stubbedExpr, DslExpression), type(stubbedExpr)
-        assert isinstance(effectivePresentTime, (datetime.datetime, type(None))), type(effectivePresentTime)
-        queue.LifoQueue.put(self, (stubId, stubbedExpr, effectivePresentTime))
+    def put(self, stub_id, stubbed_expr, effective_present_time):
+        assert isinstance(stub_id, six.string_types), type(stub_id)
+        assert isinstance(stubbed_expr, DslExpression), type(stubbed_expr)
+        assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
+        queue.LifoQueue.put(self, (stub_id, stubbed_expr, effective_present_time))

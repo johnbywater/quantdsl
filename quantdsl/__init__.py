@@ -30,7 +30,7 @@ __version__ = '0.2.0'
 # Todo: Think about other possibility of supporting another syntax? Perhaps there is a better syntax than the Python based syntax?
 # Todo: Develop natural language "skin" for Quant DSL expressions (something like how Gherkin syntax maps to functions?)?
 # Todo: Support list comprehensions, for things like a strip of options?
-# Todo: Figure out how to identify and catch infinite loops, perhaps by limiting the total number of FunctionDef.apply() calls in one DslParser.parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
+# Todo: Figure out how to identify and catch infinite loops, perhaps by limiting the total number of FunctionDef.apply() calls in one DslParser.dsl_parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
 # Todo: Make it work with Python 3.
 # Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
 # Todo: Develop a GUI that shows the graph being evaluated, allowing results to be examined, allows models to be developed. Look at the "language workbench" ideas from Martin Fowler (environment which shows example results, with editable code reachable from the results, and processing built-in)?
