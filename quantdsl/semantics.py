@@ -15,7 +15,7 @@ from quantdsl.priceprocess.base import get_duration_years
 from quantdsl import utc
 
 
-class DslObject(object):
+class DslObject(six.with_metaclass(ABCMeta)):
     """
     Base class for DSL language objects.
 
@@ -23,8 +23,6 @@ class DslObject(object):
     and for rendering objects into valid DSL source code. Also has methods for
     validating object arguments, and finding child nodes of a particular type.
     """
-
-    __metaclass__ = ABCMeta
 
     def __init__(self, *args, **kwds):
         self.node = kwds.pop('node', None)

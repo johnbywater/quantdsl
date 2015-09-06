@@ -1,10 +1,9 @@
 from __future__ import division
 from abc import ABCMeta, abstractmethod
+import six
 
 
-class PriceProcess(object):
-
-    __metaclass__ = ABCMeta
+class PriceProcess(six.with_metaclass(ABCMeta)):
 
     @abstractmethod
     def simulateFuturePrices(self, market_names, fixing_dates, observation_time, path_count, market_calibration):
