@@ -5,10 +5,15 @@ import threading
 import time
 
 from six import print_
+
 from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.syntax import DslParser
-from quantdsl.runtime import DependencyGraph, MultiProcessingDependencyGraphRunner, SingleThreadedDependencyGraphRunner
+from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
+from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
+from quantdsl.dependency_graph import DependencyGraph
+
+
 
 ## Application services.
 
@@ -312,17 +317,17 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
     compile_kwds.update(extraCompileKwds)
 
     # Parse the source into a DSL module object.
-    dslModule = dsl_parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
+    dsl_module = dsl_parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
 
-    assert isinstance(dslModule, Module)
+    assert isinstance(dsl_module, Module)
 
-    # Compile the module into either a single primitive expression, or a stack
-    # of stubbed expressions if 'is_parallel' is True.
+    # Compile the module into either as a dependency graph
+    # if 'is_parallel' is True, otherwise as a single primitive expression.
     if is_parallel:
         dependencyGraphClass = DependencyGraph
     else:
         dependencyGraphClass = None
-    return dslModule.compile(DslNamespace(), compile_kwds, dependencyGraphClass=dependencyGraphClass)
+    return dsl_module.compile(DslNamespace(), compile_kwds, dependency_graph_class=dependencyGraphClass)
 
 
 def dsl_parse(dsl_source, filename='<unknown>', dsl_classes=None):

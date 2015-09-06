@@ -14,6 +14,6 @@ from quantdsl.infrastructure.registry import registry
 #     return callRequirement
 
 
-def createUuid():
+def create_uuid4():
     import uuid
     return uuid.uuid4()

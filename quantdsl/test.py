@@ -2,6 +2,7 @@ from __future__ import division
 import unittest
 import datetime
 import sys
+
 import mock
 import numpy
 import scipy
@@ -13,7 +14,9 @@ from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, U
     FloorDiv, Max, On, LeastSquares, FunctionCall, FunctionDef, Name, If, IfExp, Compare, Module, DslNamespace
 from quantdsl.services import dsl_eval, dsl_compile, dsl_parse
 from quantdsl.syntax import DslParser
-from quantdsl.runtime import MultiProcessingDependencyGraphRunner, DependencyGraph
+from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
+from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
+from quantdsl.dependency_graph import DependencyGraph
 
 
 def suite():
@@ -32,17 +35,17 @@ class TestDslParser(unittest.TestCase):
 
     def assertDslExprTypeValue(self, dsl_source, expectedDslType, expectedDslValue, **compile_kwds):
         # Assumes dsl_source is just one statement.
-        dslModule = dsl_parse(dsl_source)
+        dsl_module = dsl_parse(dsl_source)
 
         # Check the parsed DSL can be rendered as a string that is equal to the original source.
-        self.assertEqual(str(dslModule).strip(), dsl_source.strip())
+        self.assertEqual(str(dsl_module).strip(), dsl_source.strip())
 
         # Check the statement's expression type.
-        dsl_expr = dslModule.body[0]
+        dsl_expr = dsl_module.body[0]
         self.assertIsInstance(dsl_expr, expectedDslType)
 
         # Compile the module into an simple DSL expression object (no variables or calls to function defs).
-        dsl_expr = dslModule.compile(compile_kwds)
+        dsl_expr = dsl_module.compile(compile_kwds)
 
         # Evaluate the compiled expression.
         self.assertEqual(dsl_expr.evaluate(), expectedDslValue)
@@ -387,15 +390,15 @@ def sqr(n):
     n ** 2
 sqr(3)
 """
-        dslModule = dsl_parse(dsl_source)
-        self.assertIsInstance(dslModule, Module)
-        self.assertEqual(str(dslModule), dsl_source.strip())
+        dsl_module = dsl_parse(dsl_source)
+        self.assertIsInstance(dsl_module, Module)
+        self.assertEqual(str(dsl_module), dsl_source.strip())
 
         dsl_expr = dsl_compile(dsl_source)
         self.assertEqual(dsl_expr.evaluate(), 9)
 
-        dslValue = dsl_eval(dsl_source)
-        self.assertEqual(dslValue, 9)
+        dsl_value = dsl_eval(dsl_source)
+        self.assertEqual(dsl_value, 9)
 
         # Expression with two function defs.
         dsl_source = """
@@ -405,35 +408,35 @@ def mul(a, b):
     a if b == 1 else add(a, mul(a, b - 1))
 mul(3, 3)
 """
-        dslModule = dsl_parse(dsl_source)
-        self.assertIsInstance(dslModule, Module)
-        self.assertEqual(str(dslModule), dsl_source.strip())
+        dsl_module = dsl_parse(dsl_source)
+        self.assertIsInstance(dsl_module, Module)
+        self.assertEqual(str(dsl_module), dsl_source.strip())
 
         dsl_expr = dsl_compile(dsl_source)
 #        self.assertEqual(str(dsl_expr), "")
         self.assertEqual(dsl_expr.evaluate(), 9)
 
-        dslValue = dsl_eval(dsl_source)
-        self.assertEqual(dslValue, 9)
+        dsl_value = dsl_eval(dsl_source)
+        self.assertEqual(dsl_value, 9)
 
 
     def test_parallel_fib(self):
         # Branching function calls.
 
-        fibIndex = 6
+        fib_index = 6
         expected_value = 13
-        expected_len_stubbed_exprs = fibIndex + 1
+        expected_len_stubbed_exprs = fib_index + 1
 
         dsl_source = """
 def fib(n): fib(n-1) + fib(n-2) if n > 2 else n
 fib(%d)
-""" % fibIndex
+""" % fib_index
 
         # # Check the source works as a serial operation.
         # dsl_expr = dsl_parse(dsl_source, inParallel=False)
         # self.assertIsInstance(dsl_expr, Add)
-        # dslValue = dsl_expr.evaluate()
-        # self.assertEqual(dslValue, expected_value)
+        # dsl_value = dsl_expr.evaluate()
+        # self.assertEqual(dsl_value, expected_value)
 
         # Check the source works as a parallel operation.
         dsl_expr = dsl_compile(dsl_source, is_parallel=True)
@@ -445,16 +448,17 @@ fib(%d)
         actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
 
         # Evaluate the stack.
-        dslValue = dsl_expr.evaluate()
+        runner = SingleThreadedDependencyGraphRunner(dsl_expr)
+        dsl_value = runner.evaluate()
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expected_value)
+        self.assertEqual(dsl_value, expected_value)
 
         # Check the number of stubbed exprs is expected.
         self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
 
         # Also check the runner call count is the same.
-        self.assertEqual(dsl_expr.runner.call_count, expected_len_stubbed_exprs)
+        self.assertEqual(runner.call_count, expected_len_stubbed_exprs)
 
     def test_parallel_american_option(self):
         # Branching function calls.
@@ -490,11 +494,12 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
             'image': image,
             'interest_rate': 0,
             'present_time': datetime.datetime(2011, 1, 1, tzinfo=utc),
+            'dependency_graph_runner_class': SingleThreadedDependencyGraphRunner,
         }
-        dslValue = dsl_expr.evaluate(**kwds)
+        dsl_value = SingleThreadedDependencyGraphRunner(dsl_expr).evaluate(**kwds)
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expected_value)
+        self.assertEqual(dsl_value, expected_value)
 
         # Check the number of stubbed exprs is expected.
         self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
@@ -530,12 +535,13 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 5)
             'image': image,
             'interest_rate': 0,
             'present_time': datetime.datetime(2011, 1, 1),
+            'dependency_graph_runner_class': SingleThreadedDependencyGraphRunner,
         }
 
-        dslValue = dsl_expr.evaluate(**kwds)
+        dsl_value = SingleThreadedDependencyGraphRunner(dsl_expr).evaluate(**kwds)
 
         # Check the value is expected.
-        self.assertEqual(dslValue, expected_value)
+        self.assertEqual(dsl_value, expected_value)
 
         # Check the number of stubbed exprs is expected.
         self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
@@ -573,16 +579,17 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
                         for i in range(0, 10)])  # NB Need enough days to cover the date range in the dsl_source.
             },
             # 'pool_size': 5,
-            'dependency_graph_runner_class': MultiProcessingDependencyGraphRunner,
+            # 'dependency_graph_runner_class': MultiProcessingDependencyGraphRunner,
         }
 
-        # Evaluate the stack.
-        dsl_value = dsl_expr.evaluate(**kwds)
+        # Evaluate the dependency graph.
+        dsl_value = MultiProcessingDependencyGraphRunner(dsl_expr).evaluate(**kwds)
+
         if hasattr(dsl_value, 'mean'):
             dsl_value = dsl_value.mean()
 
         # Check the value is expected.
-        # self.assertEqual(dsl_value, expected_value)
+        self.assertEqual(dsl_value, expected_value)
 
         # Check the number of stubbed exprs is expected.
         self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
