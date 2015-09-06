@@ -216,9 +216,9 @@ class DslParser(object):
             arg_name_attr = 'arg'
         call_arg_defs = [dsl_function_arg_class(getattr(arg, arg_name_attr), '') for arg in node.args.args]
         assert len(node.body) == 1, "Function defs with more than one body statement are not supported at the moment."
-        decoratorNames = [ast_name.id for ast_name in node.decorator_list]
+        decorator_names = [ast_name.id for ast_name in node.decorator_list]
         body = self.visitAstNode(node.body[0])
-        dsl_args = [name, call_arg_defs, body, decoratorNames]
+        dsl_args = [name, call_arg_defs, body, decorator_names]
         function_def = self.dsl_classes['FunctionDef'](node=node, *dsl_args)
         return function_def
 

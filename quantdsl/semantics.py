@@ -536,14 +536,14 @@ class FunctionDef(DslObject):
     """
 
     def __str__(self, indent=0):
-        indentSpaces = 4 * ' '
+        indent_spaces = 4 * ' '
         msg = ""
-        for decoratorName in self.decoratorNames:
-            msg += "@" + decoratorName + "\n"
-        msg += "def %s(%s):\n" % (self.name, ", ".join(self.callArgNames))
+        for decorator_name in self.decorator_names:
+            msg += "@" + decorator_name + "\n"
+        msg += "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
         if isinstance(self.body, DslObject):
             try:
-                msg += indentSpaces + self.body.__str__(indent=indent+1)
+                msg += indent_spaces + self.body.__str__(indent=indent+1)
             except TypeError:
                 raise DslSystemError("DSL object can't handle indent: %s" % type(self.body))
         else:
@@ -553,8 +553,8 @@ class FunctionDef(DslObject):
     def __init__(self, *args, **kwds):
         super(FunctionDef, self).__init__(*args, **kwds)
         # Initialise the function call cache for this function def.
-        self.callCache = {}
-        self.enclosedNamespace = DslNamespace()
+        self.call_cache = {}
+        self.enclosed_namespace = DslNamespace()
 
     def validate(self, args):
         self.assert_args_len(args, required_len=4)
@@ -564,10 +564,10 @@ class FunctionDef(DslObject):
         return self._args[0]
 
     @property
-    def callArgNames(self):
-        if not hasattr(self, '_callArgNames'):
-            self._callArgNames = [i.name for i in self._args[1]]
-        return self._callArgNames
+    def call_arg_names(self):
+        if not hasattr(self, '_call_arg_names'):
+            self._call_arg_names = [i.name for i in self._args[1]]
+        return self._call_arg_names
 
     @property
     def callArgs(self):
@@ -578,37 +578,37 @@ class FunctionDef(DslObject):
         return self._args[2]
 
     @property
-    def decoratorNames(self):
+    def decorator_names(self):
         return self._args[3]
 
     def validateCallArgs(self, dsl_locals):
-        for callArgName in self.callArgNames:
-            if callArgName not in dsl_locals:
+        for call_arg_name in self.call_arg_names:
+            if call_arg_name not in dsl_locals:
                 raise DslSyntaxError('expected call arg not found',
-                                     "arg '%s' not in call arg namespace %s" % (callArgName, dsl_locals.keys()))
+                                     "arg '%s' not in call arg namespace %s" % (call_arg_name, dsl_locals.keys()))
 
-    def apply(self, dsl_globals=None, effective_present_time=None, pending_call_stack=None, isDestacking=False, **dsl_locals):
+    def apply(self, dsl_globals=None, effective_present_time=None, pending_call_stack=None, is_destacking=False, **dsl_locals):
         # It's a function call, so create a new namespace "context".
         if dsl_globals is None:
             dsl_globals = DslNamespace()
         else:
            assert isinstance(dsl_globals, DslNamespace)
-        dsl_globals = DslNamespace(itertools.chain(self.enclosedNamespace.items(), dsl_globals.items()))
+        dsl_globals = DslNamespace(itertools.chain(self.enclosed_namespace.items(), dsl_globals.items()))
         dsl_locals = DslNamespace(dsl_locals)
 
         # Validate the call args with the definition.
         self.validateCallArgs(dsl_locals)
 
         # Create the cache key.
-        callCacheKeyDict = dsl_locals.copy()
-        callCacheKeyDict["__effective_present_time__"] = effective_present_time
-        callCacheKey = self.createHash(dsl_locals)
+        call_cache_key_dict = dsl_locals.copy()
+        call_cache_key_dict["__effective_present_time__"] = effective_present_time
+        call_cache_key = self.create_hash(dsl_locals)
 
         # Check the call cache, to see whether this function has already been called with these args.
-        if not isDestacking and callCacheKey in self.callCache:
-            return self.callCache[callCacheKey]
+        if not is_destacking and call_cache_key in self.call_cache:
+            return self.call_cache[call_cache_key]
 
-        if pending_call_stack and not isDestacking and not 'nostub' in self.decoratorNames:
+        if pending_call_stack and not is_destacking and not 'nostub' in self.decorator_names:
             # Just stack the call expression and return a stub.
             assert isinstance(pending_call_stack, queue.Queue)
 
@@ -642,12 +642,12 @@ class FunctionDef(DslObject):
             dsl_expr = selectedExpression.reduce(dsl_locals, newDslGlobals, effective_present_time, pending_call_stack=pending_call_stack)
 
         # Cache the result.
-        if not isDestacking:
-            self.callCache[callCacheKey] = dsl_expr
+        if not is_destacking:
+            self.call_cache[call_cache_key] = dsl_expr
 
         return dsl_expr
 
-    def selectExpression(self, dsl_expr, callArgNamespace):
+    def selectExpression(self, dsl_expr, call_arg_namespace):
         # If the DSL expression is an instance of If, then evaluate
         # the test and accordingly select body or orelse expressions. Repeat
         # this method with the selected expression (supports if-elif-elif-else).
@@ -657,22 +657,22 @@ class FunctionDef(DslObject):
             # Todo: Implement a check that this test expression can be evaluated? Or handle case when it can't?
             # Todo: Also allow user defined functions that just do dates or numbers in test expression.
             # it doesn't have or expand into DSL elements that are the functions of time (Wait, Choice, Market, etc).
-            if dsl_expr.test.evaluate(**callArgNamespace):
+            if dsl_expr.test.evaluate(**call_arg_namespace):
                 selected = dsl_expr.body
             else:
                 selected = dsl_expr.orelse
-            selected = self.selectExpression(selected, callArgNamespace)
+            selected = self.selectExpression(selected, call_arg_namespace)
         else:
             selected = dsl_expr
         return selected
 
-    def createHash(self, obj):
+    def create_hash(self, obj):
         if isinstance(obj, (int, float, six.string_types, datetime.datetime, datetime.timedelta)):
             return hash(obj)
         if isinstance(obj, dict):
-            return hash(tuple(sorted([(a, self.createHash(b)) for a, b in obj.items()])))
+            return hash(tuple(sorted([(a, self.create_hash(b)) for a, b in obj.items()])))
         if isinstance(obj, list):
-            return hash(tuple(sorted([self.createHash(a) for a in obj])))
+            return hash(tuple(sorted([self.create_hash(a) for a in obj])))
         elif isinstance(obj, DslObject):
             return hash(obj)
         else:
@@ -718,7 +718,7 @@ class FunctionCall(DslExpression):
                 "expected %s but got %s. Expected args: %s. Received exprs: %s" % (
                     len(functionDef.callArgs),
                     len(self.callArgExprs),
-                    functionDef.callArgNames,
+                    functionDef.call_arg_names,
                     self.callArgExprs,
                 ),
                 node=self.node
@@ -753,7 +753,7 @@ class FunctionCall(DslExpression):
             newDslLocals[callArgDef.name] = callArgValue
 
         # Evaluate the function def with the dict of call arg values.
-        dsl_expr = functionDef.apply(dsl_globals, effective_present_time, pending_call_stack=pending_call_stack, isDestacking=False, **newDslLocals)
+        dsl_expr = functionDef.apply(dsl_globals, effective_present_time, pending_call_stack=pending_call_stack, is_destacking=False, **newDslLocals)
 
         # The result of this function call (stubbed or otherwise) should be a DSL expression.
         assert isinstance(dsl_expr, DslExpression)
@@ -934,7 +934,7 @@ class Module(DslObject):
             if isinstance(dsl_obj, FunctionDef):
                 dsl_globals[dsl_obj.name] = dsl_obj
                 # Share the module level namespace (any function body can call any other function).
-                dsl_obj.enclosedNamespace = dsl_globals
+                dsl_obj.enclosed_namespace = dsl_globals
                 function_defs.append(dsl_obj)
             elif isinstance(dsl_obj, DslExpression):
                 expressions.append(dsl_obj)
@@ -988,7 +988,7 @@ class Module(DslObject):
                     stubbed_expr = stacked_call.apply(stacked_globals,
                                                     effective_present_time,
                                                     pending_call_stack=pending_call_stack,
-                                                    isDestacking=True,
+                                                    is_destacking=True,
                                                     **stacked_locals)
 
                     # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.

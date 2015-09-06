@@ -201,26 +201,26 @@ else:
         dsl = dsl_compile("def a(): 1")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
-        self.assertEqual(len(dsl.callArgNames), 0)
-        self.assertEqual(len(dsl.callCache), 0)
+        self.assertEqual(len(dsl.call_arg_names), 0)
+        self.assertEqual(len(dsl.call_cache), 0)
         aExpr = dsl.apply()
         self.assertIsInstance(aExpr, Number)
         aValue = aExpr.evaluate()
         self.assertEqual(aValue, 1)
 
         # Check the call is in the cache.
-        self.assertEqual(len(dsl.callCache), 1)
+        self.assertEqual(len(dsl.call_cache), 1)
 
         # Check a freshly parsed function def has a fresh call cache.
         dsl = dsl_compile("def a(): 1")
-        self.assertEqual(len(dsl.callCache), 0)
+        self.assertEqual(len(dsl.call_cache), 0)
 
     def test_functiondef_dsl_max(self):
         # Simple one-line body.
         dsl = dsl_compile("def a(b): return Max(b, 2)")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
-        self.assertEqual(dsl.callArgNames[0], 'b')
+        self.assertEqual(dsl.call_arg_names[0], 'b')
         self.assertIsInstance(dsl.body, Max)
         self.assertIsInstance(dsl.body.left, Name)
         self.assertIsInstance(dsl.body.right, Number)
@@ -243,7 +243,7 @@ else:
         dsl = dsl_compile("def a(b): Max(b, 2) if b != 0 else 0")
         self.assertIsInstance(dsl, FunctionDef)
         self.assertEqual(dsl.name, 'a')
-        self.assertEqual(dsl.callArgNames[0], 'b')
+        self.assertEqual(dsl.call_arg_names[0], 'b')
         self.assertIsInstance(dsl.body, IfExp)
         self.assertEqual(dsl.body.test.evaluate(b=1), True)  # b != 0
         self.assertEqual(dsl.body.test.evaluate(b=0), False)
@@ -271,117 +271,117 @@ else:
 
     def test_functiondef_recursive_cached(self):
         # Recursive call.
-        fibDef = dsl_compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
+        fib_def = dsl_compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
 
         # Check the parsed function def DSL object.
-        self.assertIsInstance(fibDef, FunctionDef)
-        self.assertFalse(fibDef.callCache)
-        self.assertEqual(fibDef.name, 'fib')
-        self.assertEqual(fibDef.callArgNames[0], 'n')
-        self.assertIsInstance(fibDef.body, IfExp)
-        self.assertEqual(fibDef.body.test.evaluate(n=3), True)
-        self.assertEqual(fibDef.body.test.evaluate(n=2), False)
-        self.assertIsInstance(fibDef.body.body, Add)
-        self.assertIsInstance(fibDef.body.body.left, FunctionCall)
-        self.assertIsInstance(fibDef.body.body.left.functionDefName, Name)
-        self.assertIsInstance(fibDef.body.body.left.callArgExprs, list)
-        self.assertIsInstance(fibDef.body.body.left.callArgExprs[0], Sub)
-        self.assertIsInstance(fibDef.body.body.left.callArgExprs[0].left, Name)
-        self.assertEqual(fibDef.body.body.left.callArgExprs[0].left.name, 'n')
-        self.assertIsInstance(fibDef.body.body.left.callArgExprs[0].right, Number)
-        self.assertEqual(fibDef.body.body.left.callArgExprs[0].right.value, 1)
+        self.assertIsInstance(fib_def, FunctionDef)
+        self.assertFalse(fib_def.call_cache)
+        self.assertEqual(fib_def.name, 'fib')
+        self.assertEqual(fib_def.call_arg_names[0], 'n')
+        self.assertIsInstance(fib_def.body, IfExp)
+        self.assertEqual(fib_def.body.test.evaluate(n=3), True)
+        self.assertEqual(fib_def.body.test.evaluate(n=2), False)
+        self.assertIsInstance(fib_def.body.body, Add)
+        self.assertIsInstance(fib_def.body.body.left, FunctionCall)
+        self.assertIsInstance(fib_def.body.body.left.functionDefName, Name)
+        self.assertIsInstance(fib_def.body.body.left.callArgExprs, list)
+        self.assertIsInstance(fib_def.body.body.left.callArgExprs[0], Sub)
+        self.assertIsInstance(fib_def.body.body.left.callArgExprs[0].left, Name)
+        self.assertEqual(fib_def.body.body.left.callArgExprs[0].left.name, 'n')
+        self.assertIsInstance(fib_def.body.body.left.callArgExprs[0].right, Number)
+        self.assertEqual(fib_def.body.body.left.callArgExprs[0].right.value, 1)
 
         # Evaluate the function with different values of n.
         # n = 1
-        fibExpr = fibDef.apply(n=1)
-        self.assertIsInstance(fibExpr, Number)
-        fibValue = fibExpr.evaluate()
-        self.assertIsInstance(fibValue, (int, float))
-        self.assertEqual(fibValue, 1)
+        fib_expr = fib_def.apply(n=1)
+        self.assertIsInstance(fib_expr, Number)
+        fib_value = fib_expr.evaluate()
+        self.assertIsInstance(fib_value, (int, float))
+        self.assertEqual(fib_value, 1)
 
         # Check call cache has one call.
-        self.assertEqual(len(fibDef.callCache), 1)
+        self.assertEqual(len(fib_def.call_cache), 1)
 
         # n = 2
-        fibExpr = fibDef.apply(n=2)
-        self.assertIsInstance(fibExpr, Number)
-        fibValue = fibExpr.evaluate()
-        self.assertIsInstance(fibValue, (int, float))
-        self.assertEqual(fibValue, 2)
+        fib_expr = fib_def.apply(n=2)
+        self.assertIsInstance(fib_expr, Number)
+        fib_value = fib_expr.evaluate()
+        self.assertIsInstance(fib_value, (int, float))
+        self.assertEqual(fib_value, 2)
 
         # Check call cache has two calls.
-        self.assertEqual(len(fibDef.callCache), 2)
+        self.assertEqual(len(fib_def.call_cache), 2)
 
         # n = 3
-        fibExpr = fibDef.apply(n=3)
-        self.assertIsInstance(fibExpr, Add)
-        self.assertIsInstance(fibExpr.left, Number)
-        self.assertIsInstance(fibExpr.right, Number)
-        fibValue = fibExpr.evaluate()
-        self.assertIsInstance(fibValue, (int, float))
-        self.assertEqual(fibValue, 3)
+        fib_expr = fib_def.apply(n=3)
+        self.assertIsInstance(fib_expr, Add)
+        self.assertIsInstance(fib_expr.left, Number)
+        self.assertIsInstance(fib_expr.right, Number)
+        fib_value = fib_expr.evaluate()
+        self.assertIsInstance(fib_value, (int, float))
+        self.assertEqual(fib_value, 3)
 
         # Check call cache has three calls.
-        self.assertEqual(len(fibDef.callCache), 3)
+        self.assertEqual(len(fib_def.call_cache), 3)
 
         # n = 4
-        fibExpr = fibDef.apply(n=4)
-        self.assertIsInstance(fibExpr, Add)
-        self.assertIsInstance(fibExpr.left, Add)
-        self.assertIsInstance(fibExpr.left.left, Number)
-        self.assertEqual(fibExpr.left.left.evaluate(), 2)  # fib(2) -> 2
-        self.assertIsInstance(fibExpr.left.right, Number)
-        self.assertEqual(fibExpr.left.right.evaluate(), 1)
-        self.assertIsInstance(fibExpr.right, Number)
-        self.assertEqual(fibExpr.right.evaluate(), 2)  # fib(2) -> 2    *repeats
+        fib_expr = fib_def.apply(n=4)
+        self.assertIsInstance(fib_expr, Add)
+        self.assertIsInstance(fib_expr.left, Add)
+        self.assertIsInstance(fib_expr.left.left, Number)
+        self.assertEqual(fib_expr.left.left.evaluate(), 2)  # fib(2) -> 2
+        self.assertIsInstance(fib_expr.left.right, Number)
+        self.assertEqual(fib_expr.left.right.evaluate(), 1)
+        self.assertIsInstance(fib_expr.right, Number)
+        self.assertEqual(fib_expr.right.evaluate(), 2)  # fib(2) -> 2    *repeats
         # Check repeated calls have resulted in the same object.
-        self.assertEqual(fibExpr.left.left, fibExpr.right)  # fib(2)
+        self.assertEqual(fib_expr.left.left, fib_expr.right)  # fib(2)
 
-        fibValue = fibExpr.evaluate()
-        self.assertIsInstance(fibValue, (int, float))
-        self.assertEqual(fibValue, 5)
+        fib_value = fib_expr.evaluate()
+        self.assertIsInstance(fib_value, (int, float))
+        self.assertEqual(fib_value, 5)
 
         # Check call cache has four calls.
-        self.assertEqual(len(fibDef.callCache), 4)
+        self.assertEqual(len(fib_def.call_cache), 4)
 
         # n = 5
-        fibExpr = fibDef.apply(n=5)
-        self.assertIsInstance(fibExpr, Add)  # fib(4) + fib(3)
-        self.assertIsInstance(fibExpr.left, Add)  # fib(4) -> fib(3) + fib(2)
-        self.assertIsInstance(fibExpr.left.left, Add)  # fib(3) -> fib(2) + fib(1)
-        self.assertIsInstance(fibExpr.left.left.left, Number)  # fib(2) -> 2
-        self.assertEqual(fibExpr.left.left.left.evaluate(), 2)
-        self.assertIsInstance(fibExpr.left.left.right, Number)  # fib(1) -> 1
-        self.assertEqual(fibExpr.left.left.right.evaluate(), 1)
-        self.assertIsInstance(fibExpr.left.right, Number)  # fib(2) -> 2    *repeats
-        self.assertEqual(fibExpr.left.right.evaluate(), 2)
-        self.assertIsInstance(fibExpr.right, Add)  # fib(3) -> fib(2) + fib(1)    *repeats
-        self.assertIsInstance(fibExpr.right.left, Number)  # fib(2) -> 2    *repeats
-        self.assertEqual(fibExpr.right.left.evaluate(), 2)
-        self.assertIsInstance(fibExpr.right.right, Number)  # fib(1) -> 1    *repeats
-        self.assertEqual(fibExpr.right.right.evaluate(), 1)
+        fib_expr = fib_def.apply(n=5)
+        self.assertIsInstance(fib_expr, Add)  # fib(4) + fib(3)
+        self.assertIsInstance(fib_expr.left, Add)  # fib(4) -> fib(3) + fib(2)
+        self.assertIsInstance(fib_expr.left.left, Add)  # fib(3) -> fib(2) + fib(1)
+        self.assertIsInstance(fib_expr.left.left.left, Number)  # fib(2) -> 2
+        self.assertEqual(fib_expr.left.left.left.evaluate(), 2)
+        self.assertIsInstance(fib_expr.left.left.right, Number)  # fib(1) -> 1
+        self.assertEqual(fib_expr.left.left.right.evaluate(), 1)
+        self.assertIsInstance(fib_expr.left.right, Number)  # fib(2) -> 2    *repeats
+        self.assertEqual(fib_expr.left.right.evaluate(), 2)
+        self.assertIsInstance(fib_expr.right, Add)  # fib(3) -> fib(2) + fib(1)    *repeats
+        self.assertIsInstance(fib_expr.right.left, Number)  # fib(2) -> 2    *repeats
+        self.assertEqual(fib_expr.right.left.evaluate(), 2)
+        self.assertIsInstance(fib_expr.right.right, Number)  # fib(1) -> 1    *repeats
+        self.assertEqual(fib_expr.right.right.evaluate(), 1)
 
         # Check repeated calls have resulted in the same object.
-        self.assertEqual(fibExpr.right.right, fibExpr.left.left.right)  # fib(1)
-        self.assertEqual(fibExpr.right.left, fibExpr.left.left.left)  # fib(2)
-        self.assertEqual(fibExpr.left.right, fibExpr.left.left.left)  # fib(2)
-        self.assertEqual(fibExpr.right, fibExpr.left.left)  # fib(3)
+        self.assertEqual(fib_expr.right.right, fib_expr.left.left.right)  # fib(1)
+        self.assertEqual(fib_expr.right.left, fib_expr.left.left.left)  # fib(2)
+        self.assertEqual(fib_expr.left.right, fib_expr.left.left.left)  # fib(2)
+        self.assertEqual(fib_expr.right, fib_expr.left.left)  # fib(3)
 
-        fibValue = fibExpr.evaluate()
-        self.assertIsInstance(fibValue, (int, float))
-        self.assertEqual(fibValue, 8)
+        fib_value = fib_expr.evaluate()
+        self.assertIsInstance(fib_value, (int, float))
+        self.assertEqual(fib_value, 8)
 
         # Check call cache has five calls.
-        self.assertEqual(len(fibDef.callCache), 5)
+        self.assertEqual(len(fib_def.call_cache), 5)
 
         # Just check call cache with fib(5) with fresh parser.
-        fibDef = dsl_compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
-        assert isinstance(fibDef, FunctionDef)
-        self.assertEqual(len(fibDef.callCache), 0)
-        fibExpr = fibDef.apply(n=5)
-        self.assertEqual(len(fibDef.callCache), 5)
-        self.assertEqual(fibExpr.evaluate(), 8)
-        self.assertEqual(len(fibDef.callCache), 5)
+        fib_def = dsl_compile("def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n")
+        assert isinstance(fib_def, FunctionDef)
+        self.assertEqual(len(fib_def.call_cache), 0)
+        fib_expr = fib_def.apply(n=5)
+        self.assertEqual(len(fib_def.call_cache), 5)
+        self.assertEqual(fib_expr.evaluate(), 8)
+        self.assertEqual(len(fib_def.call_cache), 5)
 
     def test_module_block(self):
         # Expression with one function def.
@@ -418,7 +418,6 @@ mul(3, 3)
 
         dsl_value = dsl_eval(dsl_source)
         self.assertEqual(dsl_value, 9)
-
 
     def test_parallel_fib(self):
         # Branching function calls.
