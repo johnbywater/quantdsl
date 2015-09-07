@@ -1,5 +1,6 @@
 from __future__ import division
 from abc import ABCMeta, abstractmethod
+from collections import namedtuple
 import six.moves.queue as queue
 import datetime
 import itertools
@@ -9,6 +10,7 @@ import uuid
 
 import dateutil.parser
 import six
+from quantdsl.dependency_graph import DependencyGraph
 
 from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
 from quantdsl.priceprocess.base import get_duration_years
@@ -114,33 +116,33 @@ class DslObject(six.with_metaclass(ABCMeta)):
             desc += str(args[posn])
             raise DslSyntaxError(error, desc, self.node)
 
-    def find_instances(self, dslType):
-        return list(self.find_instances_generator(dslType))
+    def find_instances(self, dsl_type):
+        return list(self.find_instances_generator(dsl_type))
 
-    def has_instances(self, dslType):
-        for i in self.find_instances_generator(dslType):
+    def has_instances(self, dsl_type):
+        for i in self.find_instances_generator(dsl_type):
             return True
         else:
             return False
         # try:
-        #     self.find_instances_generator(dslType).next()
-        #     # self.find_instances_generator(dslType)
+        #     self.find_instances_generator(dsl_type).next()
+        #     # self.find_instances_generator(dsl_type)
         # except StopIteration:
         #     return False
         # else:
         #     return True
 
-    def find_instances_generator(self, dslType):
-        if isinstance(self, dslType):
+    def find_instances_generator(self, dsl_type):
+        if isinstance(self, dsl_type):
             yield self
         for arg in self._args:
             if isinstance(arg, DslObject):
-                for dsl_obj in arg.find_instances_generator(dslType):
+                for dsl_obj in arg.find_instances_generator(dsl_type):
                     yield dsl_obj
             elif isinstance(arg, list):
                 for arg in arg:
                     if isinstance(arg, DslObject):
-                        for dsl_obj in arg.find_instances(dslType):
+                        for dsl_obj in arg.find_instances(dsl_type):
                             yield dsl_obj
 
     def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pending_call_stack=None):
@@ -612,32 +614,38 @@ class FunctionDef(DslObject):
 
             # Create a new stub - the stub ID is the name of the return value of the function call..
             stub_id = str(uuid.uuid4())
-            dslStub = Stub(stub_id, node=self.node)
+            dsl_stub = Stub(stub_id, node=self.node)
 
             # Put the function call on the call stack, with the stub ID.
-            assert isinstance(pending_call_stack, FunctionDefCallStack)
+            assert isinstance(pending_call_stack, PendingCallStack)
             pending_call_stack.put(
                 stub_id=stub_id,
-                stacked_call=self,
+                stacked_function_def=self,
                 stacked_locals=dsl_locals.copy(),
                 stacked_globals=dsl_globals.copy(),
                 effective_present_time=effective_present_time
             )
             # Return the stub so that the containing DSL can be fully evaluated
             # once the stacked function call has been evaluated.
-            dsl_expr = dslStub
+            dsl_expr = dsl_stub
         else:
             # Todo: Make sure the expression can be selected with the dsl_locals?
             # - ie the conditional expressions should be functions only of call arg
             # values that can be fully evaluated without evaluating contractual DSL objects.
-            selectedExpression = self.selectExpression(self.body, dsl_locals)
+            selected_expression = self.select_expression(self.body, dsl_locals)
 
             # Add this function to the dslNamespace (just in case it's called by itself).
-            newDslGlobals = DslNamespace(dsl_globals)
-            newDslGlobals[self.name] = self
+            new_dsl_globals = DslNamespace(dsl_globals)
+            new_dsl_globals[self.name] = self
 
             # Reduce the selected expression.
-            dsl_expr = selectedExpression.reduce(dsl_locals, newDslGlobals, effective_present_time, pending_call_stack=pending_call_stack)
+            assert isinstance(selected_expression, DslExpression)
+            dsl_expr = selected_expression.reduce(
+                dsl_locals=dsl_locals,
+                dsl_globals=new_dsl_globals,
+                effective_present_time=effective_present_time,
+                pending_call_stack=pending_call_stack
+            )
 
         # Cache the result.
         if not is_destacking:
@@ -645,7 +653,7 @@ class FunctionDef(DslObject):
 
         return dsl_expr
 
-    def selectExpression(self, dsl_expr, call_arg_namespace):
+    def select_expression(self, dsl_expr, call_arg_namespace):
         # If the DSL expression is an instance of If, then evaluate
         # the test and accordingly select body or orelse expressions. Repeat
         # this method with the selected expression (supports if-elif-elif-else).
@@ -659,7 +667,7 @@ class FunctionDef(DslObject):
                 selected = dsl_expr.body
             else:
                 selected = dsl_expr.orelse
-            selected = self.selectExpression(selected, call_arg_namespace)
+            selected = self.select_expression(selected, call_arg_namespace)
         else:
             selected = dsl_expr
         return selected
@@ -772,7 +780,7 @@ class FunctionArg(DslObject):
         return self._args[0]
 
     @property
-    def dslTypeName(self):
+    def dsl_typeName(self):
         return self._args[1]
 
 
@@ -901,7 +909,7 @@ class Module(DslObject):
     function defs or expressions.
     """
 
-    def __str__(self):
+    def __str__(self, indent=0):
         return "\n".join([str(statement) for statement in self.body])
 
     def validate(self, args):
@@ -912,12 +920,12 @@ class Module(DslObject):
     def body(self):
         return self._args[0]
 
-    def compile(self, dsl_locals=None, dsl_globals=None, dependency_graph_class=None):
+    def compile(self, dsl_locals=None, dsl_globals=None, is_dependency_graph=None):
         # It's a module compilation, so create a new namespace "context".
-        if dsl_locals == None:
+        if dsl_locals is None:
             dsl_locals = {}
         dsl_locals = DslNamespace(dsl_locals)
-        if dsl_globals == None:
+        if dsl_globals is None:
             dsl_globals = {}
         dsl_globals = DslNamespace(dsl_globals)
 
@@ -925,34 +933,41 @@ class Module(DslObject):
         if len(self.body) == 0:
             raise DslSyntaxError('empty module', node=self.node)
 
-        # Collect function defs and expressions.
+        # Pick out the expressions (should be just one) and any function defs from the module body.
         function_defs = []
         expressions = []
         for dsl_obj in self.body:
+            # - is it a function def?
             if isinstance(dsl_obj, FunctionDef):
                 dsl_globals[dsl_obj.name] = dsl_obj
                 # Share the module level namespace (any function body can call any other function).
                 dsl_obj.enclosed_namespace = dsl_globals
                 function_defs.append(dsl_obj)
+            # - is it an expression
             elif isinstance(dsl_obj, DslExpression):
                 expressions.append(dsl_obj)
             else:
                 raise DslSyntaxError("'%s' not allowed in module" % type(dsl_obj), dsl_obj, node=dsl_obj.node)
 
+        # Handle different combinations of functions and module level expressions in different ways.
+
+        # - if there's just one expression...
         if len(expressions) == 1:
             # Return the expression, but reduce it with function defs if any are defined.
             dsl_expr = expressions[0]
             assert isinstance(dsl_expr, DslExpression)
-            if len(function_defs) and dependency_graph_class:
-                # Compile the expression
+            # - if a dependency graph is required, then "reduce" into stub expressions
+            if is_dependency_graph:
+                # Compile the module as a dependency graph.
 
                 # Create a stack of discovered calls to function defs.
-                pending_call_stack = FunctionDefCallStack()
+                pending_call_stack = PendingCallStack()
 
                 # Create a stack for the stubbed exprs.
-                stubbed_exprs = StubbedExpressionStack()
+                stubbed_call_stack = StubbedCallStack()
 
-                # Start things off. If an expression has a FunctionCall, it will cause a pending
+                # Reduce the module object into a "root" stubbed expression with pending calls on the stack.
+                # - If an expression has a FunctionCall, it will cause a pending
                 # call to be placed on the pending call stack, and the function call will be
                 # replaced with a stub, which acts as a placeholder for the result of the function
                 # call. By looping over the pending call stack until it is empty, evaluating
@@ -972,48 +987,58 @@ class Module(DslObject):
                 self.root_stub_id = str(create_uuid4())
 
                 # Put the module expression (now stubbed) on the stack.
-                stubbed_exprs.put(self.root_stub_id, stubbed_expr, None)
+                stubbed_call_stack.put(self.root_stub_id, stubbed_expr, None)
 
-                # Continue by looping over any pending calls that have resulted from the module's expression.
+                # Continue by looping over any pending calls that have resulted from the root stubbed expression.
                 while not pending_call_stack.empty():
-                    # Get the stacked call info.
-                    (stub_id, stacked_call, stacked_locals, stacked_globals, effective_present_time) = pending_call_stack.get()
+                    # Get the next pending call.
+                    pending_call = pending_call_stack.get()
+                    assert isinstance(pending_call, PendingCall)
 
-                    # Check we've got a function def.
-                    assert isinstance(stacked_call, FunctionDef), type(stacked_call)
+                    # Get the function def.
+                    function_def = pending_call.stacked_function_def
+                    assert isinstance(function_def, FunctionDef), type(function_def)
 
                     # Apply the stacked call values to the called function def.
-                    stubbed_expr = stacked_call.apply(stacked_globals,
-                                                    effective_present_time,
-                                                    pending_call_stack=pending_call_stack,
-                                                    is_destacking=True,
-                                                    **stacked_locals)
+                    stubbed_expr = function_def.apply(pending_call.stacked_globals,
+                                                      pending_call.effective_present_time,
+                                                      pending_call_stack=pending_call_stack,
+                                                      is_destacking=True,
+                                                      **pending_call.stacked_locals)
 
                     # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
-                    stubbed_exprs.put(stub_id, stubbed_expr, effective_present_time)
+                    stubbed_call_stack.put(pending_call.stub_id, stubbed_expr, pending_call.effective_present_time)
 
-                # Create an expression stack DSL object from the stack of stubbed expressions.
-                stubbed_exprs_array = []
-                while not stubbed_exprs.empty():
-                    stubbed_exprs_array.append(stubbed_exprs.get())
+                # Create an dependency graph object from the stack of stubbed calls.
+                stubbed_calls = []
+                while not stubbed_call_stack.empty():
+                    stubbed_calls.append(stubbed_call_stack.get())
 
-                dsl_obj = build_dependency_graph(self.root_stub_id, stubbed_exprs_array, dependency_graph_class)
+                dsl_obj = build_dependency_graph(self.root_stub_id, stubbed_calls)
             else:
                 # Compile the module for a single threaded recursive operation (faster but not distributed,
                 # so also limited in space and perhaps time). For smaller computations only.
                 dsl_obj = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals))
             return dsl_obj
+
+        # - if there's more than one expression...
         elif len(expressions) > 1:
             # Can't meaningfully evaluate more than one expression (since assignments are not supported).
             raise DslSyntaxError('more than one expression in module', node=expressions[1].node)
+
+        # - if there are no expressions, but one function def...
         elif len(function_defs) == 1:
             # It's just a module with one function, so return the function def.
             return function_defs[0]
+
+        # - if there are more than one function defs, but no expression...
         elif len(function_defs) > 1:
-            # Can't meaningfully evaluate more than one expression (there are no assignments).
-            secondDef = function_defs[1]
-            raise DslSyntaxError('more than one function def in module without an expression', '"def %s"' % secondDef.name, node=function_defs[1].node)
-        raise DslSyntaxError("shouldn't get here", node=self.node)
+            # Can't meaningfully evaluate more than one function def without a module level expression.
+            second_def = function_defs[1]
+            raise DslSyntaxError('more than one function def in module without an expression', '"def %s"' % second_def.name, node=function_defs[1].node)
+
+        else:
+            raise DslSyntaxError("shouldn't get here", node=self.node)
 
 
 def nostub(*args):
@@ -1447,70 +1472,79 @@ defaultDslClasses.update({
 })
 
 
-class FunctionDefCallStack(queue.Queue):
+PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'stacked_globals',
+                                         'effective_present_time'])
 
-    def put(self, stub_id, stacked_call, stacked_locals, stacked_globals, effective_present_time):
+StubbedCall = namedtuple('StubbedCall', ['stub_id', 'stubbed_expr', 'effective_present_time'])
+
+
+CallRequirement = namedtuple('CallRequirement', ['dsl_source', 'effective_present_time'])
+
+
+class PendingCallStack(queue.Queue):
+
+    def put(self, stub_id, stacked_function_def, stacked_locals, stacked_globals, effective_present_time):
         assert isinstance(stub_id, six.string_types), type(stub_id)
-        assert isinstance(stacked_call, FunctionDef), type(stacked_call)
+        assert isinstance(stacked_function_def, FunctionDef), type(stacked_function_def)
         assert isinstance(stacked_locals, DslNamespace), type(stacked_locals)
         assert isinstance(stacked_globals, DslNamespace), type(stacked_globals)
         assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
-        queue.Queue.put(self, (stub_id, stacked_call, stacked_locals, stacked_globals, effective_present_time))
+
+        pending_call = PendingCall(stub_id, stacked_function_def, stacked_locals, stacked_globals, effective_present_time)
+        queue.Queue.put(self, pending_call)
 
 
-class StubbedExpressionStack(queue.LifoQueue):
+class StubbedCallStack(queue.LifoQueue):
 
     def put(self, stub_id, stubbed_expr, effective_present_time):
         assert isinstance(stub_id, six.string_types), type(stub_id)
         assert isinstance(stubbed_expr, DslExpression), type(stubbed_expr)
         assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
-        queue.LifoQueue.put(self, (stub_id, stubbed_expr, effective_present_time))
+        stubbed_call = StubbedCall(stub_id, stubbed_expr, effective_present_time)
+        queue.LifoQueue.put(self, stubbed_call)
 
 
-def build_dependency_graph(root_stub_id, stubbed_exprs_array, dependencyGraphClass):
-    call_requirement_ids, call_requirements, dependencies_by_stub, dependents_by_stub, leaf_ids = reveal_dependencies(
-        root_stub_id, stubbed_exprs_array)
-    dsl_obj = dependencyGraphClass(root_stub_id, stubbed_exprs_array, call_requirement_ids, call_requirements,
-                                  dependencies_by_stub, dependents_by_stub, leaf_ids)
-    return dsl_obj
-
-
-def reveal_dependencies(root_stub_id, stubbed_exprs_data):
-    assert isinstance(stubbed_exprs_data, list)
-    assert len(stubbed_exprs_data), "Stubbed expressions is empty!"
+def build_dependency_graph(root_stub_id, stubbed_calls):
+    assert isinstance(stubbed_calls, list)
+    assert len(stubbed_calls), "Stubbed expressions is empty!"
     leaf_ids = []
-    call_requirement_ids = []
     call_requirements = {}
-    dependencies_by_stub = {}
-    dependents_by_stub = {root_stub_id: []}
-    for stub_id, stubbed_expr, effective_present_time in stubbed_exprs_data:
+    dependencies = {}
+    dependents = {root_stub_id: []}  # Need to do this, because of the way it is initialised below.
 
+    for stubbed_call in stubbed_calls:
+        assert isinstance(stubbed_call, StubbedCall)
+
+        stubbed_expr = stubbed_call.stubbed_expr
         assert isinstance(stubbed_expr, DslExpression)
 
+        stub_id = stubbed_call.stub_id
+
         # Discover the dependency graph by identifying the stubs (if any) each stub depends on.
-        dependencies = [s.name for s in stubbed_expr.find_instances(Stub)]
+        stub_dependencies = [s.name for s in stubbed_expr.find_instances(Stub)]
 
         # Remember which stubs this stub depends on (the "upstream" stubs).
-        dependencies_by_stub[stub_id] = dependencies
+        dependencies[stub_id] = stub_dependencies
 
         # If there are no dependencies, then it's a "leaf" of the dependency graph.
-        if len(dependencies) == 0:
+        if len(stub_dependencies) == 0:
             # Remember the leaves - they can be evaluated first.
             leaf_ids.append(stub_id)
         else:
             # Remember which stubs depend on this stub ("downstream").
-            for dependency in dependencies:
-                if dependency not in dependents_by_stub:
-                    dependents_by_stub[dependency] = []
-                dependents = dependents_by_stub[dependency]
-                if stub_id in dependents:
+            for dependency in stub_dependencies:
+                if dependency not in dependents:
+                    dependents[dependency] = []
+                stub_dependents = dependents[dependency]
+                if stub_id in stub_dependents:
                     raise DslSystemError("Stub ID already in dependents of required stub. Probably wrong?")
-                dependents.append(stub_id)
+                stub_dependents.append(stub_id)
 
         # Stubbed expr has names that need to be replaced with results of other stubbed exprs.
-        stubbed_expr_str = str(stubbed_expr)
+        dsl_source = str(stubbed_expr)
 
-        call_requirements[stub_id] = (stubbed_expr_str, effective_present_time)
-        call_requirement_ids.append(stub_id)
-    assert root_stub_id in call_requirement_ids
-    return call_requirement_ids, call_requirements, dependencies_by_stub, dependents_by_stub, leaf_ids
+        call_requirements[stub_id] = CallRequirement(dsl_source, stubbed_call.effective_present_time)
+    assert root_stub_id in call_requirements
+
+    dsl_obj = DependencyGraph(root_stub_id, call_requirements, dependencies, dependents, leaf_ids)
+    return dsl_obj

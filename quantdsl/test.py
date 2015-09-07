@@ -9,6 +9,7 @@ import scipy
 
 from quantdsl import utc
 from quantdsl.exceptions import DslSyntaxError
+from quantdsl.infrastructure.runners.distributed import DistributedDependencyGraphRunner
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, String, Number, Date, TimeDelta, UnarySub, Add, Sub, Mult, Div, Pow, Mod, \
     FloorDiv, Max, On, LeastSquares, FunctionCall, FunctionDef, Name, If, IfExp, Compare, Module, DslNamespace
@@ -444,7 +445,7 @@ fib(%d)
         self.assertIsInstance(dsl_expr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
+        actual_len_stubbed_exprs = len(dsl_expr.call_requirements)
 
         # Evaluate the stack.
         runner = SingleThreadedDependencyGraphRunner(dsl_expr)
@@ -484,7 +485,7 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
         self.assertIsInstance(dsl_expr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
+        actual_len_stubbed_exprs = len(dsl_expr.call_requirements)
 
         # Evaluate the stack.
         image = mock.Mock()
@@ -493,7 +494,6 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
             'image': image,
             'interest_rate': 0,
             'present_time': datetime.datetime(2011, 1, 1, tzinfo=utc),
-            'dependency_graph_runner_class': SingleThreadedDependencyGraphRunner,
         }
         dsl_value = SingleThreadedDependencyGraphRunner(dsl_expr).evaluate(**kwds)
 
@@ -534,7 +534,6 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 5)
             'image': image,
             'interest_rate': 0,
             'present_time': datetime.datetime(2011, 1, 1),
-            'dependency_graph_runner_class': SingleThreadedDependencyGraphRunner,
         }
 
         dsl_value = SingleThreadedDependencyGraphRunner(dsl_expr).evaluate(**kwds)
@@ -567,7 +566,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
         assert isinstance(dsl_expr, DependencyGraph)
 
         # Remember the number of stubbed exprs - will check it after the value.
-        actual_len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
+        actual_len_stubbed_exprs = len(dsl_expr.call_requirements)
 
         kwds = {
             'interest_rate': 0,
@@ -577,12 +576,57 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
                     [(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10]*2000))
                         for i in range(0, 10)])  # NB Need enough days to cover the date range in the dsl_source.
             },
-            # 'pool_size': 5,
-            # 'dependency_graph_runner_class': MultiProcessingDependencyGraphRunner,
         }
 
         # Evaluate the dependency graph.
         dsl_value = MultiProcessingDependencyGraphRunner(dsl_expr).evaluate(**kwds)
+
+        if hasattr(dsl_value, 'mean'):
+            dsl_value = dsl_value.mean()
+
+        # Check the value is expected.
+        self.assertEqual(dsl_value, expected_value)
+
+        # Check the number of stubbed exprs is expected.
+        self.assertEqual(actual_len_stubbed_exprs, expected_len_stubbed_exprs)
+
+
+    def test_distributed_dependency_graph_runner(self):
+        # Branching function calls.
+
+        expected_value = 20
+        expected_len_stubbed_exprs = 7
+
+        dsl_source = """
+def Swing(starts, ends, underlying, quantity):
+    if (quantity == 0) or (starts >= ends):
+        0
+    else:
+        Wait(starts, Choice(
+            Swing(starts + TimeDelta('1d'), ends, underlying, quantity - 1) + Fixing(starts, underlying),
+            Swing(starts + TimeDelta('1d'), ends, underlying, quantity)
+        ))
+Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
+"""
+
+        dsl_expr = dsl_compile(dsl_source, is_parallel=True)
+        assert isinstance(dsl_expr, DependencyGraph)
+
+        # Remember the number of stubbed exprs - will check it after the value.
+        actual_len_stubbed_exprs = len(dsl_expr.call_requirements)
+
+        kwds = {
+            'interest_rate': 0,
+            'present_time': datetime.datetime(2011, 1, 1, tzinfo=utc),
+            'all_market_prices': {
+                '#1': dict(
+                    [(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10]*2000))
+                        for i in range(0, 10)])  # NB Need enough days to cover the date range in the dsl_source.
+            },
+        }
+
+        # Evaluate the dependency graph.
+        dsl_value = DistributedDependencyGraphRunner(dsl_expr).evaluate(**kwds)
 
         if hasattr(dsl_value, 'mean'):
             dsl_value = dsl_value.mean()

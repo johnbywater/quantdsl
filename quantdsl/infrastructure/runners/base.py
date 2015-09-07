@@ -1,7 +1,9 @@
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod
+
 import six
 
 from quantdsl.dependency_graph import DependencyGraph
+from quantdsl.domain.model import CallSpecification
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
 from quantdsl.semantics import Module, DslNamespace, DslExpression
 
@@ -15,35 +17,37 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
     def evaluate(self, **kwds):
         self.run(**kwds)
         try:
-            return self.results_dict[self.dependency_graph.root_stub_id]
+            return self.results_repo[self.dependency_graph.root_stub_id]
         except KeyError:
-            errorData = (self.dependency_graph.root_stub_id, self.results_dict.keys())
-            raise DslSystemError("root value not found", str(errorData))
+            raise DslSystemError("Result not found for root stub ID '{}'.".format(
+                self.dependency_graph.root_stub_id
+            ))
 
+    @abstractmethod
     def run(self, **kwds):
         self.run_kwds = kwds
         self.call_count = 0
-        self.results_dict = {}
-        self.dependencies_by_stub = {}
+        self.results_repo = {}
+        self.dependencies = {}
 
     def get_dependency_values(self, call_requirement_id):
         dependency_values = {}
-        dependency_stub_ids = self.dependencies_by_stub[call_requirement_id]
-        for stub_id in dependency_stub_ids:
+        stub_dependencies = self.dependencies[call_requirement_id]
+        for stub_id in stub_dependencies:
             try:
-                stub_result = self.results_dict[stub_id]
+                stub_result = self.results_repo[stub_id]
             except KeyError:
-                keys = self.results_dict.keys()
+                keys = self.results_repo.keys()
                 raise KeyError("{} not in {} (really? {})".format(stub_id, keys, stub_id not in keys))
             else:
                 dependency_values[stub_id] = stub_result
         return dependency_values
 
-    def get_evaluation_kwds(self, stubbed_expr_str, effective_present_time):
+    def get_evaluation_kwds(self, dsl_source, effective_present_time):
         evaluation_kwds = self.run_kwds.copy()
 
         from quantdsl.services import dsl_parse, get_fixing_dates
-        stubbed_module = dsl_parse(stubbed_expr_str)
+        stubbed_module = dsl_parse(dsl_source)
         assert isinstance(stubbed_module, Module)
         # market_names = get_market_names(stubbed_module)
         fixing_dates = get_fixing_dates(stubbed_module)
@@ -64,54 +68,52 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
         return evaluation_kwds
 
 
-def evaluate_call(call_requirement_id, evaluation_kwds, dependency_values, result_queue, stubbed_expr_str, effective_present_time):
+def evaluate_call(call_requirement, result_queue):
     """
     Evaluates the stubbed expr identified by 'call_requirement_id'.
     """
-
+    assert isinstance(call_requirement, CallSpecification)
     # If necessary, overwrite the effective_present_time as the present_time in the evaluation_kwds.
-    if effective_present_time:
-        evaluation_kwds['present_time'] = effective_present_time
+    if call_requirement.effective_present_time:
+        call_requirement.evaluation_kwds['present_time'] = call_requirement.effective_present_time
 
     # Evaluate the stubbed expr str.
     try:
         # Todo: Rework this dependency. Figure out how to use alternative set of DSL classes when multiprocessing.
         from quantdsl.services import dsl_parse
-        stubbed_module = dsl_parse(stubbed_expr_str)
+        stubbed_module = dsl_parse(call_requirement.dsl_expr_str)
     except DslSyntaxError:
         raise
 
     assert isinstance(stubbed_module, Module), "Parsed stubbed expr string is not an module: %s" % stubbed_module
 
     dsl_namespace = DslNamespace()
-    for stub_id, stub_result in dependency_values.items():
+    for stub_id, stub_result in call_requirement.dependency_values.items():
         dsl_namespace[stub_id] = stub_result
 
     simple_expr = stubbed_module.compile(dsl_locals=dsl_namespace, dsl_globals={})
     assert isinstance(simple_expr, DslExpression), "Reduced parsed stubbed expr string is not an " \
                                                    "expression: %s" % type(simple_expr)
-    result_value = simple_expr.evaluate(**evaluation_kwds)
-    result_queue.put((call_requirement_id, result_value))
+    result_value = simple_expr.evaluate(**call_requirement.evaluation_kwds)
+    result_queue.put((call_requirement.id, result_value))
 
 
-def handle_result(call_requirement_id, result_value, results_dict, result_ids, notify_dict, dependency_dict,
-                  execution_queue):
+def handle_result(call_requirement_id, result_value, results, dependents, dependencies, execution_queue):
 
     # Set the results.
-    results_dict[call_requirement_id] = result_value
-    result_ids[call_requirement_id] = None
+    results[call_requirement_id] = result_value
 
     # Check if subscribers are ready to be executed.
-    for dependent_id in notify_dict[call_requirement_id]:
-        if dependent_id in results_dict:
+    for dependent_id in dependents[call_requirement_id]:
+        if dependent_id in results:
             continue
-        subscriber_required_ids = dependency_dict[dependent_id]
+        subscriber_required_ids = dependencies[dependent_id]
         # It's ready unless it requires a call that doesn't have a result yet.
         for required_id in subscriber_required_ids:
             # - don't need to see if this call has a result, that's why we're here!
             if required_id != call_requirement_id:
                 # - check if the required call already has a result
-                if required_id not in results_dict:
+                if required_id not in results:
                     break
         else:
             # All required results exist for the dependent call.
@@ -119,10 +121,10 @@ def handle_result(call_requirement_id, result_value, results_dict, result_ids, n
 
     # Check for results that should be deleted.
     # - dependency results should be deleted if there is a result for each dependent of the dependency
-    for dependency_id in dependency_dict[call_requirement_id]:
-        for dependent_id in notify_dict[dependency_id]:
-            if dependent_id != call_requirement_id and dependent_id not in results_dict:
+    for dependency_id in dependencies[call_requirement_id]:
+        for dependent_id in dependents[dependency_id]:
+            if dependent_id != call_requirement_id and dependent_id not in results:
                 # Need to keep it.
                 break
         else:
-            del(results_dict[dependency_id])
+            del(results[dependency_id])

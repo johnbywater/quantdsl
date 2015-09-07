@@ -1,7 +1,9 @@
 from threading import Thread
 from time import sleep
+from quantdsl.domain.model import CallSpecification
 
 from quantdsl.infrastructure.runners.base import DependencyGraphRunner, evaluate_call, handle_result
+from quantdsl.semantics import CallRequirement
 
 
 class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
@@ -17,14 +19,13 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
         self.manager = multiprocessing.Manager()
         self.execution_queue = self.manager.Queue()
         self.result_queue = self.manager.Queue()
-        self.results_dict = self.manager.dict()
-        self.result_ids = self.manager.dict()
+        self.results_repo = self.manager.dict()
         self.calls_dict = self.manager.dict()
         self.calls_dict.update(self.dependency_graph.call_requirements)
-        self.dependencies_by_stub = self.manager.dict()
-        self.dependencies_by_stub.update(self.dependency_graph.dependencies_by_stub)
-        self.dependents_by_stub = self.manager.dict()
-        self.dependents_by_stub.update(self.dependency_graph.dependents_by_stub)
+        self.dependencies = self.manager.dict()
+        self.dependencies.update(self.dependency_graph.dependencies)
+        self.dependents = self.manager.dict()
+        self.dependents.update(self.dependency_graph.dependents)
         self.errors = []
         # if 'all_market_prices' in self.run_kwds:
         #     all_market_prices = self.run_kwds.pop('all_market_prices')
@@ -68,19 +69,24 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
                 if call_requirement_id is None:
                     break
                 else:
+                    call_requirement = self.calls_dict[call_requirement_id]
+                    assert isinstance(call_requirement, CallRequirement)
+                    dsl_source, effective_present_time = call_requirement
+                    evaluation_kwds = self.get_evaluation_kwds(dsl_source, effective_present_time)
                     dependency_values = self.get_dependency_values(call_requirement_id)
-                    stubbed_expr_str, effective_present_time = self.calls_dict[call_requirement_id]
 
-                    evaluation_kwds = self.get_evaluation_kwds(stubbed_expr_str, effective_present_time)
+                    call_spec = CallSpecification(
+                        id=call_requirement_id,
+                        dsl_expr_str=dsl_source,
+                        effective_present_time=effective_present_time,
+                        evaluation_kwds=evaluation_kwds,
+                        dependency_values=dependency_values,
+                    )
 
                     def target():
                         async_result = self.evaluation_pool.apply_async(evaluate_call, (
-                            call_requirement_id,
-                            evaluation_kwds,
-                            dependency_values,
+                            call_spec,
                             self.result_queue,
-                            stubbed_expr_str,
-                            effective_present_time,
                         ))
                         try:
                             async_result.get()
@@ -105,12 +111,12 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
                     break
                 else:
                     (call_requirement_id, result_value) = result
-                    handle_result(call_requirement_id, result_value, self.results_dict, self.result_ids,
-                                  self.dependents_by_stub, self.dependencies_by_stub, self.execution_queue)
+                    handle_result(call_requirement_id, result_value, self.results_repo, self.dependents,
+                                  self.dependencies, self.execution_queue)
 
                 if call_requirement_id == self.dependency_graph.root_stub_id:
                     break
-        except:
+        except Exception as error:
             self.execution_queue.put(None)
+            self.errors.append(error)
             raise
-

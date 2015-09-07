@@ -67,7 +67,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         if isinstance(dsl_expr, DependencyGraph):
 
             print_("Compiled DSL source into %d partial expressions (root ID: %s)." % (
-                len(dsl_expr.stubbed_exprs_data), dsl_expr.root_stub_id))
+                len(dsl_expr.stubbed_calls), dsl_expr.root_stub_id))
             print_()
 
         print_("Duration of compilation: %s" % compile_time_delta)
@@ -76,11 +76,11 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         if isinstance(dsl_expr, DependencyGraph):
             if is_show_source:
                 print_("Expression stack:")
-                for stubbed_exprData in dsl_expr.stubbed_exprs_data:
+                for stubbed_exprData in dsl_expr.stubbed_calls:
                     print_("  " + str(stubbed_exprData[0]) + ": " + str(stubbed_exprData[1]))
                 print_()
 
-    if dsl_expr.has_instances(dslType=StochasticObject):
+    if dsl_expr.has_instances(dsl_type=StochasticObject):
         # evaluation_kwds must have 'observation_time'
         observation_time = evaluation_kwds['observation_time']
         assert isinstance(observation_time, datetime.datetime)
@@ -97,7 +97,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         # Initialise present_time as observation_time.
         evaluation_kwds['present_time'] = observation_time
 
-        if dsl_expr.has_instances(dslType=Market):
+        if dsl_expr.has_instances(dsl_type=Market):
             # evaluation_kwds must have 'path_count'
             if 'path_count' not in evaluation_kwds:
                 evaluation_kwds['path_count'] = DEFAULT_PATH_COUNT
@@ -165,7 +165,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     if is_parallel:
         if is_verbose:
 
-            len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
+            len_stubbed_exprs = len(dsl_expr.stubbed_calls)
             lenLeafIds = len(dsl_expr.leaf_ids)
 
             msg = "Evaluating %d expressions (%d %s) with " % (len_stubbed_exprs, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
@@ -254,7 +254,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     if is_verbose:
         timeDeltaSeconds = evalTimeDelta.seconds + evalTimeDelta.microseconds * 0.000001
         if is_parallel:
-            len_stubbed_exprs = len(dsl_expr.stubbed_exprs_data)
+            len_stubbed_exprs = len(dsl_expr.stubbed_calls)
             rateStr = "(%.2f expr/s)" % (len_stubbed_exprs / timeDeltaSeconds)
         else:
             rateStr = ''
@@ -277,7 +277,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 def get_fixing_dates(dsl_expr):
     # Find all unique fixing dates.
     fixing_dates = set()
-    for dslFixing in dsl_expr.find_instances(dslType=Fixing):
+    for dslFixing in dsl_expr.find_instances(dsl_type=Fixing):
         assert isinstance(dslFixing, Fixing)
         if dslFixing.date is not None:
             fixing_dates.add(dslFixing.date)
@@ -290,7 +290,7 @@ def get_fixing_dates(dsl_expr):
 def get_market_names(dsl_expr):
     # Find all unique market names.
     market_names = set()
-    for dsl_market in dsl_expr.find_instances(dslType=Market):
+    for dsl_market in dsl_expr.find_instances(dsl_type=Market):
         assert isinstance(dsl_market, Market)
         market_names.add(dsl_market.name)
 
@@ -323,11 +323,7 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
 
     # Compile the module into either as a dependency graph
     # if 'is_parallel' is True, otherwise as a single primitive expression.
-    if is_parallel:
-        dependencyGraphClass = DependencyGraph
-    else:
-        dependencyGraphClass = None
-    return dsl_module.compile(DslNamespace(), compile_kwds, dependency_graph_class=dependencyGraphClass)
+    return dsl_module.compile(DslNamespace(), compile_kwds, is_dependency_graph=is_parallel)
 
 
 def dsl_parse(dsl_source, filename='<unknown>', dsl_classes=None):
