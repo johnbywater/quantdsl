@@ -142,7 +142,7 @@ To avoid disturbing your system's site packages, it is recommended to install *Q
 
 *Quant DSL* depends on NumPy and SciPy. On Linux systems these should be automatically installed as dependencies. If you don't want to build the binaries, you can just install the system packages and create a virtual environment that uses system site packages (`--system-site-packages`).
 
-(Windows users may not be able to install NumPy and SciPy because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have NumPy and SciPy, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that NumPy and SciPy will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get bogged down, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` or `easy_install quantdsl` if `pip` is not available.)
+(Windows users may not be able to install NumPy and SciPy because they do not have a compiler installed. If so, one solution would be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2) distribution of Python, so that you have NumPy and SciPy, and then create a virtual environment with the `--system-site-packages` option of `virtualenv` so that NumPy and SciPy will be available in your virtual environment. (If you are using PythonXY v2.6, you will need to install virtualenv with the `easy_install` program that comes with PythonXY.) If you get_quantdsl_app bogged down, the simpler alternative is to install *Quant DSL* directly into your PythonXY installation, using `pip install quantdsl` or `easy_install quantdsl` if `pip` is not available.)
 
 
 Overview of the Language
@@ -209,7 +209,8 @@ assert str(dsl_module) == '10 + 20'
 When single expression is compiled, an Expression object is obtained. In the case of `10 + 20`, an Add expression is obtained.
 
 ```python
-dsl_expr = dsl_parse("10 + 20").compile()
+dsl_module = dsl_parse("10 + 20")
+dsl_expr = compile_dsl_module(dsl_module)
 
 assert isinstance(dsl_expr, quantdsl.semantics.Add)
 ```
@@ -369,7 +370,7 @@ assert dsl_value == 7.2237890436951115
 
 dsl_value = dsl_eval("Settlement('2024-01-01', Market('NBP'))", interest_rate=2.5, observation_time=observation_time, market_calibration=market_calibration)
 assert round(dsl_value['mean'], 6) == 7.223789, round(dsl_value['mean'], 6)
-assert dsl_value['stderr'] == 2.1918490723225498e-15, dsl_value['stderr']
+assert dsl_value['stderr'] <= 2.0e-15, dsl_value['stderr']
 
 ```
 

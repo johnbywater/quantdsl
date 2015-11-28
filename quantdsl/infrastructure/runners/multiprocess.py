@@ -1,9 +1,10 @@
 from threading import Thread
 from time import sleep
-from quantdsl.domain.model import CallSpecification
+from quantdsl.domain.model.call_specification import CallSpecification
 
 from quantdsl.infrastructure.runners.base import DependencyGraphRunner, evaluate_call, handle_result
-from quantdsl.semantics import CallRequirement
+from quantdsl.domain.services.dependency_graph import get_dependency_values
+from quantdsl.domain.model.call_requirement import CallRequirementData
 
 
 class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
@@ -12,10 +13,12 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
         super(MultiProcessingDependencyGraphRunner, self).__init__(dependency_graph)
         self.pool_size = pool_size
 
-    def run(self, **kwds):
-        super(MultiProcessingDependencyGraphRunner, self).run(**kwds)
+    def run(self, **kwargs):
+        super(MultiProcessingDependencyGraphRunner, self).run(**kwargs)
         import multiprocessing
+        # Set up pool of evaluation workers.
         self.evaluation_pool = multiprocessing.Pool(processes=self.pool_size)
+        # Set up a 'shared memory' dependency graph.
         self.manager = multiprocessing.Manager()
         self.execution_queue = self.manager.Queue()
         self.result_queue = self.manager.Queue()
@@ -70,10 +73,10 @@ class MultiProcessingDependencyGraphRunner(DependencyGraphRunner):
                     break
                 else:
                     call_requirement = self.calls_dict[call_requirement_id]
-                    assert isinstance(call_requirement, CallRequirement)
+                    assert isinstance(call_requirement, CallRequirementData)
                     dsl_source, effective_present_time = call_requirement
                     evaluation_kwds = self.get_evaluation_kwds(dsl_source, effective_present_time)
-                    dependency_values = self.get_dependency_values(call_requirement_id)
+                    dependency_values = get_dependency_values(call_requirement_id, self.dependencies, self.results_repo)
 
                     call_spec = CallSpecification(
                         id=call_requirement_id,

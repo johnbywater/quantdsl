@@ -52,6 +52,8 @@ def main(source, observation_time=defaultObservationTime, calibration=None, num_
         else:
             raise DslError("Can't open resource: %s" % url)
 
+    # Todo: Make this work with Python 3.
+
     print "DSL source from: %s" % source_url
     print
     dsl_source = get_resource(source_url)

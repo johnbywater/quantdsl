@@ -21,12 +21,12 @@ class DslParser(object):
         assert isinstance(dsl_source, six.string_types)
         try:
             # Parse as Python source code, into a Python abstract syntax tree.
-            astModule = ast.parse(dsl_source, filename=filename, mode='exec')
+            ast_module = ast.parse(dsl_source, filename=filename, mode='exec')
         except SyntaxError as e:
             raise DslSyntaxError("DSL source code is not valid Python code", e)
 
         # Generate Quant DSL from Python AST.
-        return self.visitAstNode(astModule)
+        return self.visitAstNode(ast_module)
 
     def visitAstNode(self, node):
         """
@@ -40,7 +40,7 @@ class DslParser(object):
         dsl_element_name = node.__class__.__name__
         method_name = 'visit' + dsl_element_name
 
-        # Try to get the "visit" method object.
+        # Try to get_quantdsl_app the "visit" method object.
         try:
             method = getattr(self, method_name)
         except AttributeError:

@@ -2,10 +2,10 @@ from abc import ABCMeta, abstractmethod
 
 import six
 
-from quantdsl.dependency_graph import DependencyGraph
-from quantdsl.domain.model import CallSpecification
+from quantdsl.domain.model.call_specification import CallSpecification
+from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
-from quantdsl.semantics import Module, DslNamespace, DslExpression
+from quantdsl.semantics import Module, DslNamespace, DslExpression, compile_dsl_module
 
 
 class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
@@ -24,37 +24,26 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
             ))
 
     @abstractmethod
-    def run(self, **kwds):
-        self.run_kwds = kwds
+    def run(self, **kwargs):
+        self.run_kwds = kwargs
         self.call_count = 0
         self.results_repo = {}
         self.dependencies = {}
 
-    def get_dependency_values(self, call_requirement_id):
-        dependency_values = {}
-        stub_dependencies = self.dependencies[call_requirement_id]
-        for stub_id in stub_dependencies:
-            try:
-                stub_result = self.results_repo[stub_id]
-            except KeyError:
-                keys = self.results_repo.keys()
-                raise KeyError("{} not in {} (really? {})".format(stub_id, keys, stub_id not in keys))
-            else:
-                dependency_values[stub_id] = stub_result
-        return dependency_values
-
     def get_evaluation_kwds(self, dsl_source, effective_present_time):
         evaluation_kwds = self.run_kwds.copy()
 
-        from quantdsl.services import dsl_parse, get_fixing_dates
+        from quantdsl.services import dsl_parse, list_fixing_times
         stubbed_module = dsl_parse(dsl_source)
         assert isinstance(stubbed_module, Module)
-        # market_names = get_market_names(stubbed_module)
-        fixing_dates = get_fixing_dates(stubbed_module)
+        # market_names = find_market_names(stubbed_module)
+        fixing_dates = list_fixing_times(stubbed_module)
         if effective_present_time is not None:
             fixing_dates.append(effective_present_time)
 
         # return evaluation_kwds
+        # Rebuild the data structure (there was a problem, but I can't remember what it was.
+        # Todo: Try without this block, perhaps the problem doesn't exist anymore.
         if 'all_market_prices' in evaluation_kwds:
             all_market_prices = evaluation_kwds.pop('all_market_prices')
             evaluation_kwds['all_market_prices'] = dict()
@@ -68,34 +57,41 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
         return evaluation_kwds
 
 
-def evaluate_call(call_requirement, result_queue):
+def evaluate_call(call_spec, register_call_result):
     """
     Evaluates the stubbed expr identified by 'call_requirement_id'.
     """
-    assert isinstance(call_requirement, CallSpecification)
-    # If necessary, overwrite the effective_present_time as the present_time in the evaluation_kwds.
-    if call_requirement.effective_present_time:
-        call_requirement.evaluation_kwds['present_time'] = call_requirement.effective_present_time
+    assert isinstance(call_spec, CallSpecification)
+
+    evaluation_kwds = call_spec.evaluation_kwds.copy()
+
+    # If this call has an effective present time value, use it as the 'present_time' in the evaluation_kwds.
+    # This results from e.g. the Wait DSL element. Calls near the root of the expression might not have an
+    # effective present time value, and the present time will be the observation time of the evaluation.
 
     # Evaluate the stubbed expr str.
+    # - parse the expr
     try:
         # Todo: Rework this dependency. Figure out how to use alternative set of DSL classes when multiprocessing.
         from quantdsl.services import dsl_parse
-        stubbed_module = dsl_parse(call_requirement.dsl_expr_str)
+        stubbed_module = dsl_parse(call_spec.dsl_expr_str)
     except DslSyntaxError:
         raise
 
-    assert isinstance(stubbed_module, Module), "Parsed stubbed expr string is not an module: %s" % stubbed_module
+    assert isinstance(stubbed_module, Module), "Parsed stubbed expr string is not a module: %s" % stubbed_module
 
-    dsl_namespace = DslNamespace()
-    for stub_id, stub_result in call_requirement.dependency_values.items():
-        dsl_namespace[stub_id] = stub_result
+    # - build a namespace from the dependency values
+    dsl_locals = DslNamespace(call_spec.dependency_values)
 
-    simple_expr = stubbed_module.compile(dsl_locals=dsl_namespace, dsl_globals={})
-    assert isinstance(simple_expr, DslExpression), "Reduced parsed stubbed expr string is not an " \
-                                                   "expression: %s" % type(simple_expr)
-    result_value = simple_expr.evaluate(**call_requirement.evaluation_kwds)
-    result_queue.put((call_requirement.id, result_value))
+    # - compile the parsed expr
+    dsl_expr = stubbed_module.body[0].reduce(dsl_locals=dsl_locals, dsl_globals=DslNamespace())
+    assert isinstance(dsl_expr, DslExpression), dsl_expr
+
+    # - evaluate the compiled expr
+    result_value = dsl_expr.evaluate(**evaluation_kwds)
+
+    # - store the result
+    register_call_result(call_id=call_spec.id, result_value=result_value)
 
 
 def handle_result(call_requirement_id, result_value, results, dependents, dependencies, execution_queue):

@@ -6,7 +6,7 @@ import six
 class PriceProcess(six.with_metaclass(ABCMeta)):
 
     @abstractmethod
-    def simulateFuturePrices(self, market_names, fixing_dates, observation_time, path_count, market_calibration):
+    def simulate_future_prices(self, market_names, fixing_dates, observation_time, path_count, market_calibration):
         """
         Returns dict (keyed by market name) of dicts (keyed by fixing date) with correlated random future prices.
         """

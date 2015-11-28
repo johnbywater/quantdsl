@@ -21,14 +21,7 @@ setup(
     packages=find_packages(),
     # just use auto-include and specify special items in MANIFEST.in
     zip_safe=False,
-    install_requires=[
-        'argh',
-        'mock',
-        'numpy',
-        'python-dateutil',
-        'scipy',
-        'six',
-    ],
+    install_requires=open('requirements.txt').read().split('\n'),
     scripts=[
         os.path.join('scripts', 'quant-dsl.py'),
     ],
