@@ -30,5 +30,5 @@ def register_contract_specification(specification):
 def make_simulated_price_id(simulation_id, market_name, price_time):
     return simulation_id + market_name + str(price_time)
 
-class Repository(EntityRepository):
+class ContractSpecificationRepository(EntityRepository):
     pass

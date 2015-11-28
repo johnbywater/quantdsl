@@ -61,5 +61,5 @@ def register_market_simulation(market_calibration_id, price_process_name, market
     return call_result
 
 
-class Repository(EntityRepository):
+class MarketSimulationRepository(EntityRepository):
     pass

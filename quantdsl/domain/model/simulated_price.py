@@ -32,5 +32,5 @@ def make_simulated_price_id(market_simulation_id, market_name, price_time):
     return market_simulation_id + market_name + str(price_time)
 
 
-class Repository(EntityRepository):
+class SimulatedPriceRepository(EntityRepository):
     pass

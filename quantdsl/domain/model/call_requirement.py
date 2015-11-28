@@ -2,7 +2,7 @@ from collections import namedtuple
 from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
 from eventsourcing.domain.model.events import publish
 
-CallRequirementData = namedtuple('CallRequirementData', ['dsl_source', 'effective_present_time', 'dependencies'])
+StubbedCall = namedtuple('StubbedCall', ['call_id', 'dsl_source', 'effective_present_time', 'dependencies'])
 
 
 class CallRequirement(EventSourcedEntity):
@@ -38,5 +38,5 @@ def register_call_requirement(call_id, dsl_source, effective_present_time):
     return call_requirement
 
 
-class Repository(EntityRepository):
+class CallRequirementRepository(EntityRepository):
     pass

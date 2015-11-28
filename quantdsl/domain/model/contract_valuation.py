@@ -23,5 +23,5 @@ def register_contract_valuation(dependency_graph_id):
     return contract_specification
 
 
-class Repository(EntityRepository):
+class ContractValuationRepository(EntityRepository):
     pass

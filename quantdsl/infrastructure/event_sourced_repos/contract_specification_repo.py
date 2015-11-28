@@ -1,8 +1,8 @@
 from eventsourcing.infrastructure.event_sourced_repo import EventSourcedRepository
-from quantdsl.domain.model.contract_specification import ContractSpecification, Repository
+from quantdsl.domain.model.contract_specification import ContractSpecification, ContractSpecificationRepository
 
 
-class ContractSpecificationRepo(Repository, EventSourcedRepository):
+class ContractSpecificationRepo(ContractSpecificationRepository, EventSourcedRepository):
 
     domain_class = ContractSpecification
 

@@ -31,5 +31,5 @@ def compute_market_calibration_params(price_process_name, historical_data):
     return {}
 
 
-class Repository(EntityRepository):
+class MarketCalibrationRepository(EntityRepository):
     pass

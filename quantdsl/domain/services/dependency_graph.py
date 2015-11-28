@@ -1,8 +1,8 @@
+from collections import defaultdict
+
 from quantdsl.domain.model.call_dependencies import CallDependencies, CallDependenciesRepository
 from quantdsl.domain.model.call_dependents import CallDependentsRepository
 from quantdsl.domain.model.call_result import CallResult, CallResultRepository
-from quantdsl.domain.model.dependency_graph import DependencyGraph
-from quantdsl.domain.model.leaf_calls import LeafCallsRepository, LeafCalls
 
 
 def get_dependency_values(call_id, dependencies_repo, result_repo):
@@ -21,34 +21,37 @@ def get_dependency_values(call_id, dependencies_repo, result_repo):
     return dependency_values
 
 
-def generate_call_order(dependency_graph, leaf_calls_repo, call_dependents_repo, call_dependencies_repo):
-    assert isinstance(dependency_graph, DependencyGraph), dependency_graph
-    assert isinstance(leaf_calls_repo, LeafCallsRepository)
+def generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependencies_repo):
     assert isinstance(call_dependents_repo, CallDependentsRepository)
     assert isinstance(call_dependencies_repo, CallDependenciesRepository)
+
     # Topological sort, using Kahn's algorithm.
-    leaf_calls = leaf_calls_repo[dependency_graph.id]
-    assert isinstance(leaf_calls, LeafCalls)
-    S = set(leaf_calls.call_ids)
-    removed = set()
-    not_removed = set()
+
+    # Initialise set of nodes that have no outstanding dependencies with the leaf nodes.
+    S = set(leaf_call_ids)
+    removed_edges = defaultdict(set)
     while S:
+
+        # Pick a node, n, that has zero outstanding dependencies.
         n = S.pop()
+
+        # Yield node n.
         yield n
-        try:
-            call_dependents = call_dependents_repo[n]
-        except KeyError:
-            pass
-        else:
-            for m in call_dependents:
-                removed.add((n, m))
-                if (n, m) in not_removed:
-                    not_removed.remove((n, m))
-                for d in call_dependencies_repo[m]:
-                    if (d, m) not in removed:
-                        not_removed.add((d, m))
-                        break
-                else:
-                    S.add(m)
-    if not_removed:
-        raise Exception("Circular dependencies: %s" % not_removed)
+
+        # Visit the nodes that are dependent on n.
+        for m in call_dependents_repo[n]:
+
+            # Remove the edge n to m from the graph.
+            removed_edges[m].add(n)
+
+            # If there are zero edges to m that have not been removed, then we
+            # can add m to the set of nodes with zero outstanding dependencies.
+            for d in call_dependencies_repo[m]:
+                if d not in removed_edges[m]:
+                    break
+            else:
+                # Forget about removed edges to m.
+                removed_edges.pop(m)
+
+                # Add m to the set of nodes that have zero outstanding dependencies.
+                S.add(m)

@@ -4,19 +4,14 @@ import datetime
 import itertools
 import math
 import re
-import uuid
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
-
-import dateutil.parser
 import six
 import six.moves.queue as queue
 
+from quantdsl.domain.model.call_requirement import StubbedCall
 from quantdsl.domain.model.contract_specification import make_simulated_price_id
-from quantdsl.domain.model.dependency_graph import DependencyGraph
 
-from quantdsl import utc
-from quantdsl.domain.model.call_requirement import CallRequirementData
 from quantdsl.domain.model.simulated_price import SimulatedPrice
 from quantdsl.domain.services.create_uuid4 import create_uuid4
 from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
@@ -1347,7 +1342,6 @@ defaultDslClasses.update({
 PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'stacked_globals',
                                          'effective_present_time'])
 
-StubbedCall = namedtuple('StubbedCall', ['stub_id', 'stubbed_expr', 'effective_present_time'])
 
 
 class PendingCallQueue(object):
@@ -1398,14 +1392,14 @@ class PythonPendingCallQueue(PendingCallQueue):
 #         queue.Queue.put(self, pending_call)
 
 
-class StubbedCallStack(queue.LifoQueue):
-
-    def put(self, stub_id, stubbed_expr, effective_present_time):
-        assert isinstance(stub_id, six.string_types), type(stub_id)
-        assert isinstance(stubbed_expr, DslExpression), type(stubbed_expr)
-        assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
-        stubbed_call = StubbedCall(stub_id, stubbed_expr, effective_present_time)
-        queue.LifoQueue.put(self, stubbed_call)
+# class StubbedCallStack(queue.LifoQueue):
+#
+#     def put(self, stub_id, stubbed_expr, effective_present_time):
+#         assert isinstance(stub_id, six.string_types), type(stub_id)
+#         assert isinstance(stubbed_expr, DslExpression), type(stubbed_expr)
+#         assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
+#         stubbed_call = StubbedCall(stub_id, stubbed_expr, effective_present_time)
+#         queue.LifoQueue.put(self, stubbed_call)
 
 
 def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None, is_dependency_graph=None):
@@ -1453,8 +1447,9 @@ def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None, is_depende
             from quantdsl.domain.services import create_uuid4
             root_stub_id = create_uuid4()
             stubbed_calls = generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals)
-            dependencies, dependents, leaf_ids = extract_graph_structure(stubbed_calls)
-            call_requirements = call_requirements_from_stubbed_calls(stubbed_calls)
+            raise NotImplementedError()
+            # dependencies, dependents, leaf_ids = extract_graph_structure(stubbed_calls)
+            # call_requirements = call_requirements_from_stubbed_calls(stubbed_calls)
 
 
         else:
@@ -1474,14 +1469,15 @@ def extract_defs_and_exprs(dsl_module, dsl_globals):
     for dsl_obj in dsl_module.body:
 
         if isinstance(dsl_obj, FunctionDef):
+            # Todo: Move this setting of globals elsewhere, it doesn't belong here.
             dsl_globals[dsl_obj.name] = dsl_obj
+            # Todo: Move this setting of the 'enclosed namespace' - is this even a good idea?
             # Share the module level namespace (any function body can call any other function).
             dsl_obj.enclosed_namespace = dsl_globals
-            function_defs.append(dsl_obj)
 
+            function_defs.append(dsl_obj)
         elif isinstance(dsl_obj, DslExpression):
             expressions.append(dsl_obj)
-
         else:
             raise DslSyntaxError("'%s' not allowed in module" % type(dsl_obj), dsl_obj, node=dsl_obj.node)
 
@@ -1513,7 +1509,7 @@ def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_
 
     dependencies = list_stub_dependencies(stubbed_expr)
     stubbed_dsl = str(stubbed_expr)
-    yield root_stub_id, CallRequirementData(stubbed_dsl, None, dependencies)
+    yield StubbedCall(root_stub_id, stubbed_dsl, None, dependencies)
     # Continue by looping over any pending calls.
     while not pending_call_stack.empty():
         # Get the next pending call.
@@ -1534,57 +1530,57 @@ def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_
         # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
         dependencies = list_stub_dependencies(stubbed_expr)
         stubbed_dsl = str(stubbed_expr)
-        yield pending_call.stub_id, CallRequirementData(stubbed_dsl, pending_call.effective_present_time, dependencies)
+        yield StubbedCall(pending_call.stub_id, stubbed_dsl, pending_call.effective_present_time, dependencies)
 
 
 def list_stub_dependencies(stubbed_expr):
     return [s.name for s in stubbed_expr.list_instances(Stub)]
 
 
-def extract_graph_structure(stubbed_calls):
-    assert isinstance(stubbed_calls, list), stubbed_calls
-    assert len(stubbed_calls), "Stubbed expressions is empty!"
-    leaf_call_ids = []
-    dependencies = {}
-    dependents = {}
+# def extract_graph_structure(stubbed_calls):
+#     assert isinstance(stubbed_calls, list), stubbed_calls
+#     assert len(stubbed_calls), "Stubbed expressions is empty!"
+#     leaf_call_ids = []
+#     dependencies = {}
+#     dependents = {}
+#
+#     for stubbed_call in stubbed_calls:
+#         assert isinstance(stubbed_call, StubbedCall)
+#
+#         stubbed_expr = stubbed_call.stubbed_expr
+#         assert isinstance(stubbed_expr, DslExpression)
+#
+#         stub_id = stubbed_call.stub_id
+#
+#         # Discover the dependency graph by identifying the stubs (if any) each stub depends on.
+#         stub_dependencies = stubbed_call.dependencies
+#
+#         # Remember which stubs this stub depends on (the "upstream" stubs).
+#         dependencies[stub_id] = stub_dependencies
+#
+#         if stub_dependencies:
+#             # Otherwise, add this stub as a dependent of each dependency.
+#             for dependency in stub_dependencies:
+#                 if dependency not in dependents:
+#                     dependents[dependency] = [stub_id]
+#                 else:
+#                     dependents[dependency].append(stub_id)
+#         else:
+#             # If there are no dependencies, then it's a "leaf" of the dependency graph.
+#             # - remember the leaves, they can be evaluated first.
+#             leaf_call_ids.append(stub_id)
+#
+#     return dependencies, dependents, leaf_call_ids
 
-    for stubbed_call in stubbed_calls:
-        assert isinstance(stubbed_call, StubbedCall)
-
-        stubbed_expr = stubbed_call.stubbed_expr
-        assert isinstance(stubbed_expr, DslExpression)
-
-        stub_id = stubbed_call.stub_id
-
-        # Discover the dependency graph by identifying the stubs (if any) each stub depends on.
-        stub_dependencies = stubbed_call.dependencies
-
-        # Remember which stubs this stub depends on (the "upstream" stubs).
-        dependencies[stub_id] = stub_dependencies
-
-        if stub_dependencies:
-            # Otherwise, add this stub as a dependent of each dependency.
-            for dependency in stub_dependencies:
-                if dependency not in dependents:
-                    dependents[dependency] = [stub_id]
-                else:
-                    dependents[dependency].append(stub_id)
-        else:
-            # If there are no dependencies, then it's a "leaf" of the dependency graph.
-            # - remember the leaves, they can be evaluated first.
-            leaf_call_ids.append(stub_id)
-
-    return dependencies, dependents, leaf_call_ids
+#
+#
+# def call_requirements_from_stubbed_calls(stubbed_calls):
+#     call_requirements = {}
+#     for stubbed_call in stubbed_calls:
+#         call_requirements[stubbed_call.stub_id] = call_requirement_from_stubbed_call(stubbed_call)
+#     return call_requirements
 
 
-
-def call_requirements_from_stubbed_calls(stubbed_calls):
-    call_requirements = {}
-    for stubbed_call in stubbed_calls:
-        call_requirements[stubbed_call.stub_id] = call_requirement_from_stubbed_call(stubbed_call)
-    return call_requirements
-
-
-def call_requirement_from_stubbed_call(stubbed_call):
-    assert isinstance(stubbed_call, StubbedCall), stubbed_call
-    return CallRequirementData(str(stubbed_call.stubbed_expr), stubbed_call.effective_present_time)
+# def call_requirement_from_stubbed_call(stubbed_call):
+#     assert isinstance(stubbed_call, StubbedCall), stubbed_call
+#     return StubbedCalll(str(stubbed_call.stubbed_expr), stubbed_call.effective_present_time)

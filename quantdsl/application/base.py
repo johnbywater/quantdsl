@@ -4,37 +4,32 @@ from eventsourcing.application.base import EventSourcingApplication
 
 from quantdsl.domain.model.call_dependencies import register_call_dependencies
 from quantdsl.domain.model.call_dependents import register_call_dependents
-from quantdsl.domain.model.call_requirement import register_call_requirement, CallRequirementData, CallRequirement
+from quantdsl.domain.model.call_requirement import register_call_requirement, StubbedCall, CallRequirement
 from quantdsl.domain.model.call_result import register_call_result
-from quantdsl.domain.model.call_specification import CallSpecification
 from quantdsl.domain.model.contract_specification import register_contract_specification, ContractSpecification
 from quantdsl.domain.model.contract_valuation import register_contract_valuation
 from quantdsl.domain.model.dependency_graph import register_dependency_graph, DependencyGraph
-from quantdsl.domain.model.leaf_calls import register_leaf_calls
+from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.market_calibration import register_market_calibration, compute_market_calibration_params, \
     MarketCalibration
 from quantdsl.domain.model.market_simulation import register_market_simulation, MarketSimulation
 from quantdsl.domain.model.price_process import get_price_process
 from quantdsl.domain.model.simulated_price import register_simulated_price
-from quantdsl.domain.services.dependency_graph import get_dependency_values, generate_call_order
+from quantdsl.domain.services.dependency_graph import get_dependency_values, generate_execution_order
+from quantdsl.domain.services.fixing_times import regenerate_execution_order
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
 from quantdsl.infrastructure.event_sourced_repos.call_requirement_repo import CallRequirementRepo
 from quantdsl.infrastructure.event_sourced_repos.call_result_repo import CallResultRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_valuation_repo import ContractValuationRepo
-from quantdsl.infrastructure.event_sourced_repos.leaf_calls_repo import LeafCallsRepo
+from quantdsl.infrastructure.event_sourced_repos.call_link_repo import CallLinkRepo
 from quantdsl.infrastructure.event_sourced_repos.market_calibration_repo import MarketCalibrationRepo
 from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import MarketSimulationRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
 from quantdsl.priceprocess.base import PriceProcess
-from quantdsl.semantics import generate_stubbed_calls, extract_graph_structure, \
-    extract_defs_and_exprs, DslExpression, DslNamespace, Module, StubbedCall
+from quantdsl.semantics import generate_stubbed_calls, extract_defs_and_exprs, DslExpression, DslNamespace, Module
 from quantdsl.services import dsl_parse
-
-
-# def generate_call_requirements(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
-#     for stubbed_call in generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
 
 
 class BaseQuantDslApplication(EventSourcingApplication):
@@ -63,7 +58,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
         self.call_requirement_repo = CallRequirementRepo(event_store=self.event_store)
         self.call_dependencies_repo = CallDependenciesRepo(event_store=self.event_store)
         self.call_dependents_repo = CallDependentsRepo(event_store=self.event_store)
-        self.leaf_calls_repo = LeafCallsRepo(event_store=self.event_store)
+        self.call_link_repo = CallLinkRepo(event_store=self.event_store)
         self.call_result_repo = CallResultRepo(event_store=self.event_store)
 
     # Todo: Register historical data.
@@ -125,8 +120,8 @@ class BaseQuantDslApplication(EventSourcingApplication):
         """
         return register_contract_specification(specification=specification)
 
-    def register_dependency_graph(self):
-        return register_dependency_graph()
+    def register_dependency_graph(self, contract_specification_id):
+        return register_dependency_graph(contract_specification_id)
 
     def register_call_requirement(self, call_id, dsl_source, effective_present_time):
         """
@@ -144,8 +139,8 @@ class BaseQuantDslApplication(EventSourcingApplication):
     def register_call_dependents(self, call_id, dependents):
         return register_call_dependents(call_id=call_id, dependents=dependents)
 
-    def register_leaf_calls(self, dependency_graph_id, call_ids):
-        return register_leaf_calls(dependency_graph_id, call_ids)
+    def register_call_link(self, link_id, call_id):
+        return register_call_link(link_id, call_id)
 
     def generate_dependency_graph(self, contract_specification):
         assert isinstance(contract_specification, ContractSpecification)
@@ -158,28 +153,44 @@ class BaseQuantDslApplication(EventSourcingApplication):
         assert isinstance(dsl_expr, DslExpression)
         dsl_locals = DslNamespace()
 
-        dependency_graph = self.register_dependency_graph()
+        dependency_graph = self.register_dependency_graph(contract_specification.id)
 
         leaf_call_ids = []
         all_dependents = defaultdict(list)
-        for call_id, call_requirement_data in generate_stubbed_calls(dependency_graph.id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
-            assert isinstance(call_requirement_data, CallRequirementData)
 
-            dsl_source = call_requirement_data.dsl_source
-            effective_present_time = call_requirement_data.effective_present_time
-            dependencies = call_requirement_data.dependencies
+        # Generate stubbed call from the parsed DSL module object.
+        for stub in generate_stubbed_calls(dependency_graph.id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
+            assert isinstance(stub, StubbedCall)
+            call_id = stub.call_id
+            dsl_source = stub.dsl_source
+            effective_present_time = stub.effective_present_time
+            dependencies = stub.dependencies
 
+            # Register the call requirements.
             self.register_call_requirement(call_id, dsl_source, effective_present_time)
+
+            # Register the call dependencies.
             self.register_call_dependencies(call_id, dependencies)
+
+            # Keep track of the leaves and the dependents.
             if len(dependencies) == 0:
                 leaf_call_ids.append(call_id)
             else:
                 for dependency_call_id in dependencies:
                     all_dependents[dependency_call_id].append(call_id)
+
+        # Register the call dependents.
         for call_id, dependents in all_dependents.items():
             self.register_call_dependents(call_id, dependents)
-        self.register_leaf_calls(dependency_graph.id, leaf_call_ids)
+        self.register_call_dependents(dependency_graph.id, [])
 
+        # Generate and register the call order.
+        link_id = dependency_graph.id
+        for call_id in generate_execution_order(leaf_call_ids, self.call_dependents_repo, self.call_dependencies_repo):
+            self.register_call_link(link_id, call_id)
+            link_id = call_id
+
+        # Return the dependency graph.
         return dependency_graph
 
     def register_call_result(self, call_id, result_value):
@@ -188,29 +199,16 @@ class BaseQuantDslApplication(EventSourcingApplication):
     def register_contract_valuation(self, dependency_graph_id):
         return register_contract_valuation(dependency_graph_id)
 
-    def generate_contract_valuation(self, dependency_graph, market_simulation, call_order):
+    def generate_contract_valuation(self, dependency_graph, market_simulation):
         assert isinstance(market_simulation, MarketSimulation)
         v = self.register_contract_valuation(dependency_graph.id)
 
-        for call_id in call_order:
-
-            # Todo: Feed this order into a queue, don't do it like this :-)
-            # Todo: Make call specification event sourced, and then have a handler respond to the Created event
-            # Todo: by evaluating the call and registering a result, or by putting it on a queue for a worker.
+        for call_id in regenerate_execution_order(dependency_graph, self.call_link_repo):
 
             call = self.call_requirement_repo[call_id]
             assert isinstance(call, CallRequirement)
 
             # Evaluate the call requirement.
-
-            first_market_name = market_simulation.market_names[0] if market_simulation.market_names else None
-            evaluation_kwds = {
-                'simulated_price_repo': self.simulated_price_repo,
-                'simulation_id': market_simulation.id,
-                'interest_rate': 0,
-                'present_time': call.effective_present_time or market_simulation.observation_time,
-                'first_market_name': first_market_name,
-            }
             dependency_values = get_dependency_values(call_id, self.call_dependencies_repo, self.call_result_repo)
 
             # - parse the expr
@@ -226,12 +224,19 @@ class BaseQuantDslApplication(EventSourcingApplication):
             assert isinstance(dsl_expr, DslExpression), dsl_expr
 
             # - evaluate the compiled expr
+            first_market_name = market_simulation.market_names[0] if market_simulation.market_names else None
+            evaluation_kwds = {
+                'simulated_price_repo': self.simulated_price_repo,
+                'simulation_id': market_simulation.id,
+                'interest_rate': 0,
+                'present_time': call.effective_present_time or market_simulation.observation_time,
+                'first_market_name': first_market_name,
+            }
             result_value = dsl_expr.evaluate(**evaluation_kwds)
 
             # - store the result
             register_call_result(call_id=call_id, result_value=result_value)
 
-    def generate_call_order(self, dependency_graph):
-        assert isinstance(dependency_graph, DependencyGraph)
-        return generate_call_order(dependency_graph, self.leaf_calls_repo, self.call_dependents_repo,
-                                         self.call_dependencies_repo)
+    # def generate_execution_order(self, dependency_graph):
+    #     assert isinstance(dependency_graph, DependencyGraph)
+    #     return generate_execution_order(self.call_link_repo, self.call_dependents_repo, self.call_dependencies_repo)

@@ -12,13 +12,13 @@ from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.contract_specification import ContractSpecification
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.dependency_graph import DependencyGraph
-from quantdsl.domain.model.leaf_calls import LeafCalls
+from quantdsl.domain.model.call_link import CallLink
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.create_uuid4 import create_uuid4
-from quantdsl.domain.services.fixing_times import fixing_times_from_call_order
-from quantdsl.domain.services.market_names import market_names_from_contract_specification
+from quantdsl.domain.services.fixing_times import list_fixing_times
+from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -42,8 +42,11 @@ class TestApplication(unittest.TestCase):
 
     def test_register_dependency_graph(self):
         app = self.get_app()
-        dependency_graph = app.register_dependency_graph()
+        contract_specification_id = create_uuid4()
+        dependency_graph = app.register_dependency_graph(contract_specification_id)
+        self.assertIsInstance(dependency_graph, DependencyGraph)
         assert isinstance(dependency_graph, DependencyGraph)
+        self.assertEqual(dependency_graph.contract_specification_id, contract_specification_id)
 
     def test_register_call_requirements(self):
         app = self.get_app()
@@ -94,14 +97,14 @@ class TestApplication(unittest.TestCase):
         app = self.get_app()
         dependency_graph_id = create_uuid4()
 
-        self.assertRaises(KeyError, app.leaf_calls_repo.__getitem__, dependency_graph_id)
+        self.assertRaises(KeyError, app.call_link_repo.__getitem__, dependency_graph_id)
 
         leaf_call_ids = ['123', '456']
 
         app.register_leaf_calls(dependency_graph_id=dependency_graph_id, call_ids=leaf_call_ids)
 
-        leaf_calls = app.leaf_calls_repo[dependency_graph_id]
-        assert isinstance(leaf_calls, LeafCalls)
+        leaf_calls = app.call_link_repo[dependency_graph_id]
+        assert isinstance(leaf_calls, CallLink)
         self.assertEqual(leaf_calls.call_ids, leaf_call_ids)
 
     def test_register_call_result(self):
@@ -151,12 +154,12 @@ double(1 + 1)
 
         self.assertEqual(dependency.dependents[0], dependency_graph.id)
 
-    def test_generate_dependency_graph_recursive_indefinite(self):
+    def test_generate_dependency_graph_recursive_functional_call(self):
         app = self.get_app()
         contract_specification = app.register_contract_specification(specification="""
 def inc(x):
     if x < 10:
-        return inc(x+1)
+        return inc(x+1) + inc(x+2)
     else:
         return 100
 
@@ -168,7 +171,7 @@ inc(1 + 2)
         self.assertEqual(len(call_dependencies.dependencies), 1)
         dependency_id = call_dependencies.dependencies[0]
         dependents = app.call_dependents_repo[dependency_id].dependents
-        self.assertEqual(len(dependents), 2)
+        self.assertEqual(len(dependents), 1)
         self.assertIn(dependency_graph.id, dependents)
         # A circular dependency...
         self.assertIn(dependency_id, dependents)
@@ -289,13 +292,11 @@ inc(1 + 2)
         # Generate the dependency graph.
         dependency_graph = app.generate_dependency_graph(contract_specification=contract_specification)
 
-        call_order = app.generate_call_order(dependency_graph)
-
         market_calibration = self.get_calibration_fixture(app)
         market_simulation = self.get_market_simulation_fixture(app, market_calibration)
 
         # Generate the contract valuation.
-        app.generate_contract_valuation(dependency_graph, market_simulation, call_order)
+        app.generate_contract_valuation(dependency_graph, market_simulation)
 
         # Check the result.
         self.assertIn(dependency_graph.id, app.call_result_repo)
@@ -314,13 +315,11 @@ fib(6)
         # Generate the dependency graph.
         dependency_graph = app.generate_dependency_graph(contract_specification=contract_specification)
 
-        call_order = app.generate_call_order(dependency_graph)
-
         market_calibration = self.get_calibration_fixture(app)
         market_simulation = self.get_market_simulation_fixture(app, market_calibration)
 
         # Generate the contract valuation.
-        app.generate_contract_valuation(dependency_graph, market_simulation, call_order)
+        app.generate_contract_valuation(dependency_graph, market_simulation)
 
         # Check the result.
         self.assertIn(dependency_graph.id, app.call_result_repo)
@@ -345,20 +344,17 @@ def American(starts, ends, strike, underlying):
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
-American(Date('2011-01-01'), Date('2011-01-03'), 9, Market('#1'))
+American(Date('2011-01-01'), Date('2011-01-05'), 9, Market('#1'))
 """)
 
         # Generate the dependency graph from the contract specification.
         dependency_graph = app.generate_dependency_graph(contract_specification=contract_specification)
 
-        # Generate call order from the dependency graph.
-        call_order = list(app.generate_call_order(dependency_graph))
-
         # Generate the market simulation.
         market_calibration = self.get_calibration_fixture(app)
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        market_names = market_names_from_contract_specification(contract_specification)
-        fixing_times = fixing_times_from_call_order(call_order, app.call_requirement_repo)
+        market_names = list_market_names(contract_specification)
+        fixing_times = list_fixing_times(dependency_graph, app.call_requirement_repo, app.call_link_repo)
         observation_time = datetime.date(2010, 1, 1)
         path_count = self.PATH_COUNT
 
@@ -372,7 +368,7 @@ American(Date('2011-01-01'), Date('2011-01-03'), 9, Market('#1'))
         )
 
         # Generate the contract valuation.
-        app.generate_contract_valuation(dependency_graph, market_simulation, call_order)
+        app.generate_contract_valuation(dependency_graph, market_simulation)
 
         # Check the result.
         self.assertIn(dependency_graph.id, app.call_result_repo)
@@ -394,24 +390,19 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-01-10'), Market('#1'), 10)
+Swing(Date('2021-01-01'), Date('2021-02-01'), Market('#1'), 5)
 """)
 
         # Generate the dependency graph from the contract specification.
         dependency_graph = app.generate_dependency_graph(contract_specification=contract_specification)
 
-        # Generate call order from the dependency graph.
-        call_order = list(app.generate_call_order(dependency_graph))
-
-        # self.assertEqual(len(call_order), 10)
-
         # Generate the market simulation.
         market_calibration = self.get_calibration_fixture(app)
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        market_names = market_names_from_contract_specification(contract_specification)
-        fixing_times = fixing_times_from_call_order(call_order, app.call_requirement_repo)
+        market_names = list_market_names(contract_specification)
+        fixing_times = list_fixing_times(dependency_graph, app.call_requirement_repo, app.call_link_repo)
         observation_time = datetime.date(2010, 1, 1)
-        path_count = 20000
+        path_count = self.PATH_COUNT
 
         market_simulation = app.generate_market_simulation(
             market_calibration=market_calibration,
@@ -423,13 +414,13 @@ Swing(Date('2011-01-01'), Date('2011-01-10'), Market('#1'), 10)
         )
 
         # Generate the contract valuation.
-        app.generate_contract_valuation(dependency_graph, market_simulation, call_order)
+        app.generate_contract_valuation(dependency_graph, market_simulation)
 
         # Check the result.
         self.assertIn(dependency_graph.id, app.call_result_repo)
         call_result = app.call_result_repo[dependency_graph.id]
         assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.result_value.mean(), 20, places=2)
+        self.assertAlmostEqual(call_result.result_value.mean(), 50, places=1)
 
     def test_generate_valuation_power_plant_option(self):
         app = self.get_app()
@@ -462,24 +453,19 @@ def PowerPlant(start_date, end_date, underlying, time_since_off):
     else:
         return 0
 
-PowerPlant(Date('2012-02-01'), Date('2012-02-04'), Market('#1'), 2)
+PowerPlant(Date('2012-02-01'), Date('2012-02-11'), Market('#1'), 2)
 """)
 
         # Generate the dependency graph from the contract specification.
         dependency_graph = app.generate_dependency_graph(contract_specification=contract_specification)
 
-        # Generate call order from the dependency graph.
-        call_order = list(app.generate_call_order(dependency_graph))
-
-        # self.assertEqual(len(call_order), 10)
-
         # Generate the market simulation.
         market_calibration = self.get_calibration_fixture(app)
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        market_names = market_names_from_contract_specification(contract_specification)
-        fixing_times = fixing_times_from_call_order(call_order, app.call_requirement_repo)
+        market_names = list_market_names(contract_specification)
+        fixing_times = list_fixing_times(dependency_graph, app.call_requirement_repo, app.call_link_repo)
         observation_time = datetime.date(2010, 1, 1)
-        path_count = 20000
+        path_count = self.PATH_COUNT
 
         market_simulation = app.generate_market_simulation(
             market_calibration=market_calibration,
@@ -491,7 +477,7 @@ PowerPlant(Date('2012-02-01'), Date('2012-02-04'), Market('#1'), 2)
         )
 
         # Generate the contract valuation.
-        app.generate_contract_valuation(dependency_graph, market_simulation, call_order)
+        app.generate_contract_valuation(dependency_graph, market_simulation)
 
         # Check the result.
         self.assertIn(dependency_graph.id, app.call_result_repo)
