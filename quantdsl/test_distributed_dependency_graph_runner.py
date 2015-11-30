@@ -11,7 +11,7 @@ from quantdsl import utc
 from quantdsl.application.main import get_quantdsl_app
 from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.simulated_price import register_simulated_price
-from quantdsl.domain.services.create_uuid4 import create_uuid4
+from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.infrastructure.celery.tasks import celery_evaluate_call, celery_handle_result
 from quantdsl.infrastructure.runners.distributed import DistributedDependencyGraphRunner
 from quantdsl.services import dsl_compile

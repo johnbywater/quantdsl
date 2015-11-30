@@ -10,37 +10,30 @@ import itertools
 
 class BlackScholesPriceProcess(PriceProcess):
 
-    def simulate_future_prices(self, market_names, fixing_dates, observation_time, path_count, market_calibration):
+    def simulate_future_prices(self, market_names, fixing_dates, observation_time, path_count, calibration_params):
         # Compute correlated Brownian motions, for each fixing date.
         all_brownian_motions = self.get_brownian_motions(market_names, fixing_dates, observation_time, path_count,
-                                                         market_calibration)
+                                                         calibration_params)
 
         # Compute simulated market prices using the correlated Brownian
         # motions, the actual historical volatility, and the last price.
         import scipy
-        # all_market_prices = {}
         for market_name, brownian_motions in all_brownian_motions:
-            last_price = market_calibration['%s-LAST-PRICE' % market_name.upper()]
-            actual_historical_volatility = market_calibration['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
-            # market_prices = {}
+            last_price = calibration_params['%s-LAST-PRICE' % market_name.upper()]
+            actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
             sigma = actual_historical_volatility / 100.0
             for fixing_date, brownian_rv in brownian_motions:
                 T = get_duration_years(observation_time, fixing_date)
                 simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
                 yield market_name, fixing_date, simulated_value
 
-        #
-        #         market_prices[fixing_date] = simulated_value
-        #     all_market_prices[market_name] = market_prices
-        # return all_market_prices
+    def get_brownian_motions(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
+        assert isinstance(market_names, list), market_names
+        assert isinstance(fixing_dates, list), fixing_dates
+        assert isinstance(observation_date, datetime.date), observation_date
+        assert isinstance(path_count, int), path_count
 
-    def get_brownian_motions(self, market_names, fixing_dates, observation_date, path_count, market_calibration):
-        assert isinstance(observation_date, datetime.date), type(observation_date)
-        assert isinstance(path_count, int), type(path_count)
-
-        market_names = list(market_names)
-
-        # Get an ordered list of dates.
+        # Get an ordered list of all the dates.
         fixing_dates = set(fixing_dates)
         fixing_dates.add(observation_date)
         all_dates = sorted(fixing_dates)
@@ -70,47 +63,19 @@ class BlackScholesPriceProcess(PriceProcess):
                 _start_date = fixing_date
                 start_rv = end_rv
 
-        # Read the market correlation calibrations.
-        correlations = {}
-        for market_name_pair in itertools.combinations(market_names, 2):
-            market_name_pair = tuple(sorted(market_name_pair))
-            calibration_name = "%s-%s-CORRELATION" % market_name_pair
-            try:
-                correlation = market_calibration[calibration_name]
-            except KeyError as e:
-                msg = "Can't find correlation between '%s' and '%s': '%s' not defined in market calibration: %s" % (
-                    market_name_pair[0],
-                    market_name_pair[1],
-                    market_calibration.keys(),
-                    e
-                )
-                raise DslError(msg)
-            else:
-                correlations[market_name_pair] = correlation
-
-        # Construct the correlation matrix.
         correlation_matrix = numpy.zeros((len_market_names, len_market_names))
         for i in range(len_market_names):
             for j in range(len_market_names):
 
                 # Get the correlation between market i and market j...
-                if market_names[i] == market_names[j]:
+                name_i = market_names[i]
+                name_j = market_names[j]
+                if name_i == name_j:
                     # - they are identical
                     correlation = 1
                 else:
                     # - correlation is expected to be in the "calibration" data
-                    market_name_pair = tuple(sorted([market_names[i], market_names[j]]))
-                    calibration_name = "%s-%s-CORRELATION" % market_name_pair
-                    try:
-                        correlation = market_calibration[calibration_name]
-                    except KeyError as e:
-                        msg = "Can't find correlation between '%s' and '%s': '%s' not defined in market calibration: %s" % (
-                            market_name_pair[0],
-                            market_name_pair[1],
-                            market_calibration.keys(),
-                            e
-                        )
-                        raise DslError(msg)
+                    correlation = self.get_correlation_from_calibration(calibration_params, name_i, name_j)
 
                 # ...and put the correlation in the correlation matrix.
                 correlation_matrix[i][j] = correlation
@@ -145,6 +110,23 @@ class BlackScholesPriceProcess(PriceProcess):
             all_brownian_motions.append((market_name, market_rvs))
 
         return all_brownian_motions
+
+    def get_correlation_from_calibration(self, market_calibration, name_i, name_j):
+        market_name_pair = tuple(sorted([name_i, name_j]))
+        calibration_name = "%s-%s-CORRELATION" % market_name_pair
+        try:
+            correlation = market_calibration[calibration_name]
+        except KeyError as e:
+            msg = "Can't find correlation between '%s' and '%s' in market calibration params: %s: %s" % (
+                market_name_pair[0],
+                market_name_pair[1],
+                market_calibration.keys(),
+                e
+            )
+            raise DslError(msg)
+        else:
+            assert isinstance(correlation, (float, int)), correlation
+        return correlation
 
 
 class BlackScholesVolatility(object):

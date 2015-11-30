@@ -1,6 +1,6 @@
 from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
 from eventsourcing.domain.model.events import publish
-from quantdsl.domain.services.create_uuid4 import create_uuid4
+from quantdsl.domain.services.uuids import create_uuid4
 
 
 class MarketSimulation(EventSourcedEntity):

@@ -16,7 +16,7 @@ from quantdsl.domain.model.call_link import CallLink
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
-from quantdsl.domain.services.create_uuid4 import create_uuid4
+from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.domain.services.fixing_times import list_fixing_times
 from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
@@ -437,9 +437,9 @@ def NextTime(time_since_off):
 @nostub
 def ProfitFromRunning(start_date, underlying, time_since_off):
     if time_since_off == 0:
-        return Fixing(start_date, underlying) - 9
+        return Fixing(start_date, underlying)
     elif time_since_off == 1:
-        return 0.9 * Fixing(start_date, underlying) - 9
+        return 0.9 * Fixing(start_date, underlying)
     else:
         return 0.8 * Fixing(start_date, underlying) - 9
 
@@ -453,7 +453,8 @@ def PowerPlant(start_date, end_date, underlying, time_since_off):
     else:
         return 0
 
-PowerPlant(Date('2012-02-01'), Date('2012-02-11'), Market('#1'), 2)
+PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
+
 """)
 
         # Generate the dependency graph from the contract specification.
@@ -465,7 +466,7 @@ PowerPlant(Date('2012-02-01'), Date('2012-02-11'), Market('#1'), 2)
         market_names = list_market_names(contract_specification)
         fixing_times = list_fixing_times(dependency_graph, app.call_requirement_repo, app.call_link_repo)
         observation_time = datetime.date(2010, 1, 1)
-        path_count = self.PATH_COUNT
+        path_count = 20
 
         market_simulation = app.generate_market_simulation(
             market_calibration=market_calibration,
@@ -495,7 +496,7 @@ PowerPlant(Date('2012-02-01'), Date('2012-02-11'), Market('#1'), 2)
         calibration_params = {
             '#1-LAST-PRICE': 10,
             '#2-LAST-PRICE': 20,
-            '#1-ACTUAL-HISTORICAL-VOLATILITY': 1.0,
+            '#1-ACTUAL-HISTORICAL-VOLATILITY': 10.0,
             '#2-ACTUAL-HISTORICAL-VOLATILITY': 0.2,
             '#1-#2-CORRELATION': 0.5,
         }

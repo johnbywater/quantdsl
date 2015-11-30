@@ -13,7 +13,7 @@ from quantdsl.domain.model.call_requirement import StubbedCall
 from quantdsl.domain.model.contract_specification import make_simulated_price_id
 
 from quantdsl.domain.model.simulated_price import SimulatedPrice
-from quantdsl.domain.services.create_uuid4 import create_uuid4
+from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.exceptions import DslSystemError, DslSyntaxError, DslNameError, DslError
 from quantdsl.priceprocess.base import get_duration_years
 
@@ -1444,8 +1444,8 @@ def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None, is_depende
         if is_dependency_graph:
             # Compile the module as a dependency graph.
 
-            from quantdsl.domain.services import create_uuid4
-            root_stub_id = create_uuid4()
+            from quantdsl.domain.services import uuids
+            root_stub_id = uuids()
             stubbed_calls = generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals)
             raise NotImplementedError()
             # dependencies, dependents, leaf_ids = extract_graph_structure(stubbed_calls)

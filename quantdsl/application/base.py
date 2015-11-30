@@ -4,30 +4,28 @@ from eventsourcing.application.base import EventSourcingApplication
 
 from quantdsl.domain.model.call_dependencies import register_call_dependencies
 from quantdsl.domain.model.call_dependents import register_call_dependents
+from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_requirement import register_call_requirement, StubbedCall, CallRequirement
 from quantdsl.domain.model.call_result import register_call_result
 from quantdsl.domain.model.contract_specification import register_contract_specification, ContractSpecification
 from quantdsl.domain.model.contract_valuation import register_contract_valuation
-from quantdsl.domain.model.dependency_graph import register_dependency_graph, DependencyGraph
-from quantdsl.domain.model.call_link import register_call_link
-from quantdsl.domain.model.market_calibration import register_market_calibration, compute_market_calibration_params, \
-    MarketCalibration
+from quantdsl.domain.model.dependency_graph import register_dependency_graph
+from quantdsl.domain.model.market_calibration import register_market_calibration, compute_market_calibration_params
 from quantdsl.domain.model.market_simulation import register_market_simulation, MarketSimulation
-from quantdsl.domain.model.price_process import get_price_process
 from quantdsl.domain.model.simulated_price import register_simulated_price
 from quantdsl.domain.services.dependency_graph import get_dependency_values, generate_execution_order
 from quantdsl.domain.services.fixing_times import regenerate_execution_order
+from quantdsl.domain.services.simulated_prices import simulate_future_prices
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
+from quantdsl.infrastructure.event_sourced_repos.call_link_repo import CallLinkRepo
 from quantdsl.infrastructure.event_sourced_repos.call_requirement_repo import CallRequirementRepo
 from quantdsl.infrastructure.event_sourced_repos.call_result_repo import CallResultRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_valuation_repo import ContractValuationRepo
-from quantdsl.infrastructure.event_sourced_repos.call_link_repo import CallLinkRepo
 from quantdsl.infrastructure.event_sourced_repos.market_calibration_repo import MarketCalibrationRepo
 from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import MarketSimulationRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
-from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.semantics import generate_stubbed_calls, extract_defs_and_exprs, DslExpression, DslNamespace, Module
 from quantdsl.services import dsl_parse
 
@@ -76,6 +74,15 @@ class BaseQuantDslApplication(EventSourcingApplication):
         assert isinstance(calibration_params, dict)
         return register_market_calibration(calibration_params)
 
+    def generate_market_simulation(self, market_calibration, price_process_name, market_names, fixing_times,
+                                   observation_time, path_count):
+        market_simulation = self.register_market_simulation(market_calibration.id, price_process_name, market_names,
+                                                            fixing_times, observation_time, path_count)
+
+        self.generate_simulated_prices(market_calibration, market_simulation)
+
+        return market_simulation
+
     def register_market_simulation(self, market_calibration_id, price_process_name, market_names, fixing_times,
                                    observation_time, path_count):
         """
@@ -84,35 +91,20 @@ class BaseQuantDslApplication(EventSourcingApplication):
         return register_market_simulation(market_calibration_id, price_process_name, market_names, fixing_times,
                                           observation_time, path_count)
 
+    def generate_simulated_prices(self, market_calibration, market_simulation):
+
+        simulated_prices = self.simulate_future_prices(market_calibration, market_simulation)
+        for market_name, fixing_time, price_value in simulated_prices:
+            self.register_simulated_price(market_simulation.id, market_name, fixing_time, price_value)
+
+    def simulate_future_prices(self, market_calibration, market_simulation):
+        return simulate_future_prices(market_simulation, market_calibration)
+
     def register_simulated_price(self, market_simulation_id, market_name, fixing_time, price_value):
         """
         A simulated price is generated during a market simulation.
         """
         return register_simulated_price(market_simulation_id, market_name, fixing_time, price_value)
-
-    def simulate_future_prices(self, market_calibration, market_simulation):
-        assert isinstance(market_calibration, MarketCalibration)
-        assert isinstance(market_simulation, MarketSimulation)
-        price_process = get_price_process(market_simulation.price_process_name)
-        assert isinstance(price_process, PriceProcess), price_process
-        return price_process.simulate_future_prices(
-                market_names=market_simulation.market_names,
-                fixing_dates=market_simulation.fixing_times,
-                observation_time=market_simulation.observation_time,
-                path_count=market_simulation.path_count,
-                market_calibration=market_calibration.calibration_params)
-
-    def generate_simulated_prices(self, market_calibration, market_simulation):
-        simulated_prices = self.simulate_future_prices(market_calibration, market_simulation)
-        for market_name, fixing_time, price_value in simulated_prices:
-            self.register_simulated_price(market_simulation.id, market_name, fixing_time, price_value)
-
-    def generate_market_simulation(self, market_calibration, price_process_name, market_names, fixing_times,
-                                   observation_time, path_count):
-        market_simulation = self.register_market_simulation(market_calibration.id, price_process_name, market_names,
-                                                            fixing_times, observation_time, path_count)
-        self.generate_simulated_prices(market_calibration, market_simulation)
-        return market_simulation
 
     def register_contract_specification(self, specification):
         """
@@ -236,7 +228,3 @@ class BaseQuantDslApplication(EventSourcingApplication):
 
             # - store the result
             register_call_result(call_id=call_id, result_value=result_value)
-
-    # def generate_execution_order(self, dependency_graph):
-    #     assert isinstance(dependency_graph, DependencyGraph)
-    #     return generate_execution_order(self.call_link_repo, self.call_dependents_repo, self.call_dependencies_repo)
