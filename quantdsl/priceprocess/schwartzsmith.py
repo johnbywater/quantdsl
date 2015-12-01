@@ -36,11 +36,9 @@ from __future__ import division
 #% and simulation.
 
 
-import datetime
 from matplotlib import pylab as plt, pylab
 import scipy as np
 from scipy.optimize import basinhopping
-import xlrd
 
 np.seterr(over='raise')
 
@@ -125,7 +123,7 @@ def calibrate(allData, niter=100, path_count=1000):
         result = basinhopping(objective, x0, T=0.5, stepsize=0.1, niter=niter, minimizer_kwargs=minimizer_kwargs)
 
         results.append(result)
-        print commodity_name, result.fun, convert_to_schwartz_params_dict(result.x), result.x[9:]
+        print(commodity_name, result.fun, convert_to_schwartz_params_dict(result.x), result.x[9:])
     all_optimized_schwartz_params = []
     all_optimized_seasonal_params = []
     for c in range(num_commodities):

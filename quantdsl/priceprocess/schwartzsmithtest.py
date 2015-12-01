@@ -1,4 +1,7 @@
 from unittest import TestCase
+
+import six
+
 from quantdsl.priceprocess.schwartzsmith import calibrate, simulate_prices, plot_simulated_prices
 import json
 import datetime
@@ -11,7 +14,7 @@ class TestSchwartzSmithPriceProcess(TestCase):
         allData = self.allObservedData[:]
         allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(allData, niter=100, path_count=50000)
 
-        print "allOptimizedSchwartzParams:", repr(allOptimizedSchwartzParams), "allOptimizedSeasonalParams:", repr(allOptimizedSeasonalParams), "allRhos:", repr(allRhos), "correlationMatrix:", repr(correlationMatrix), "simCorrelations:", repr(simCorrelations)
+        print("allOptimizedSchwartzParams:", repr(allOptimizedSchwartzParams), "allOptimizedSeasonalParams:", repr(allOptimizedSeasonalParams), "allRhos:", repr(allRhos), "correlationMatrix:", repr(correlationMatrix), "simCorrelations:", repr(simCorrelations))
 
         plot_simulated_prices(allData, simulatedPrices)
 
@@ -1219,7 +1222,7 @@ def read_xl_doc():
 
             def param(params, key, row, col):
                 v = sheet.cell_value(row, col)
-                if isinstance(key, basestring) and key.lower()[-4:] == 'date':
+                if isinstance(key, six.string_types) and key.lower()[-4:] == 'date':
                     v = datetime.datetime(*xldate_as_tuple(v, wb.datemode))
                 params[key] = v
 
@@ -1250,10 +1253,10 @@ def read_xl_doc():
             print_data.append(idata)
 
     import json
-    print "import datetime"
-    print "from scipy import array"
-    print
-    print json.dumps(print_data, indent=4)
+    print("import datetime")
+    print("from scipy import array")
+    print()
+    print(json.dumps(print_data, indent=4))
 
     return alldata
 
