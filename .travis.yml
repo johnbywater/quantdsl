@@ -16,8 +16,8 @@ before_install:
  - conda update --yes conda
 
 install:
- - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
- - source activate test
+# - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
+# - source activate test
  - conda install --yes numpy=$NUMPY scipy=$SCIPY matplotlib pip
  # Coverage packages are on my binstar channel
  - conda install --yes -c dan_blanchard python-coveralls
