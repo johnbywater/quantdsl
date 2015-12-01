@@ -1,6 +1,9 @@
-requests
 argh
-argparse==1.2.1
+celery
 mock==1.0.1
+numpy
 python-dateutil==2.2
+requests
+scipy
 six==1.7.3
+eventsourcing

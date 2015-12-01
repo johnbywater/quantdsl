@@ -30,7 +30,7 @@ __version__ = '0.2.0'
 # Todo: Think about other possibility of supporting another syntax? Perhaps there is a better syntax than the Python based syntax?
 # Todo: Develop natural language "skin" for Quant DSL expressions (something like how Gherkin syntax maps to functions?)?
 # Todo: Support list comprehensions, for things like a strip of options?
-# Todo: Figure out how to identify and catch infinite loops, perhaps by limiting the total number of FunctionDef.apply() calls in one DslParser.parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
+# Todo: Figure out how to identify and catch infinite loops, perhaps by limiting the total number of FunctionDef.apply() calls in one DslParser.dsl_parse() to a configurable limit? Need to catch e.g. def f(n): return f(n+1).
 # Todo: Make it work with Python 3.
 # Todo: Build out the persistence support, so it can run with various backends (RDBMS, Redis, Celery, etc.).
 # Todo: Develop a GUI that shows the graph being evaluated, allowing results to be examined, allows models to be developed. Look at the "language workbench" ideas from Martin Fowler (environment which shows example results, with editable code reachable from the results, and processing built-in)?
@@ -41,7 +41,7 @@ __version__ = '0.2.0'
 # Todo: Raise Quant DSL-specific type mismatch errors at run time (ie e.g. handle situation where datetime and string can't be added).
 # Todo: Anyway, identify when type mismatches will occur - can't multiply a date by a number, can't add a date to a date or to a number, can't add a number to a timedelta. Etc?
 # Todo: (Long one) Go through all ways of writing broken DSL source code, and make sure there are sensible errors.
-# Todo: Figure out behaviour for observation_time > any fixing date, currently leads to a complex numbers (square root of negative time delta).
+# Todo: Figure out behaviour for observation_date > any fixing date, currently leads to a complex numbers (square root of negative time delta).
 # Todo: Think/talk about regressing on correlated brownian motions, rather than uncorrelated ones - is there actually a difference? If no difference, there is no need to keep the uncorrelated Brownian motions.
 # Todo: Review the test coverage of the code.
 # Todo: Review the separation of concerns between the various test cases.

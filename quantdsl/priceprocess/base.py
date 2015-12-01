@@ -1,13 +1,12 @@
 from __future__ import division
 from abc import ABCMeta, abstractmethod
+import six
 
 
-class PriceProcess(object):
-
-    __metaclass__ = ABCMeta
+class PriceProcess(six.with_metaclass(ABCMeta)):
 
     @abstractmethod
-    def simulateFuturePrices(self, market_names, fixing_dates, observation_time, path_count, market_calibration):
+    def simulate_future_prices(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
         """
         Returns dict (keyed by market name) of dicts (keyed by fixing date) with correlated random future prices.
         """

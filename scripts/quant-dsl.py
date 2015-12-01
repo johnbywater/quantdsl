@@ -23,7 +23,7 @@ defaultObservationTime = int("%04d%02d%02d" % (now.year, now.month, now.day))
                                                'defaults to cpu count)', nargs='?', type=int)
 @argh.arg('-q', '--quiet', help='don\'t show progress info')
 @argh.arg('-s', '--show-source', help='show source code and compiled expression stack')
-def main(source, observation_time=defaultObservationTime, calibration=None, num_paths=DEFAULT_PATH_COUNT,
+def main(source, observation_date=defaultObservationTime, calibration=None, num_paths=DEFAULT_PATH_COUNT,
          price_process=DEFAULT_PRICE_PROCESS_NAME, interest_rate=2.5, multiprocessing_pool=0, quiet=False,
          show_source=False):
     """
@@ -52,6 +52,8 @@ def main(source, observation_time=defaultObservationTime, calibration=None, num_
         else:
             raise DslError("Can't open resource: %s" % url)
 
+    # Todo: Make this work with Python 3.
+
     print "DSL source from: %s" % source_url
     print
     dsl_source = get_resource(source_url)
@@ -68,10 +70,10 @@ def main(source, observation_time=defaultObservationTime, calibration=None, num_
     else:
         market_calibration = {}
 
-    observation_time = datetime.datetime(
-        int(''.join(str(observation_time)[0:4])),
-        int(''.join(str(observation_time)[4:6])),
-        int(''.join(str(observation_time)[6:8]))
+    observation_date = datetime.datetime(
+        int(''.join(str(observation_date)[0:4])),
+        int(''.join(str(observation_date)[4:6])),
+        int(''.join(str(observation_date)[6:8]))
     ).replace(tzinfo=quantdsl.semantics.utc)
 
     try:
@@ -82,7 +84,7 @@ def main(source, observation_time=defaultObservationTime, calibration=None, num_
             market_calibration=market_calibration,
             interest_rate=interest_rate,
             path_count=num_paths,
-            observation_time=observation_time,
+            observation_date=observation_date,
             is_multiprocessing=bool(multiprocessing_pool),
             pool_size=multiprocessing_pool,
             is_verbose=is_verbose,

@@ -5,10 +5,14 @@ import threading
 import time
 
 from six import print_
-from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject
-from quantdsl.priceprocess.base import PriceProcess
-from quantdsl.syntax import DslParser
-from quantdsl.runtime import DependencyGraph, MultiProcessingDependencyGraphRunner, SingleThreadedDependencyGraphRunner
+
+from quantdsl.domain.model.dependency_graph import DependencyGraph
+from quantdsl.domain.services.parser import dsl_parse
+from quantdsl.domain.services.price_processes import get_price_process
+from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
+from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
+from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject, \
+    compile_dsl_module
 
 ## Application services.
 
@@ -47,121 +51,123 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     if is_verbose:
         print_("Compiling DSL source, please wait...")
         print_()
-    compileStartTime = datetime.datetime.now()
+    compile_start_time = datetime.datetime.now()
 
-    # Compile the source into a primitive DSL expression.
+    # Compile the source into a primitive DSL expression, with optional dependency graph.
     dsl_expr = dsl_compile(dsl_source, filename=filename, is_parallel=is_parallel, dsl_classes=dsl_classes,
                            compile_kwds=compile_kwds)
-    compileTimeDelta = datetime.datetime.now() - compileStartTime
-    assert isinstance(dsl_expr, (DslExpression, DependencyGraph)), type(dsl_expr)
+
+    # Measure the compile_dsl_module time.
+    compile_time_delta = datetime.datetime.now() - compile_start_time
+
+    # Check the result of the compilation.
+    # Todo: This feels unnecessary?
+    if is_parallel:
+        assert isinstance(dsl_expr, DependencyGraph), type(dsl_expr)
+    else:
+        assert isinstance(dsl_expr, DslExpression), type(dsl_expr)
 
     if is_verbose:
         if isinstance(dsl_expr, DependencyGraph):
-            lenStubbedExprs = len(dsl_expr.stubbed_exprs_data)
 
             print_("Compiled DSL source into %d partial expressions (root ID: %s)." % (
-                lenStubbedExprs, dsl_expr.root_stub_id))
+                len(dsl_expr.stubbed_calls), dsl_expr.root_stub_id))
             print_()
 
-        print_("Duration of compilation: %s" % compileTimeDelta)
+        print_("Duration of compilation: %s" % compile_time_delta)
         print_()
 
         if isinstance(dsl_expr, DependencyGraph):
             if is_show_source:
                 print_("Expression stack:")
-                for stubbedExprData in dsl_expr.stubbed_exprs_data:
-                    print_("  " + str(stubbedExprData[0]) + ": " + str(stubbedExprData[1]))
+                for stubbed_exprData in dsl_expr.stubbed_calls:
+                    print_("  " + str(stubbed_exprData[0]) + ": " + str(stubbed_exprData[1]))
                 print_()
 
-    if dsl_expr.has_instances(dslType=StochasticObject) or dsl_expr.has_instances(dslType=Market):
-        # evaluation_kwds must have 'observation_time'
-        observation_time = evaluation_kwds['observation_time']
-        assert isinstance(observation_time, datetime.datetime)
+    # If the expression has any stochastic elements, the evaluation kwds must have an 'observation_date' (datetime).
+    if dsl_expr.has_instances(dsl_type=StochasticObject):
+        observation_date = evaluation_kwds['observation_date']
+        assert isinstance(observation_date, datetime.date)
 
         if is_verbose:
-            print_("Observation time: %s" % observation_time)
+            print_("Observation time: %s" % observation_date)
             print_()
 
+        # Avoid any confusion with the internal 'present_time' variable.
         if 'present_time' in evaluation_kwds:
-            msg = ("Don't set present_time here, set observation_time instead. "
-                   "Adjust present_time with a Fixing or a Wait.")
+            msg = ("Don't set present_time here, set observation_date instead. "
+                   "Hint: Adjust effective present time with Fixing or Wait elements.")
             raise DslError(msg)
 
-        # Initialise present_time as observation_time.
-        evaluation_kwds['present_time'] = observation_time
+        # Initialise present_time as observation_date.
+        evaluation_kwds['present_time'] = observation_date
 
-    if dsl_expr.has_instances(dslType=Market):
-        # evaluation_kwds must have 'path_count'
-        if 'path_count' not in evaluation_kwds:
-            evaluation_kwds['path_count'] = DEFAULT_PATH_COUNT
-        path_count = evaluation_kwds['path_count']
-        assert isinstance(path_count, int)
+        # If the expression has any Market elements, a market simulation is required
+        if dsl_expr.has_instances(dsl_type=Market):
 
-        # Check calibration for market dynamics.
-        market_calibration = evaluation_kwds['market_calibration']
-        assert isinstance(market_calibration, dict)
+            # If a market simulation is required, evaluation kwds must have 'path_count' (integer).
+            if 'path_count' not in evaluation_kwds:
+                evaluation_kwds['path_count'] = DEFAULT_PATH_COUNT
+            path_count = evaluation_kwds['path_count']
+            assert isinstance(path_count, int)
 
-        # Construct the price simulations.
-        if not 'all_market_prices' in evaluation_kwds:
+            # If a market simulation is required, evaluation_kwds must have 'market_calibration' (integer).
+            market_calibration = evaluation_kwds['market_calibration']
+            assert isinstance(market_calibration, dict)
 
-            # Load the price process object.
-            price_process_module_name, price_process_class_name = price_process_name.rsplit('.', 1)
-            try:
-                price_process_module = __import__(price_process_module_name, '', '', '*')
-            except Exception as e:
-                raise DslError("Can't import price process module '%s': %s" % (price_process_module_name, e))
-            try:
-                price_process_class = getattr(price_process_module, price_process_class_name)
-            except Exception as e:
-                raise DslError("Can't find price process class '%s' in module '%s': %s" % (price_process_class_name, price_process_module_name, e))
+            # If a market simulation is required, generate the simulated prices using the price process.
+            if not 'all_market_prices' in evaluation_kwds:
 
-            assert issubclass(price_process_class, PriceProcess)
+                if is_verbose:
+                    print_("Price process: %s" % price_process_name)
+                    print_()
 
-            price_process = price_process_class()
+                price_process = get_price_process(price_process_name)
 
-            if is_verbose:
-                print_("Price process class: %s" % str(price_process_class).split("'")[1])
-                print_()
+                if is_verbose:
+                    print_("Path count: %d" % path_count)
+                    print_()
 
-            if is_verbose:
-                print_("Path count: %d" % path_count)
-                print_()
+                if is_verbose:
+                    print_("Finding all Market names and Fixing dates...")
+                    print_()
 
-            if is_verbose:
-                print_("Finding all Market names and Fixing dates...")
-                print_()
+                # Extract market names from the expression.
+                # Todo: Avoid doing this on the dependency graph, when all the Market elements must be in the original.
+                market_names = find_market_names(dsl_expr)
 
-            market_names = get_market_names(dsl_expr)
-            fixing_dates = get_fixing_dates(dsl_expr)
+                # Extract fixing dates from the expression.
+                # Todo: Perhaps collect the fixing dates?
+                fixing_dates = list_fixing_dates(dsl_expr)
 
-            if is_verbose:
-                print_("Simulating future prices for Market%s '%s' from observation time %s through fixing dates: %s." % (
-                    '' if len(market_names) == 1 else 's',
-                    ", ".join(market_names),
-                    "'%04d-%02d-%02d'" % (observation_time.year, observation_time.month, observation_time.day),
-                    # Todo: Only print first and last few, if there are loads.
-                    ", ".join(["'%04d-%02d-%02d'" % (d.year, d.month, d.day) for d in fixing_dates[:8]]) + \
-                    (", [...]" if len(fixing_dates) > 9 else '') + \
-                    ((", '%04d-%02d-%02d'" % (fixing_dates[-1].year, fixing_dates[-1].month, fixing_dates[-1].day)) if len(fixing_dates) > 8 else '')
-                ))
-                print_()
+                if is_verbose:
+                    print_("Simulating future prices for Market%s '%s' from observation time %s through fixing dates: %s." % (
+                        '' if len(market_names) == 1 else 's',
+                        ", ".join(market_names),
+                        "'%04d-%02d-%02d'" % (observation_date.year, observation_date.month, observation_date.day),
+                        # Todo: Only print first and last few, if there are loads.
+                        ", ".join(["'%04d-%02d-%02d'" % (d.year, d.month, d.day) for d in fixing_dates[:8]]) + \
+                        (", [...]" if len(fixing_dates) > 9 else '') + \
+                        ((", '%04d-%02d-%02d'" % (fixing_dates[-1].year, fixing_dates[-1].month, fixing_dates[-1].day)) if len(fixing_dates) > 8 else '')
+                    ))
+                    print_()
 
-            # Simulate the future prices.
-            all_market_prices = price_process.simulateFuturePrices(market_names, fixing_dates, observation_time, path_count, market_calibration)
+                # Simulate the future prices.
+                all_market_prices = price_process.simulate_future_prices(market_names, fixing_dates, observation_date, path_count, market_calibration)
 
-            # Add future price simulation to evaluation_kwds.
-            evaluation_kwds['all_market_prices'] = all_market_prices
+                # Add future price simulation to evaluation_kwds.
+                evaluation_kwds['all_market_prices'] = all_market_prices
 
     # Initialise the evaluation timer variable (needed by showProgress thread).
     evalStartTime = None
 
-    if isinstance(dsl_expr, DependencyGraph):
+    if is_parallel:
         if is_verbose:
 
-            lenStubbedExprs = len(dsl_expr.stubbed_exprs_data)
+            len_stubbed_exprs = len(dsl_expr.stubbed_calls)
             lenLeafIds = len(dsl_expr.leaf_ids)
 
-            msg = "Evaluating %d expressions (%d %s) with " % (lenStubbedExprs, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
+            msg = "Evaluating %d expressions (%d %s) with " % (len_stubbed_exprs, lenLeafIds, 'leaf' if lenLeafIds == 1 else 'leaves')
             if is_multiprocessing and pool_size:
                 msg += "a multiprocessing pool of %s workers" % pool_size
             else:
@@ -202,8 +208,8 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
                         rateStr = "%.2f expr/s" % (lenDelta / timeDeltaSeconds)
                     else:
                         rateStr = ''
-                    progress = 100.0 * lenResults / lenStubbedExprs
-                    sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, lenStubbedExprs, rateStr))
+                    progress = 100.0 * lenResults / len_stubbed_exprs
+                    sys.stdout.write("\rProgress: %01.2f%% (%s/%s) %s " % (progress, lenResults, len_stubbed_exprs, rateStr))
                     sys.stdout.flush()
                 sys.stdout.write("\r")
                 sys.stdout.flush()
@@ -217,7 +223,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     evalStartTime = datetime.datetime.now()
     try:
         # Evaluate the primitive DSL expression.
-        if isinstance(dsl_expr, DependencyGraph):
+        if is_parallel:
             if is_multiprocessing:
                 dependency_graph_runner_class = MultiProcessingDependencyGraphRunner
             else:
@@ -226,7 +232,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         else:
             value = dsl_expr.evaluate(**evaluation_kwds)
     except:
-        if isinstance(dsl_expr, DependencyGraph):
+        if is_parallel:
             if is_verbose:
                 if thread.isAlive():
                     # print "Thread is alive..."
@@ -246,8 +252,9 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
     if is_verbose:
         timeDeltaSeconds = evalTimeDelta.seconds + evalTimeDelta.microseconds * 0.000001
-        if isinstance(dsl_expr, DependencyGraph):
-            rateStr = "(%.2f expr/s)" % (lenStubbedExprs / timeDeltaSeconds)
+        if is_parallel:
+            len_stubbed_exprs = len(dsl_expr.stubbed_calls)
+            rateStr = "(%.2f expr/s)" % (len_stubbed_exprs / timeDeltaSeconds)
         else:
             rateStr = ''
         print_("Duration of evaluation: %s    %s" % (evalTimeDelta, rateStr))
@@ -266,27 +273,27 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         return value
 
 
-def get_fixing_dates(dsl_expr):
+def list_fixing_dates(dsl_expr):
     # Find all unique fixing dates.
-    fixing_dates = set()
-    for dslFixing in dsl_expr.find_instances(dslType=Fixing):
-        assert isinstance(dslFixing, Fixing)
-        if dslFixing.date is not None:
-            fixing_dates.add(dslFixing.date)
-        else:
-            pass
-    fixing_dates = sorted(list(fixing_dates))
-    return fixing_dates
+    return sorted(list(find_fixing_dates(dsl_expr)))
 
 
-def get_market_names(dsl_expr):
+def find_fixing_dates(dsl_expr):
+    for dsl_fixing in dsl_expr.find_instances(dsl_type=Fixing):
+        assert isinstance(dsl_fixing, Fixing)
+        if dsl_fixing.date is not None:
+            yield dsl_fixing.date
+
+
+def find_market_names(dsl_expr):
     # Find all unique market names.
-    market_names = set()
-    for dsl_market in dsl_expr.find_instances(dslType=Market):
+    all_market_names = set()
+    for dsl_market in dsl_expr.find_instances(dsl_type=Market):
         assert isinstance(dsl_market, Market)
-        market_names.add(dsl_market.name)
-
-    return market_names
+        market_name = dsl_market.name
+        if market_name not in all_market_names:  # Deduplicate.
+            all_market_names.add(market_name)
+            yield dsl_market.name
 
 
 def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None, **extraCompileKwds):
@@ -309,24 +316,12 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
     compile_kwds.update(extraCompileKwds)
 
     # Parse the source into a DSL module object.
-    dslModule = parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
+    dsl_module = dsl_parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
 
-    assert isinstance(dslModule, Module)
+    assert isinstance(dsl_module, Module)
 
-    # Compile the module into a single (primitive) expression.
-    if is_parallel:
-        dependencyGraphClass = DependencyGraph
-    else:
-        dependencyGraphClass = None
-    return dslModule.compile(DslNamespace(), compile_kwds, dependencyGraphClass=dependencyGraphClass)
+    # Compile the module into either a dependency graph
+    # if 'is_parallel' is True, otherwise a single primitive expression.
+    return compile_dsl_module(dsl_module, DslNamespace(), compile_kwds, is_dependency_graph=is_parallel)
 
 
-def parse(dsl_source, filename='<unknown>', dsl_classes=None):
-    """
-    Returns a DSL module, created according to the given DSL source module.
-    """
-    if dsl_classes is None:
-        from quantdsl.semantics import defaultDslClasses
-        dsl_classes = defaultDslClasses.copy()
-
-    return DslParser().parse(dsl_source, filename=filename, dsl_classes=dsl_classes)

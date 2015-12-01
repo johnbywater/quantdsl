@@ -20,16 +20,9 @@ setup(
     version=__version__,
     packages=find_packages(),
     # just use auto-include and specify special items in MANIFEST.in
-    zip_safe = False,
-    install_requires = [
-        'argh',
-        'mock',
-        'numpy',
-        'python-dateutil',
-        'scipy',
-        'six',
-    ],
-    scripts = [
+    zip_safe=False,
+    install_requires=open('requirements.txt').read().split('\n'),
+    scripts=[
         os.path.join('scripts', 'quant-dsl.py'),
     ],
     author='John Bywater',
@@ -37,8 +30,8 @@ setup(
     license='BSD',
     url='https://github.com/johnbywater/quantdsl',
     description='Domain specific language for quantitative analytics in finance.',
-    long_description = long_description,
-    classifiers = [
+    long_description=long_description,
+    classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
         'Intended Audience :: Developers',
@@ -48,6 +41,9 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
         'Topic :: Office/Business :: Financial',
         'Topic :: Office/Business :: Financial :: Investment',
         'Topic :: Office/Business :: Financial :: Spreadsheet',
