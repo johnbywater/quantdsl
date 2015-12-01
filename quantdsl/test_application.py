@@ -6,6 +6,7 @@ import six
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
+from quantdsl.application.with_sqlalchemy import QuantDslApplicationWithSQLAlchemy
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
@@ -437,9 +438,9 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-01-15'), Market('NBP'), 5)
+Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 51.4199)
+        self.assert_contract_value(specification, 30.2075)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
@@ -520,5 +521,5 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
 
 
 def get_app():
-    # return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
-    return QuantDslApplicationWithPythonObjects()
+    return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
+    # return QuantDslApplicationWithPythonObjects()
