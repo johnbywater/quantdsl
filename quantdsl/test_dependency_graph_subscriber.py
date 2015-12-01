@@ -1,6 +1,6 @@
 from eventsourcing.domain.model.events import publish
 from mock import patch
-from mock.mock import MagicMock
+from mock import MagicMock
 from twisted.trial import unittest
 
 from quantdsl.domain.model.call_dependencies import CallDependenciesRepository

@@ -6,7 +6,6 @@ import six
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.application.with_sqlalchemy import QuantDslApplicationWithSQLAlchemy
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
@@ -521,5 +520,5 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
 
 
 def get_app():
-    return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
-    # return QuantDslApplicationWithPythonObjects()
+    # return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
+    return QuantDslApplicationWithPythonObjects()

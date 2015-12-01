@@ -1,7 +1,7 @@
 import datetime
 from eventsourcing.domain.model.events import publish
 from mock import patch
-from mock.mock import MagicMock, Mock
+from mock import MagicMock
 from twisted.trial import unittest
 
 from quantdsl.domain.model.market_calibration import MarketCalibrationRepository, MarketCalibration
