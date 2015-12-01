@@ -1,6 +1,6 @@
 import datetime
 
-import numpy
+import scipy
 import six
 from eventsourcing.infrastructure.event_store import EventStore
 from eventsourcing.infrastructure.persistence_subscriber import PersistenceSubscriber
@@ -209,8 +209,8 @@ class TestSimulatedPrices(unittest.TestCase):
     @patch('quantdsl.domain.services.simulated_prices.get_price_process', new=lambda name: Mock(
         spec=BlackScholesPriceProcess,
         simulate_future_prices=lambda market_names, fixing_dates, observation_date, path_count, calibration_params: [
-            ('#1', datetime.date(2011, 1, 1), numpy.array([ 10.])),
-            ('#1', datetime.date(2011, 1, 2), numpy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 1), scipy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 2), scipy.array([ 10.])),
         ]
     ))
     def test_simulate_future_prices(self):
@@ -218,8 +218,8 @@ class TestSimulatedPrices(unittest.TestCase):
         mc = Mock(spec=MarketCalibration)
         prices = simulate_future_prices(market_simulation=ms, market_calibration=mc)
         self.assertEqual(list(prices), [
-            ('#1', datetime.date(2011, 1, 1), numpy.array([ 10.])),
-            ('#1', datetime.date(2011, 1, 2), numpy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 1), scipy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 2), scipy.array([ 10.])),
         ])
 
 

@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-import numpy
+import scipy
 import six
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
@@ -30,7 +30,7 @@ class ApplicationTestCase(unittest.TestCase):
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).setUp()
         self.app = get_app()
-        numpy.random.seed(1354802735)
+        scipy.random.seed(1354802735)
 
     def tearDown(self):
         super(ApplicationTestCase, self).tearDown()
@@ -125,7 +125,7 @@ class TestEventSourcedRepos(ApplicationTestCase):
     def test_register_simulated_price(self):
 
         price_time = datetime.datetime(2011, 1, 1)
-        price_value = numpy.array([1.1, 1.2, 1.367345987359734598734598723459872345987235698237459862345])
+        price_value = scipy.array([1.1, 1.2, 1.367345987359734598734598723459872345987235698237459862345])
         simulation_id = create_uuid4()
         self.assertRaises(KeyError, self.app.simulated_price_repo.__getitem__, simulation_id)
 
@@ -135,6 +135,7 @@ class TestEventSourcedRepos(ApplicationTestCase):
         assert price.id
         price = self.app.simulated_price_repo[make_simulated_price_id(simulation_id, '#1', price_time)]
         assert isinstance(price, SimulatedPrice)
+        import numpy
         numpy.testing.assert_equal(price.value, price_value)
 
     def test_register_contract_valuation(self):

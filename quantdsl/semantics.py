@@ -1,11 +1,12 @@
 from __future__ import division
 
+from abc import ABCMeta, abstractmethod
+from collections import namedtuple
 import datetime
 import itertools
 import math
+import scipy
 import re
-from abc import ABCMeta, abstractmethod
-from collections import namedtuple
 import six
 import six.moves.queue as queue
 
@@ -205,8 +206,8 @@ class Number(DslConstant):
 
     @property
     def required_type(self):
-        from numpy import ndarray
-        return (int, float, long, ndarray)
+        from scipy import ndarray
+        return (six.integer_types, float, ndarray)
 
 
 class Date(DslConstant):
@@ -408,7 +409,6 @@ class Max(BinOp):
         #  - two scalar numbers are good
         #  - one number with one vector is okay
         #  - two vectors is okay, but they must have the same length.
-        import numpy
         aIsaNumber = isinstance(a, (int, float))
         bIsaNumber = isinstance(b, (int, float))
         if aIsaNumber and bIsaNumber:
@@ -421,11 +421,11 @@ class Max(BinOp):
                 raise DslSystemError('Vectors have different length: ', descr, self.node)
         elif aIsaNumber and (not bIsaNumber):
             # Todo: Optimise with scipy.zeros() when a equals zero?
-            a = numpy.array([a] * len(b))
+            a = scipy.array([a] * len(b))
         elif bIsaNumber and (not aIsaNumber):
             # Todo: Optimise with scipy.zeros() when b equals zero?
-            b = numpy.array([b] * len(a))
-        c = numpy.array([a, b])
+            b = scipy.array([b] * len(a))
+        c = scipy.array([a, b])
         return c.max(axis=0)
 
 
@@ -478,11 +478,11 @@ class Name(DslExpression):
 
         combined_namespace = DslNamespace(itertools.chain(dsl_globals.items(), dsl_locals.items()))
 
-        from numpy import ndarray
+        from scipy import ndarray
         value = self.evaluate(**combined_namespace)
         if isinstance(value, six.string_types):
             return String(value, node=self.node)
-        elif isinstance(value, (int, float, long, ndarray)):
+        elif isinstance(value, (six.integer_types, float, ndarray)):
             return Number(value, node=self.node)
         elif isinstance(value, datetime.date):
             return Date(value, node=self.node)
@@ -1165,7 +1165,6 @@ class LongstaffSchwartz(object):
         all_states = self.get_states()
         all_states.reverse()
         value_of_being_in = {}
-        import numpy
         import scipy
         for state in all_states:
             assert isinstance(state, LongstaffSchwartzState)
@@ -1193,10 +1192,10 @@ class LongstaffSchwartz(object):
                     else:
                         conditional_expected_value = expected_continuation_value
                     conditional_expected_values.append(conditional_expected_value)
-                conditional_expected_values = numpy.array(conditional_expected_values)
-                expected_continuation_values = numpy.array(expected_continuation_values)
+                conditional_expected_values = scipy.array(conditional_expected_values)
+                expected_continuation_values = scipy.array(expected_continuation_values)
                 argmax = conditional_expected_values.argmax(axis=0)
-                offsets = numpy.array(range(0, conditional_expected_values.shape[1])) * conditional_expected_values.shape[0]
+                offsets = scipy.array(range(0, conditional_expected_values.shape[1])) * conditional_expected_values.shape[0]
                 indices = argmax + offsets
                 assert indices.shape == underlying_value.shape
                 state_value = expected_continuation_values.transpose().take(indices)
@@ -1214,8 +1213,8 @@ class LongstaffSchwartz(object):
                     else:
                         ones = scipy.ones(path_count)
                         state_value = ones * state_value
-                if not isinstance(state_value, numpy.ndarray):
-                    raise Exception("State value type is '%s' when numpy.ndarray is required: %s" % (
+                if not isinstance(state_value, scipy.ndarray):
+                    raise Exception("State value type is '%s' when scipy.ndarray is required: %s" % (
                         type(state_value), state_value))
             value_of_being_in[state] = state_value
         return value_of_being_in[self.initial_state]
@@ -1286,7 +1285,6 @@ class LeastSquares(object):
         self.y = y
 
     def fit(self):
-        import scipy
         regressions = list()
         # Regress against unity.
         regressions.append(scipy.ones(self.path_count))

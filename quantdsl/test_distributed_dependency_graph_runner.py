@@ -4,7 +4,7 @@ import sys
 import unittest
 from subprocess import Popen
 
-import numpy
+import scipy
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 
 from quantdsl import utc
@@ -77,7 +77,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
             # NB Need enough days to cover the date range in the dsl_source.
             for i in range(0, 10):
                 dt = datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i
-                value = numpy.array([10] * 2000)
+                value = scipy.array([10] * 2000)
                 register_simulated_price(market_simulation.id, market_name, fixing_date=dt)
 
         # Check we've got a path to the 'celery' command line program (hopefully it's next to this python executable).
@@ -95,7 +95,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
                 dsl_value = runner.evaluate(**kwds)
 
                 # Get the mean of the value, if it has one.
-                if isinstance(dsl_value, numpy.ndarray):
+                if isinstance(dsl_value, scipy.ndarray):
                     dsl_value = dsl_value.mean()
 
                 # Check the value is expected.

@@ -1,6 +1,4 @@
 import datetime
-import numpy
-from quantdsl import utc
 from quantdsl.application.main import get_quantdsl_app
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_specification import CallSpecification

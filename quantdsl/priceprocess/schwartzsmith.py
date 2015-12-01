@@ -38,7 +38,7 @@ from __future__ import division
 
 import datetime
 from matplotlib import pylab as plt, pylab
-import numpy as np
+import scipy as np
 from scipy.optimize import basinhopping
 import xlrd
 

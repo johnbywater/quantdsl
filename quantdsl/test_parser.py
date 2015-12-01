@@ -2,7 +2,7 @@ import datetime
 import unittest
 
 import mock
-import numpy
+import scipy
 
 from quantdsl import utc
 from quantdsl.domain.model.dependency_graph import DependencyGraph
@@ -494,7 +494,7 @@ American(Date('2012-01-01'), Date('2012-01-03'), 5, 10, TimeDelta('1d'))
             'present_time': datetime.datetime(2012, 1, 1, tzinfo=utc),
             'all_market_prices': {
                 '#1': dict(
-                    [(datetime.datetime(2012, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10]*2000))
+                    [(datetime.datetime(2012, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, scipy.array([10]*2000))
                         for i in range(0, 10)])  # NB Need enough days to cover the date range in the dsl_source.
             },
         }
@@ -577,7 +577,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
             'present_time': datetime.datetime(2011, 1, 1, tzinfo=utc),
             'all_market_prices': {
                 '#1': dict(
-                    [(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, numpy.array([10]*2000))
+                    [(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, scipy.array([10]*2000))
                         for i in range(0, 10)])  # NB Need enough days to cover the date range in the dsl_source.
             },
             'first_market_name': '#1'

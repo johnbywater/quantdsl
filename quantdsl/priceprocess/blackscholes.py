@@ -1,11 +1,12 @@
 from __future__ import division
 import math
 import scipy
+import scipy.linalg
+from scipy.linalg import LinAlgError
 from quantdsl.exceptions import DslError
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.priceprocess.base import get_duration_years
 import datetime
-import itertools
 
 
 class BlackScholesPriceProcess(PriceProcess):
@@ -18,7 +19,6 @@ class BlackScholesPriceProcess(PriceProcess):
 
             # Compute simulated market prices using the correlated Brownian
             # motions, the actual historical volatility, and the last price.
-            import scipy
             for market_name, brownian_motions in all_brownian_motions:
                 last_price = calibration_params['%s-LAST-PRICE' % market_name.upper()]
                 actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
@@ -46,16 +46,13 @@ class BlackScholesPriceProcess(PriceProcess):
             return []
 
         # Diffuse random variables through each date for each market (uncorrelated increments).
-        import numpy
-        import scipy.linalg
-        from numpy.linalg import LinAlgError
         brownian_motions = scipy.zeros((len_market_names, len_all_dates, path_count))
         for i in range(len_market_names):
             _start_date = all_dates[0]
             start_rv = brownian_motions[i][0]
             for j in range(len_all_dates - 1):
                 fixing_date = all_dates[j + 1]
-                draws = numpy.random.standard_normal(path_count)
+                draws = scipy.random.standard_normal(path_count)
                 T = get_duration_years(_start_date, fixing_date)
                 if T < 0:
                     raise DslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
@@ -68,7 +65,7 @@ class BlackScholesPriceProcess(PriceProcess):
                 start_rv = end_rv
 
         if len_market_names > 1:
-            correlation_matrix = numpy.zeros((len_market_names, len_market_names))
+            correlation_matrix = scipy.zeros((len_market_names, len_market_names))
             for i in range(len_market_names):
                 for j in range(len_market_names):
 

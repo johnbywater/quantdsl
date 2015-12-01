@@ -1251,7 +1251,7 @@ def read_xl_doc():
 
     import json
     print "import datetime"
-    print "from numpy import array"
+    print "from scipy import array"
     print
     print json.dumps(print_data, indent=4)
 
