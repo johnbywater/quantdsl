@@ -19,7 +19,7 @@ from quantdsl.services import dsl_compile
 
 class TestDistributedDependencyGraphRunner(unittest.TestCase):
 
-    def test_evaluate_call(self):
+    def _test_evaluate_call(self):
         # Check the example task works directly.
         # - set up the call requirement
         app = get_quantdsl_app()
@@ -33,7 +33,7 @@ class TestDistributedDependencyGraphRunner(unittest.TestCase):
         assert isinstance(call_result, CallResult)
         self.assertEqual(call_result.result_value, 3)
 
-    def test_handle_result(self):
+    def _test_handle_result(self):
         app = get_quantdsl_app()
         call_id = create_uuid4()
         app.register_call_requirement(call_id, '1 + 2', datetime.datetime.now())
@@ -42,7 +42,7 @@ class TestDistributedDependencyGraphRunner(unittest.TestCase):
         celery_handle_result(call_id, 3)
         return
 
-    def test_distributed_dependency_graph_runner(self):
+    def _test_distributed_dependency_graph_runner(self):
         # Setup the contract.
         #  - branching function calls
         dsl_source = """

@@ -96,12 +96,12 @@ class BaseQuantDslApplication(EventSourcingApplication):
         return register_market_calibration(price_process_name, calibration_params)
 
     def register_market_simulation(self, market_calibration_id, market_names, fixing_dates, observation_date,
-                                   path_count):
+                                   path_count, interest_rate):
         """
         A market simulation has simulated prices at specified times across a set of markets.
         """
         return register_market_simulation(market_calibration_id, market_names, fixing_dates, observation_date,
-                                          path_count)
+                                          path_count, interest_rate)
 
     def register_dependency_graph(self, contract_specification_id):
         return register_dependency_graph(contract_specification_id)
@@ -165,7 +165,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
             evaluation_kwds = {
                 'simulated_price_repo': self.simulated_price_repo,
                 'simulation_id': market_simulation.id,
-                'interest_rate': 0,
+                'interest_rate': market_simulation.interest_rate,
                 'present_time': call.effective_present_time or market_simulation.observation_date,
                 'first_market_name': first_market_name,
             }

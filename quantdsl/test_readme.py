@@ -6,7 +6,7 @@ import sys
 
 class TestUsage(unittest.TestCase):
 
-    def test_code_snippets_in_readme_file(self):
+    def _test_code_snippets_in_readme_file(self):
         # Extract lines of Python code from the README.md file.
         code_lines = []
         is_code = False

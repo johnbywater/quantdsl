@@ -1,0 +1,7 @@
+from eventsourcing.application.with_pythonobjects import EventSourcingWithPythonObjects
+from quantdsl.application.base import BaseQuantDslApplication
+
+
+class QuantDslApplicationWithPythonObjects(EventSourcingWithPythonObjects, BaseQuantDslApplication):
+
+    pass

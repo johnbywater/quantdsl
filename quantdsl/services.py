@@ -287,9 +287,13 @@ def find_fixing_dates(dsl_expr):
 
 def find_market_names(dsl_expr):
     # Find all unique market names.
+    all_market_names = set()
     for dsl_market in dsl_expr.find_instances(dsl_type=Market):
         assert isinstance(dsl_market, Market)
-        yield dsl_market.name
+        market_name = dsl_market.name
+        if market_name not in all_market_names:  # Deduplicate.
+            all_market_names.add(market_name)
+            yield dsl_market.name
 
 
 def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None, **extraCompileKwds):

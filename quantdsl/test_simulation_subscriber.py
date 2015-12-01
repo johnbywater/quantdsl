@@ -23,7 +23,15 @@ class TestSimulationSubscriber(unittest.TestCase):
     @patch('quantdsl.infrastructure.simulation_subscriber.generate_simulated_prices')
     def test_simulation_subscriber(self, generate_simulated_prices):
         # Check that when an event is published, the domain service is called.
-        market_simulation_created = MarketSimulation.Created(entity_id='1', market_calibration_id='1')
+        market_simulation_created = MarketSimulation.Created(
+            entity_id='1',
+            market_calibration_id='1',
+            market_names=[],
+            fixing_dates=[],
+            observation_date=datetime.date(2011, 1, 1,),
+            path_count=2,
+            interest_rate=2.5,
+        )
         self.assertEqual(generate_simulated_prices.call_count, 0)
         publish(market_simulation_created)
         self.assertEqual(generate_simulated_prices.call_count, 1)

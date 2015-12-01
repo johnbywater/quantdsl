@@ -6,9 +6,8 @@ from quantdsl.priceprocess.base import PriceProcess
 
 
 def generate_simulated_prices(market_calibration, market_simulation):
-    if market_simulation.market_names and market_simulation.fixing_dates:
-        for market_name, fixing_date, price_value in simulate_future_prices(market_simulation, market_calibration):
-            register_simulated_price(market_simulation.id, market_name, fixing_date, price_value)
+    for market_name, fixing_date, price_value in simulate_future_prices(market_simulation, market_calibration):
+        register_simulated_price(market_simulation.id, market_name, fixing_date, price_value)
 
 
 def simulate_future_prices(market_simulation, market_calibration):

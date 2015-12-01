@@ -18,6 +18,13 @@ class CallResult(EventSourcedEntity):
     def result_value(self):
         return self._result_value
 
+    @property
+    def scalar_result_value(self):
+        try:
+            return self._result_value.mean()
+        except AttributeError:
+            return self._result_value
+
 
 def register_call_result(call_id, result_value):
     created_event = CallResult.Created(entity_id=call_id, result_value=result_value)

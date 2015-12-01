@@ -206,7 +206,7 @@ class Number(DslConstant):
     @property
     def required_type(self):
         from numpy import ndarray
-        return (int, float, ndarray)
+        return (int, float, long, ndarray)
 
 
 class Date(DslConstant):
@@ -482,7 +482,7 @@ class Name(DslExpression):
         value = self.evaluate(**combined_namespace)
         if isinstance(value, six.string_types):
             return String(value, node=self.node)
-        elif isinstance(value, (int, float, ndarray)):
+        elif isinstance(value, (int, float, long, ndarray)):
             return Number(value, node=self.node)
         elif isinstance(value, datetime.date):
             return Date(value, node=self.node)

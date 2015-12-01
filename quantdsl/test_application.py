@@ -5,7 +5,7 @@ import numpy
 import six
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.application.with_sqlalchemy import QuantDslApplicationWithSQLAlchemy
+from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
@@ -30,6 +30,7 @@ class ApplicationTestCase(unittest.TestCase):
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).setUp()
         self.app = get_app()
+        numpy.random.seed(1354802735)
 
     def tearDown(self):
         super(ApplicationTestCase, self).tearDown()
@@ -180,6 +181,7 @@ class TestMarketSimulation(ApplicationTestCase):
             fixing_dates=fixing_dates,
             observation_date=observation_date,
             path_count=path_count,
+            interest_rate=2.5,
         )
 
         assert isinstance(market_simulation, MarketSimulation)
@@ -208,45 +210,201 @@ class TestContractValuation(ApplicationTestCase):
     PATH_COUNT = 2000
 
     def test_generate_valuation_simple_addition(self):
+        self.assert_contract_value("""1 + 2""", 3)
 
-        specification = """1 + 2"""
+    def test_market(self):
+        self.assert_contract_value("Market('#1')", 10)
+        self.assert_contract_value("Market('#2')", 20)
 
-        # Register the specification.
-        contract_specification = self.app.register_contract_specification(specification=specification)
+    def test_market_plus(self):
+        self.assert_contract_value("Market('#1') + 10", 20)
+        self.assert_contract_value("Market('#2') + 10", 30)
 
-        # C.
-        market_calibration = self.get_calibration_fixture()
-        market_simulation = self.get_market_simulation_fixture(market_calibration)
-        self.app.generate_contract_valuation(contract_specification.id, market_simulation)
+    def test_market_minus(self):
+        self.assert_contract_value("Market('#1') - 10", 0)
+        self.assert_contract_value("Market('#2') - 10", 10)
 
-        # Check the result.
-        self.assertIn(contract_specification.id, self.app.call_result_repo)
-        call_result = self.app.call_result_repo[contract_specification.id]
-        assert isinstance(call_result, CallResult)
-        self.assertEqual(call_result.result_value, 3)
+    def test_market_multiply_market(self):
+        self.assert_contract_value("Market('#1') * Market('#2')", 200)
 
-    def test_generate_valuation_fibonacci_numbers(self):
+    def test_market_divide(self):
+        self.assert_contract_value("Market('#1') / 10", 1)
 
-        # Define the contract.
-        contract_specification = self.app.register_contract_specification(specification="""
-def fib(n): return fib(n-1) + fib(n-2) if n > 2 else n
-fib(6)
-""")
-        market_simulation = self.create_market_simulation_from_contract_specification(contract_specification)
+    def test_fixing(self):
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 10.1083)
 
-        # Generate the contract valuation.
-        self.app.generate_contract_valuation(contract_specification.id, market_simulation)
+    def test_wait(self):
+        specification = "Wait(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.8587)
 
-        # Check the result.
-        self.assertIn(contract_specification.id, self.app.call_result_repo)
-        call_result = self.app.call_result_repo[contract_specification.id]
-        assert isinstance(call_result, CallResult)
-        self.assertEqual(call_result.result_value, 13)
+    def test_settlement(self):
+        specification = "Settlement(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.753)
+
+    def test_choice(self):
+        specification = "Fixing(Date('2012-01-01'), Choice( Market('NBP') - 9, 0))"
+        self.assert_contract_value(specification, 2.5178)
+
+    def test_max(self):
+        specification = "Fixing(Date('2011-01-01'), Max(Market('#1'), Market('#2')))"
+        self.assert_contract_value(specification, 20.0000)
+        specification = "Fixing(Date('2012-01-01'), Max(Market('#1'), Market('#2')))"
+        self.assert_contract_value(specification, 20.1191)
+
+    def test_identical_fixings(self):
+        specification = "Fixing(Date('2012-01-02'), Market('#1')) - Fixing(Date('2012-01-02'), Market('#1'))"
+        self.assert_contract_value(specification, 0)
+
+    def test_brownian_increments(self):
+        specification = """
+Wait(
+    Date('2012-03-15'),
+    Max(
+        Fixing(
+            Date('2012-01-01'),
+            Market('#1')
+        ) /
+        Fixing(
+            Date('2011-01-01'),
+            Market('#1')
+        ),
+        1.0
+    ) -
+    Max(
+        Fixing(
+            Date('2013-01-01'),
+            Market('#1')
+        ) /
+        Fixing(
+            Date('2012-01-01'),
+            Market('#1')
+        ),
+        1.0
+    )
+)"""
+        self.assert_contract_value(specification, 0)
+
+    def test_uncorrelated_markets(self):
+        specification = """
+Max(
+    Fixing(
+        Date('2012-01-01'),
+        Market('#1')
+    ) *
+    Fixing(
+        Date('2012-01-01'),
+        Market('#2')
+    ) / 10.0,
+    0.0
+) - 2 * Max(
+    Fixing(
+        Date('2013-01-01'),
+        Market('#1')
+    ), 0
+)"""
+        self.assert_contract_value(specification, -0.0714)
+
+    def test_correlated_markets(self):
+        specification = """
+Max(
+    Fixing(
+        Date('2012-01-01'),
+        Market('TTF')
+    ) *
+    Fixing(
+        Date('2012-01-01'),
+        Market('NBP')
+    ) / 10.0,
+    0.0
+) - Max(
+    Fixing(
+        Date('2013-01-01'),
+        Market('TTF')
+    ), 0
+)"""
+        self.assert_contract_value(specification, 1.1923)
+
+    def test_futures(self):
+        specification = "Wait(Date('2012-01-01'), Market('#1') - 9)"
+        self.assert_contract_value(specification, 0.9753)
+
+    def test_european_zero_volatility(self):
+        self.assert_contract_value("Wait(Date('2012-01-01'), Choice(Market('#1') - 9, 0))", 0.9753)
+
+    def test_european_high_volatility(self):
+        self.assert_contract_value("Wait(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))", 2.4557)
+
+    def test_bermudan(self):
+        specification = """
+Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
+    Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
+"""
+        self.assert_contract_value(specification, 2.6093)
+
+    def test_sum_contracts(self):
+        specification = """
+Fixing(
+    Date('2011-06-01'),
+    Choice(
+        Market('NBP') - 9,
+        Fixing(
+            Date('2012-01-01'),
+            Choice(
+                Market('NBP') - 9,
+                0
+            )
+        )
+    )
+) + Fixing(
+    Date('2011-06-01'),
+    Choice(
+        Market('NBP') - 9,
+        Fixing(
+            Date('2012-01-01'),
+            Choice(
+                Market('NBP') - 9,
+                0
+            )
+        )
+    )
+)
+"""
+        self.assert_contract_value(specification, 5.2187)
+
+    def test_functional_fibonacci_numbers(self):
+        fib_tmpl = """
+def fib(n): return fib(n-1) + fib(n-2) if n > 1 else n
+fib(%d)
+"""
+        self.assert_contract_value(fib_tmpl % 0, 0)
+        self.assert_contract_value(fib_tmpl % 1, 1)
+        self.assert_contract_value(fib_tmpl % 2, 1)
+        self.assert_contract_value(fib_tmpl % 3, 2)
+        self.assert_contract_value(fib_tmpl % 7, 13)
+
+    def test_functional_derivative_option_definition(self):
+        specification = """
+def Option(date, strike, x, y):
+    return Wait(date, Choice(x - strike, y))
+Option(Date('2012-01-01'), 9, Underlying(Market('NBP')), 0)
+"""
+        self.assert_contract_value(specification, 2.4557)
+
+    def test_functional_european_option_definition(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+European(Date('2012-01-01'), 9, Market('NBP'))
+"""
+        self.assert_contract_value(specification, 2.4557)
 
     def test_generate_valuation_american_option(self):
-
-        # Define the contract.
-        contract_specification = self.app.register_contract_specification(specification="""
+        american_option_tmpl = """
 def American(starts, ends, strike, underlying):
     if starts < ends:
         Option(starts, strike, underlying,
@@ -259,40 +417,17 @@ def American(starts, ends, strike, underlying):
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
-American(Date('2011-01-02'), Date('2011-01-03'), 9, Market('#1'))
-""")
-
-        # Generate the market simulation.
-        market_simulation = self.create_market_simulation_from_contract_specification(contract_specification)
-
-        # Generate the contract valuation.
-        self.app.generate_contract_valuation(contract_specification.id, market_simulation)
-
-        # Check the result.
-        self.assertIn(contract_specification.id, self.app.call_result_repo)
-        call_result = self.app.call_result_repo[contract_specification.id]
-        assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.result_value.mean(), 1.0, places=1)
-
-    def create_market_simulation_from_contract_specification(self, contract_specification):
-        market_calibration = self.get_calibration_fixture()
-        market_names = list_market_names(contract_specification)
-        fixing_dates = list_fixing_dates(contract_specification.id, self.app.call_requirement_repo, self.app.call_link_repo)
-        observation_date = datetime.date(2011, 1, 1)
-        path_count = self.PATH_COUNT
-        market_simulation = self.app.register_market_simulation(
-            market_calibration_id=market_calibration.id,
-            market_names=market_names,
-            fixing_dates=fixing_dates,
-            observation_date=observation_date,
-            path_count=path_count,
-        )
-        return market_simulation
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts':'2011-01-02',
+            'ends': '2011-01-03',
+            'strike': 9,
+            'underlying': '#1'
+        }, 1)
 
     def test_generate_valuation_swing_option(self):
-
-        # Define the contract.
-        contract_specification = self.app.register_contract_specification(specification="""
+        specification = """
 def Swing(start_date, end_date, underlying, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Choice(
@@ -302,25 +437,22 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-01-10'), Market('#1'), 5)
-""")
-
-        # Generate the market simulation.
-        market_simulation = self.create_market_simulation_from_contract_specification(contract_specification)
-
-        # Generate the contract valuation.
-        self.app.generate_contract_valuation(contract_specification.id, market_simulation)
-
-        # Check the result.
-        self.assertIn(contract_specification.id, self.app.call_result_repo)
-        call_result = self.app.call_result_repo[contract_specification.id]
-        assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.result_value.mean(), 50, places=1)
+Swing(Date('2011-01-01'), Date('2011-01-15'), Market('NBP'), 5)
+"""
+        self.assert_contract_value(specification, 51.4199)
 
     def test_generate_valuation_power_plant_option(self):
+        specification = """
+def PowerPlant(start_date, end_date, underlying, time_since_off):
+    if (start_date < end_date):
+        Choice(
+            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, 0)
+                + ProfitFromRunning(start_date, underlying, time_since_off),
+            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, NextTime(time_since_off))
+        )
+    else:
+        return 0
 
-        # Define the contract.
-        contract_specification = self.app.register_contract_specification(specification="""
 @nostub
 def NextTime(time_since_off):
     if time_since_off == 2:
@@ -337,22 +469,15 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-def PowerPlant(start_date, end_date, underlying, time_since_off):
-    if (start_date < end_date):
-        Choice(
-            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, 0)
-                + ProfitFromRunning(start_date, underlying, time_since_off),
-            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, NextTime(time_since_off))
-        )
-    else:
-        return 0
-
 PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
+"""
+        self.assert_contract_value(specification, 48)
 
-""")
+    def assert_contract_value(self, specification, expected_value):
+        contract_specification = self.app.register_contract_specification(specification=specification)
 
         # Generate the market simulation.
-        market_simulation = self.create_market_simulation_from_contract_specification(contract_specification)
+        market_simulation = self.setup_market_simulation(contract_specification)
 
         # Generate the contract valuation.
         self.app.generate_contract_valuation(contract_specification.id, market_simulation)
@@ -361,30 +486,27 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
         self.assertIn(contract_specification.id, self.app.call_result_repo)
         call_result = self.app.call_result_repo[contract_specification.id]
         assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.result_value.mean(), 48, places=2)
+        self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=3)
 
-    #
-    # Fixture methods...
-
-    def get_calibration_fixture(self):
-        """
-        :rtype: MarketSimulation
-        """
+    def setup_market_simulation(self, contract_specification):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
         calibration_params = {
             '#1-LAST-PRICE': 10,
             '#2-LAST-PRICE': 20,
-            '#1-ACTUAL-HISTORICAL-VOLATILITY': .10,
+            '#1-ACTUAL-HISTORICAL-VOLATILITY': 0,
             '#2-ACTUAL-HISTORICAL-VOLATILITY': 20,
-            '#1-#2-CORRELATION': 0.5,
+            '#1-#2-CORRELATION': 0,
+            'NBP-LAST-PRICE': 10,
+            'TTF-LAST-PRICE': 10,
+            'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            'TTF-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            'NBP-TTF-CORRELATION': 0.5,
         }
-        return self.app.register_market_calibration(price_process_name, calibration_params)
+        market_calibration =  self.app.register_market_calibration(price_process_name, calibration_params)
 
-    def get_market_simulation_fixture(self, market_calibration):
-        market_names = ['#%d' % (i+1) for i in range(self.NUMBER_MARKETS)]
-        date_range = [datetime.date(2011, 1, 1) + datetime.timedelta(days=i) for i in range(self.NUMBER_DAYS)]
-        fixing_dates = date_range[1:]
-        observation_date = date_range[0]
+        market_names = list_market_names(contract_specification)
+        fixing_dates = list_fixing_dates(contract_specification.id, self.app.call_requirement_repo, self.app.call_link_repo)
+        observation_date = datetime.date(2011, 1, 1)
         path_count = self.PATH_COUNT
         market_simulation = self.app.register_market_simulation(
             market_calibration_id=market_calibration.id,
@@ -392,9 +514,11 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
             fixing_dates=fixing_dates,
             observation_date=observation_date,
             path_count=path_count,
+            interest_rate='2.5',
         )
         return market_simulation
 
 
 def get_app():
-    return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
+    # return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
+    return QuantDslApplicationWithPythonObjects()

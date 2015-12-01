@@ -11,21 +11,22 @@ import itertools
 class BlackScholesPriceProcess(PriceProcess):
 
     def simulate_future_prices(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
-        # Compute correlated Brownian motions, for each fixing date.
-        all_brownian_motions = self.get_brownian_motions(market_names, fixing_dates, observation_date, path_count,
-                                                         calibration_params)
+        # Compute correlated Brownian motions for each market and fixing date.
+        if market_names:
+            all_brownian_motions = self.get_brownian_motions(market_names, fixing_dates, observation_date, path_count,
+                                                             calibration_params)
 
-        # Compute simulated market prices using the correlated Brownian
-        # motions, the actual historical volatility, and the last price.
-        import scipy
-        for market_name, brownian_motions in all_brownian_motions:
-            last_price = calibration_params['%s-LAST-PRICE' % market_name.upper()]
-            actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
-            sigma = actual_historical_volatility / 100.0
-            for fixing_date, brownian_rv in brownian_motions:
-                T = get_duration_years(observation_date, fixing_date)
-                simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
-                yield market_name, fixing_date, simulated_value
+            # Compute simulated market prices using the correlated Brownian
+            # motions, the actual historical volatility, and the last price.
+            import scipy
+            for market_name, brownian_motions in all_brownian_motions:
+                last_price = calibration_params['%s-LAST-PRICE' % market_name.upper()]
+                actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
+                sigma = actual_historical_volatility / 100.0
+                for fixing_date, brownian_rv in brownian_motions:
+                    T = get_duration_years(observation_date, fixing_date)
+                    simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
+                    yield market_name, fixing_date, simulated_value
 
     def get_brownian_motions(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
         assert isinstance(market_names, list), market_names
@@ -40,6 +41,9 @@ class BlackScholesPriceProcess(PriceProcess):
 
         len_market_names = len(market_names)
         len_all_dates = len(all_dates)
+
+        if len_market_names == 0:
+            return []
 
         # Diffuse random variables through each date for each market (uncorrelated increments).
         import numpy
@@ -63,49 +67,51 @@ class BlackScholesPriceProcess(PriceProcess):
                 _start_date = fixing_date
                 start_rv = end_rv
 
-        correlation_matrix = numpy.zeros((len_market_names, len_market_names))
-        for i in range(len_market_names):
-            for j in range(len_market_names):
+        if len_market_names > 1:
+            correlation_matrix = numpy.zeros((len_market_names, len_market_names))
+            for i in range(len_market_names):
+                for j in range(len_market_names):
 
-                # Get the correlation between market i and market j...
-                name_i = market_names[i]
-                name_j = market_names[j]
-                if name_i == name_j:
-                    # - they are identical
-                    correlation = 1
-                else:
-                    # - correlation is expected to be in the "calibration" data
-                    correlation = self.get_correlation_from_calibration(calibration_params, name_i, name_j)
+                    # Get the correlation between market i and market j...
+                    name_i = market_names[i]
+                    name_j = market_names[j]
+                    if name_i == name_j:
+                        # - they are identical
+                        correlation = 1
+                    else:
+                        # - correlation is expected to be in the "calibration" data
+                        correlation = self.get_correlation_from_calibration(calibration_params, name_i, name_j)
 
-                # ...and put the correlation in the correlation matrix.
-                correlation_matrix[i][j] = correlation
+                    # ...and put the correlation in the correlation matrix.
+                    correlation_matrix[i][j] = correlation
 
-        # Compute lower triangular matrix, using Cholesky decomposition.
-        try:
-            U = scipy.linalg.cholesky(correlation_matrix)
-        except LinAlgError as e:
-            raise DslError("Cholesky decomposition failed with correlation matrix: %s: %s" % (correlation_matrix, e))
+            # Compute lower triangular matrix, using Cholesky decomposition.
+            try:
+                U = scipy.linalg.cholesky(correlation_matrix)
+            except LinAlgError as e:
+                raise DslError("Cholesky decomposition failed with correlation matrix: %s: %s" % (correlation_matrix, e))
 
-        # Construct correlated increments from uncorrelated increments
-        # and lower triangular matrix for the correlation matrix.
-        try:
-            # Put markets on the last axis, so the broadcasting works, before computing
-            # the dot product with the lower triangular matrix of the correlation matrix.
-            brownian_motions_correlated = brownian_motions.T.dot(U)
-        except Exception as e:
-            msg = ("Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: "
-                   "%s, %s: %s" % (brownian_motions, U, e))
-            raise DslError(msg)
+            # Construct correlated increments from uncorrelated increments
+            # and lower triangular matrix for the correlation matrix.
+            try:
+                # Put markets on the last axis, so the broadcasting works, before computing
+                # the dot product with the lower triangular matrix of the correlation matrix.
+                brownian_motions_correlated = brownian_motions.T.dot(U)
+            except Exception as e:
+                msg = ("Couldn't multiply uncorrelated Brownian increments with decomposed correlation matrix: "
+                       "%s, %s: %s" % (brownian_motions, U, e))
+                raise DslError(msg)
 
-        # Put markets back on the first dimension.
-        brownian_motions_correlated = brownian_motions_correlated.transpose()
+            # Put markets back on the first dimension.
+            brownian_motions_correlated = brownian_motions_correlated.transpose()
+            brownian_motions = brownian_motions_correlated
 
         # Put random variables into a nested Python dict, keyed by market name and fixing date.
         all_brownian_motions = []
         for i, market_name in enumerate(market_names):
             market_rvs = []
             for j, fixing_date in enumerate(all_dates):
-                rv = brownian_motions_correlated[i][j]
+                rv = brownian_motions[i][j]
                 market_rvs.append((fixing_date, rv))
             all_brownian_motions.append((market_name, market_rvs))
 
