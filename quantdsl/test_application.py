@@ -439,7 +439,7 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.2075)
+        self.assert_contract_value(specification, 30.2081)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
@@ -486,7 +486,7 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
         self.assertIn(contract_specification.id, self.app.call_result_repo)
         call_result = self.app.call_result_repo[contract_specification.id]
         assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=3)
+        self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
 
     def setup_market_simulation(self, contract_specification):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
