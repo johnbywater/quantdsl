@@ -51,15 +51,6 @@ class DslParser(object):
         # Call the "visit" method object, and return the result of visiting the node.
         return method(node=node)
 
-    def visitReturn(self, node):
-        """
-        Visitor method for ast.Return nodes.
-
-        Returns the result of visiting the expression held by the return statement.
-        """
-        assert isinstance(node, ast.Return)
-        return self.visitAstNode(node.value)
-
     def visitModule(self, node):
         """
         Visitor method for ast.Module nodes.
@@ -69,6 +60,15 @@ class DslParser(object):
         assert isinstance(node, ast.Module)
         body = [self.visitAstNode(n) for n in node.body]
         return self.dsl_classes['Module'](body, node=node)
+
+    def visitReturn(self, node):
+        """
+        Visitor method for ast.Return nodes.
+
+        Returns the result of visiting the expression held by the return statement.
+        """
+        assert isinstance(node, ast.Return)
+        return self.visitAstNode(node.value)
 
     def visitExpr(self, node):
         """

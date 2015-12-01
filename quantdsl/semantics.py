@@ -915,6 +915,9 @@ class Module(DslObject):
     function defs or expressions.
     """
 
+    def __init__(self, *args, **kwds):
+        super(Module, self).__init__(*args, **kwds)
+
     def __str__(self, indent=0):
         return "\n".join([str(statement) for statement in self.body])
 
@@ -1033,7 +1036,7 @@ class Market(StochasticObject, DslExpression):
         try:
             simulated_price = simulated_price_repo[simulated_price_id]
         except KeyError:
-            raise DslError("Can't find simulated price at '%s' for market '%s'." % (present_time, self.name))
+            raise DslError("Can't find simulated price at '%s' for market '%s' using simulated price ID '%s'." % (present_time, self.name, simulated_price_id))
 
         return simulated_price.value
 
@@ -1445,7 +1448,7 @@ def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None, is_depende
             # Compile the module as a dependency graph.
 
             from quantdsl.domain.services import uuids
-            root_stub_id = uuids()
+            root_stub_id = uuids.create_uuid4()
             stubbed_calls = generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals)
             raise NotImplementedError()
             # dependencies, dependents, leaf_ids = extract_graph_structure(stubbed_calls)
@@ -1510,6 +1513,7 @@ def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_
     dependencies = list_stub_dependencies(stubbed_expr)
     stubbed_dsl = str(stubbed_expr)
     yield StubbedCall(root_stub_id, stubbed_dsl, None, dependencies)
+
     # Continue by looping over any pending calls.
     while not pending_call_stack.empty():
         # Get the next pending call.
@@ -1530,57 +1534,10 @@ def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_
         # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
         dependencies = list_stub_dependencies(stubbed_expr)
         stubbed_dsl = str(stubbed_expr)
+
         yield StubbedCall(pending_call.stub_id, stubbed_dsl, pending_call.effective_present_time, dependencies)
 
 
 def list_stub_dependencies(stubbed_expr):
     return [s.name for s in stubbed_expr.list_instances(Stub)]
 
-
-# def extract_graph_structure(stubbed_calls):
-#     assert isinstance(stubbed_calls, list), stubbed_calls
-#     assert len(stubbed_calls), "Stubbed expressions is empty!"
-#     leaf_call_ids = []
-#     dependencies = {}
-#     dependents = {}
-#
-#     for stubbed_call in stubbed_calls:
-#         assert isinstance(stubbed_call, StubbedCall)
-#
-#         stubbed_expr = stubbed_call.stubbed_expr
-#         assert isinstance(stubbed_expr, DslExpression)
-#
-#         stub_id = stubbed_call.stub_id
-#
-#         # Discover the dependency graph by identifying the stubs (if any) each stub depends on.
-#         stub_dependencies = stubbed_call.dependencies
-#
-#         # Remember which stubs this stub depends on (the "upstream" stubs).
-#         dependencies[stub_id] = stub_dependencies
-#
-#         if stub_dependencies:
-#             # Otherwise, add this stub as a dependent of each dependency.
-#             for dependency in stub_dependencies:
-#                 if dependency not in dependents:
-#                     dependents[dependency] = [stub_id]
-#                 else:
-#                     dependents[dependency].append(stub_id)
-#         else:
-#             # If there are no dependencies, then it's a "leaf" of the dependency graph.
-#             # - remember the leaves, they can be evaluated first.
-#             leaf_call_ids.append(stub_id)
-#
-#     return dependencies, dependents, leaf_call_ids
-
-#
-#
-# def call_requirements_from_stubbed_calls(stubbed_calls):
-#     call_requirements = {}
-#     for stubbed_call in stubbed_calls:
-#         call_requirements[stubbed_call.stub_id] = call_requirement_from_stubbed_call(stubbed_call)
-#     return call_requirements
-
-
-# def call_requirement_from_stubbed_call(stubbed_call):
-#     assert isinstance(stubbed_call, StubbedCall), stubbed_call
-#     return StubbedCalll(str(stubbed_call.stubbed_expr), stubbed_call.effective_present_time)

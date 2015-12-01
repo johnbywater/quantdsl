@@ -320,13 +320,13 @@ The simulation of future prices involves a number of "paths" that allow an evolu
 As expected, the simulated value of an expression made simply of a single market object (e.g. the expression `"Market('NBP')"`) is exactly the corresponding spot price in the market calibration parameters. The standard error of zero because the duration from observation time to the effective present time is zero, so there are no random increments.
 
 ```python
-observation_time = datetime.datetime(2011,1,1, tzinfo=quantdsl.utc)
+observation_date = datetime.datetime(2011,1,1, tzinfo=quantdsl.utc)
 market_calibration = {'NBP-LAST-PRICE': 10, 'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50}
-dsl_value = dsl_eval("Market('NBP')", observation_time=observation_time, market_calibration=market_calibration)
+dsl_value = dsl_eval("Market('NBP')", observation_date=observation_date, market_calibration=market_calibration)
 assert dsl_value == {'stderr': 0.0, 'mean': 10.0}
 
 ttfMarketCalibration = {'TTF-LAST-PRICE': 11, 'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40}
-dsl_value = dsl_eval("Market('TTF')", observation_time=observation_time, market_calibration=ttfMarketCalibration)
+dsl_value = dsl_eval("Market('TTF')", observation_date=observation_date, market_calibration=ttfMarketCalibration)
 assert dsl_value == {'stderr': 0.0, 'mean': 11.0}
 ```
 
@@ -339,7 +339,7 @@ In *Quant DSL*, a *"Fixing"* is an expression that contains a date and an expres
 For example, a *Fixing* can set the date of a simulated *Market* price.
 
 ```python
-dsl_value = dsl_eval("Fixing('2011-01-01', Market('NBP'))", observation_time=observation_time, market_calibration=market_calibration)
+dsl_value = dsl_eval("Fixing('2011-01-01', Market('NBP'))", observation_date=observation_date, market_calibration=market_calibration)
 assert dsl_value['mean'] == 10.0
 assert dsl_value['stderr'] == 0.0
 ```
@@ -347,7 +347,7 @@ assert dsl_value['stderr'] == 0.0
 With the default one-factor price process, when the present time of the *Market* is greater than the observation time, and the actual historical volatility is non-zero, the standard error of the result will be non-zero. The result's mean is different from the last price in the calibration, but the difference is near to the result's standard error (normally within a multiple of three of the standard error). The standard error of the result increases as the duration from observation time to the effective present time of the *Market* becomes longer.
 
 ```python
-dsl_value = dsl_eval("Fixing('2016-01-01', Market('NBP'))", observation_time=observation_time, market_calibration=market_calibration)
+dsl_value = dsl_eval("Fixing('2016-01-01', Market('NBP'))", observation_date=observation_date, market_calibration=market_calibration)
 assert round(dsl_value['mean'], 0) == 10, dsl_value['mean']
 assert round(dsl_value['stderr'], 1) == 0.1, dsl_value['stderr']
 ```
@@ -355,7 +355,7 @@ assert round(dsl_value['stderr'], 1) == 0.1, dsl_value['stderr']
 The standard error can be reduced by increasing the number of paths in the simulation, from the default path count of 20000. Memory usage will increase, and computation steps will take longer, but since `quantdsl` discards intermediate results, once the price simulations have been generated, the memory profile is flat even for large computations.
 
 ```python
-dsl_value = dsl_eval("Fixing('2016-01-01', Market('NBP'))", observation_time=observation_time, market_calibration=market_calibration, path_count=500000)
+dsl_value = dsl_eval("Fixing('2016-01-01', Market('NBP'))", observation_date=observation_date, market_calibration=market_calibration, path_count=500000)
 assert round(dsl_value['mean'], 0) == 10, dsl_value['mean']
 assert round(dsl_value['stderr'], 2) == 0.02, dsl_value['stderr']
 ```
@@ -365,10 +365,10 @@ assert round(dsl_value['stderr'], 2) == 0.02, dsl_value['stderr']
 In *Quant DSL*, a *"Settlement"* is an expression that contains a date and an expression. A *Settlement* will discount the value of its expression from the settlement date to the observation time. An interest rate is used.
 
 ```python
-dsl_value = dsl_eval("Settlement('2024-01-01', 10)", interest_rate=2.5, observation_time=observation_time)
+dsl_value = dsl_eval("Settlement('2024-01-01', 10)", interest_rate=2.5, observation_date=observation_date)
 assert dsl_value == 7.2237890436951115
 
-dsl_value = dsl_eval("Settlement('2024-01-01', Market('NBP'))", interest_rate=2.5, observation_time=observation_time, market_calibration=market_calibration)
+dsl_value = dsl_eval("Settlement('2024-01-01', Market('NBP'))", interest_rate=2.5, observation_date=observation_date, market_calibration=market_calibration)
 assert round(dsl_value['mean'], 6) == 7.223789, round(dsl_value['mean'], 6)
 assert dsl_value['stderr'] <= 2.0e-15, dsl_value['stderr']
 
@@ -377,7 +377,7 @@ assert dsl_value['stderr'] <= 2.0e-15, dsl_value['stderr']
 To settle a future value at a future time, a *Settlement* can be used with a *Fixing* (see *Wait* below).
 
 ```python
-dsl_value = dsl_eval("Settlement('2024-01-01', Fixing('2024-01-01', Market('NBP')))", interest_rate=2.5, observation_time=observation_time, market_calibration=market_calibration, path_count=1000000)
+dsl_value = dsl_eval("Settlement('2024-01-01', Fixing('2024-01-01', Market('NBP')))", interest_rate=2.5, observation_date=observation_date, market_calibration=market_calibration, path_count=1000000)
 assert round(dsl_value['mean']) == 7
 ```
 
@@ -386,18 +386,18 @@ assert round(dsl_value['mean']) == 7
 In *Quant DSL*, a *"Wait"* is an expression that contains a date and an expression. A *Wait* effectively combines *Settlement* and *Fixing*, so that the expression it contains is both fixed at a particular time, and also discounted back to the observation time.
 
 ```python
-dsl_value = dsl_eval("Wait('2024-01-01', Market('NBP'))", interest_rate=2.5, observation_time=observation_time, market_calibration=market_calibration, path_count=1000000)
+dsl_value = dsl_eval("Wait('2024-01-01', Market('NBP'))", interest_rate=2.5, observation_date=observation_date, market_calibration=market_calibration, path_count=1000000)
 assert round(dsl_value['mean']) == 7
 ```
 
 In *Quant DSL*, a `Choice` is an expression that contains two other expressions. A *Choice* implements a single step of the least-squares monte-carlo algorithm suggested by Longstaff-Schwartz. The `Choice` object simulates the maximum of two expected continuation values given the filtration of the process conditioned at the given "present time".
 
 ```python
-dsl_value = dsl_eval("Fixing('2012-01-01', Choice(Market('NBP') - 9, 0))", observation_time=observation_time, market_calibration=market_calibration, path_count=1000000)
+dsl_value = dsl_eval("Fixing('2012-01-01', Choice(Market('NBP') - 9, 0))", observation_date=observation_date, market_calibration=market_calibration, path_count=1000000)
 
 assert round(dsl_value['mean']) == 2, dsl_value['mean']
 
-dsl_value = dsl_eval("Fixing('2028-01-01', Choice(Market('NBP') - 9, 0))", observation_time=observation_time, market_calibration=market_calibration, path_count=1000000)
+dsl_value = dsl_eval("Fixing('2028-01-01', Choice(Market('NBP') - 9, 0))", observation_date=observation_date, market_calibration=market_calibration, path_count=1000000)
 
 assert round(dsl_value['mean']) == 7, dsl_value['mean']
 ```

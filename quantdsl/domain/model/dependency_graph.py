@@ -21,7 +21,7 @@ class DependencyGraph(EventSourcedEntity):
 
 
 def register_dependency_graph(contract_specification_id):
-    created_event = DependencyGraph.Created(entity_id=create_uuid4(), contract_specification_id=contract_specification_id)
+    created_event = DependencyGraph.Created(entity_id=contract_specification_id, contract_specification_id=contract_specification_id)
     contract_specification = DependencyGraph.mutator(event=created_event)
     publish(created_event)
     return contract_specification

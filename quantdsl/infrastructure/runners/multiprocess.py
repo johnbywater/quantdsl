@@ -3,7 +3,7 @@ from time import sleep
 from quantdsl.domain.model.call_specification import CallSpecification
 
 from quantdsl.infrastructure.runners.base import DependencyGraphRunner, evaluate_call, handle_result
-from quantdsl.domain.services.dependency_graph import get_dependency_values
+from quantdsl.domain.services.dependency_graphs import get_dependency_values
 from quantdsl.domain.model.call_requirement import StubbedCall
 
 

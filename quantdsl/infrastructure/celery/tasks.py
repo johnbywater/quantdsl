@@ -7,7 +7,7 @@ from quantdsl.domain.model.call_specification import CallSpecification
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.infrastructure.celery.app import celery_app
 from quantdsl.infrastructure.runners.base import evaluate_call, handle_result
-from quantdsl.domain.services.dependency_graph import get_dependency_values
+from quantdsl.domain.services.dependency_graphs import get_dependency_values
 
 
 @celery_app.task

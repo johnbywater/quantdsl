@@ -11,14 +11,12 @@ class MarketSimulation(EventSourcedEntity):
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
-    def __init__(self, market_calibration_id, price_process_name, market_names, fixing_times, observation_time,
-                 path_count, **kwargs):
+    def __init__(self, market_calibration_id, market_names, fixing_dates, observation_date, path_count, **kwargs):
         super(MarketSimulation, self).__init__(**kwargs)
         self._market_calibration_id = market_calibration_id
-        self._price_process_name = price_process_name
         self._market_names = market_names
-        self._fixing_times = fixing_times
-        self._observation_time = observation_time
+        self._fixing_dates = fixing_dates
+        self._observation_date = observation_date
         self._path_count = path_count
 
     @property
@@ -26,34 +24,28 @@ class MarketSimulation(EventSourcedEntity):
         return self._market_calibration_id
 
     @property
-    def price_process_name(self):
-        return self._price_process_name
-
-    @property
     def market_names(self):
         return self._market_names
 
     @property
-    def fixing_times(self):
-        return self._fixing_times
+    def fixing_dates(self):
+        return self._fixing_dates
 
     @property
-    def observation_time(self):
-        return self._observation_time
+    def observation_date(self):
+        return self._observation_date
 
     @property
     def path_count(self):
         return self._path_count
 
 
-def register_market_simulation(market_calibration_id, price_process_name, market_names, fixing_times, observation_time,
-                               path_count):
+def register_market_simulation(market_calibration_id, market_names, fixing_dates, observation_date, path_count):
     created_event = MarketSimulation.Created(entity_id=create_uuid4(),
                                              market_calibration_id=market_calibration_id,
-                                             price_process_name=price_process_name,
                                              market_names=market_names,
-                                             fixing_times=fixing_times,
-                                             observation_time=observation_time,
+                                             fixing_dates=fixing_dates,
+                                             observation_date=observation_date,
                                              path_count=path_count,
                                              )
     call_result = MarketSimulation.mutator(event=created_event)

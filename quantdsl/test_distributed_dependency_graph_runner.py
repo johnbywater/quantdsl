@@ -78,7 +78,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
             for i in range(0, 10):
                 dt = datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i
                 value = numpy.array([10] * 2000)
-                register_simulated_price(market_simulation.id, market_name, fixing_time=dt)
+                register_simulated_price(market_simulation.id, market_name, fixing_date=dt)
 
         # Check we've got a path to the 'celery' command line program (hopefully it's next to this python executable).
         celery_script_path = os.path.join(os.path.dirname(sys.executable), 'celery')

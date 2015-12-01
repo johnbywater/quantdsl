@@ -1,5 +1,6 @@
 from quantdsl.domain.model.contract_specification import ContractSpecification
-from quantdsl.services import dsl_parse, find_market_names
+from quantdsl.services import find_market_names
+from quantdsl.domain.services.parser import dsl_parse
 
 
 def list_market_names(contract_specification):

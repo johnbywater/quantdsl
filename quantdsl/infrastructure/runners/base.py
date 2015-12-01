@@ -33,11 +33,12 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
     def get_evaluation_kwds(self, dsl_source, effective_present_time):
         evaluation_kwds = self.run_kwds.copy()
 
-        from quantdsl.services import dsl_parse, list_fixing_times
+        from quantdsl.services import list_fixing_dates
+        from quantdsl.domain.services.parser import dsl_parse
         stubbed_module = dsl_parse(dsl_source)
         assert isinstance(stubbed_module, Module)
         # market_names = find_market_names(stubbed_module)
-        fixing_dates = list_fixing_times(stubbed_module)
+        fixing_dates = list_fixing_dates(stubbed_module)
         if effective_present_time is not None:
             fixing_dates.append(effective_present_time)
 
@@ -73,7 +74,7 @@ def evaluate_call(call_spec, register_call_result):
     # - parse the expr
     try:
         # Todo: Rework this dependency. Figure out how to use alternative set of DSL classes when multiprocessing.
-        from quantdsl.services import dsl_parse
+        from quantdsl.domain.services.parser import dsl_parse
         stubbed_module = dsl_parse(call_spec.dsl_expr_str)
     except DslSyntaxError:
         raise

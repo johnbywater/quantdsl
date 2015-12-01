@@ -4,15 +4,15 @@ import sys
 import threading
 import time
 
-from quantdsl.domain.model.dependency_graph import DependencyGraph
 from six import print_
 
-from quantdsl.domain.model.price_process import get_price_process
+from quantdsl.domain.model.dependency_graph import DependencyGraph
+from quantdsl.domain.services.parser import dsl_parse
+from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
 from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
 from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject, \
     compile_dsl_module
-from quantdsl.syntax import DslParser
 
 ## Application services.
 
@@ -84,23 +84,23 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
                     print_("  " + str(stubbed_exprData[0]) + ": " + str(stubbed_exprData[1]))
                 print_()
 
-    # If the expression has any stochastic elements, the evaluation kwds must have an 'observation_time' (datetime).
+    # If the expression has any stochastic elements, the evaluation kwds must have an 'observation_date' (datetime).
     if dsl_expr.has_instances(dsl_type=StochasticObject):
-        observation_time = evaluation_kwds['observation_time']
-        assert isinstance(observation_time, datetime.datetime)
+        observation_date = evaluation_kwds['observation_date']
+        assert isinstance(observation_date, datetime.date)
 
         if is_verbose:
-            print_("Observation time: %s" % observation_time)
+            print_("Observation time: %s" % observation_date)
             print_()
 
         # Avoid any confusion with the internal 'present_time' variable.
         if 'present_time' in evaluation_kwds:
-            msg = ("Don't set present_time here, set observation_time instead. "
+            msg = ("Don't set present_time here, set observation_date instead. "
                    "Hint: Adjust effective present time with Fixing or Wait elements.")
             raise DslError(msg)
 
-        # Initialise present_time as observation_time.
-        evaluation_kwds['present_time'] = observation_time
+        # Initialise present_time as observation_date.
+        evaluation_kwds['present_time'] = observation_date
 
         # If the expression has any Market elements, a market simulation is required
         if dsl_expr.has_instances(dsl_type=Market):
@@ -138,13 +138,13 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
                 # Extract fixing dates from the expression.
                 # Todo: Perhaps collect the fixing dates?
-                fixing_dates = list_fixing_times(dsl_expr)
+                fixing_dates = list_fixing_dates(dsl_expr)
 
                 if is_verbose:
                     print_("Simulating future prices for Market%s '%s' from observation time %s through fixing dates: %s." % (
                         '' if len(market_names) == 1 else 's',
                         ", ".join(market_names),
-                        "'%04d-%02d-%02d'" % (observation_time.year, observation_time.month, observation_time.day),
+                        "'%04d-%02d-%02d'" % (observation_date.year, observation_date.month, observation_date.day),
                         # Todo: Only print first and last few, if there are loads.
                         ", ".join(["'%04d-%02d-%02d'" % (d.year, d.month, d.day) for d in fixing_dates[:8]]) + \
                         (", [...]" if len(fixing_dates) > 9 else '') + \
@@ -153,7 +153,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
                     print_()
 
                 # Simulate the future prices.
-                all_market_prices = price_process.simulate_future_prices(market_names, fixing_dates, observation_time, path_count, market_calibration)
+                all_market_prices = price_process.simulate_future_prices(market_names, fixing_dates, observation_date, path_count, market_calibration)
 
                 # Add future price simulation to evaluation_kwds.
                 evaluation_kwds['all_market_prices'] = all_market_prices
@@ -273,12 +273,12 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         return value
 
 
-def list_fixing_times(dsl_expr):
+def list_fixing_dates(dsl_expr):
     # Find all unique fixing dates.
-    return sorted(list(find_fixing_times(dsl_expr)))
+    return sorted(list(find_fixing_dates(dsl_expr)))
 
 
-def find_fixing_times(dsl_expr):
+def find_fixing_dates(dsl_expr):
     for dsl_fixing in dsl_expr.find_instances(dsl_type=Fixing):
         assert isinstance(dsl_fixing, Fixing)
         if dsl_fixing.date is not None:
@@ -321,12 +321,3 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
     return compile_dsl_module(dsl_module, DslNamespace(), compile_kwds, is_dependency_graph=is_parallel)
 
 
-def dsl_parse(dsl_source, filename='<unknown>', dsl_classes=None):
-    """
-    Parses DSL module, created according to the given DSL source.
-    """
-    if dsl_classes is None:
-        from quantdsl.semantics import defaultDslClasses
-        dsl_classes = defaultDslClasses.copy()
-
-    return DslParser().parse(dsl_source, filename=filename, dsl_classes=dsl_classes)

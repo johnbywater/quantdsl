@@ -10,9 +10,9 @@ import itertools
 
 class BlackScholesPriceProcess(PriceProcess):
 
-    def simulate_future_prices(self, market_names, fixing_dates, observation_time, path_count, calibration_params):
+    def simulate_future_prices(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
         # Compute correlated Brownian motions, for each fixing date.
-        all_brownian_motions = self.get_brownian_motions(market_names, fixing_dates, observation_time, path_count,
+        all_brownian_motions = self.get_brownian_motions(market_names, fixing_dates, observation_date, path_count,
                                                          calibration_params)
 
         # Compute simulated market prices using the correlated Brownian
@@ -23,7 +23,7 @@ class BlackScholesPriceProcess(PriceProcess):
             actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
             sigma = actual_historical_volatility / 100.0
             for fixing_date, brownian_rv in brownian_motions:
-                T = get_duration_years(observation_time, fixing_date)
+                T = get_duration_years(observation_date, fixing_date)
                 simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
                 yield market_name, fixing_date, simulated_value
 
@@ -131,10 +131,10 @@ class BlackScholesPriceProcess(PriceProcess):
 
 class BlackScholesVolatility(object):
 
-    def calc_actual_historical_volatility(self, market, observation_time):
-        price_history = market.getPriceHistory(observation_time=observation_time)
+    def calc_actual_historical_volatility(self, market, observation_date):
+        price_history = market.getPriceHistory(observation_date=observation_date)
         prices = scipy.array([i.value for i in price_history])
-        dates = [i.observation_time for i in price_history]
+        dates = [i.observation_date for i in price_history]
         volatility = 100 * prices.std() / prices.mean()
         duration = max(dates) - min(dates)
         years = (duration.days) / 365.0 # Assumes zero seconds.
