@@ -5,9 +5,8 @@ import six
 from eventsourcing.infrastructure.event_store import EventStore
 from eventsourcing.infrastructure.persistence_subscriber import PersistenceSubscriber
 from eventsourcing.infrastructure.stored_events.base import InMemoryStoredEventRepository
-from mock import Mock
-from mock import MagicMock, patch
-from twisted.trial import unittest
+from mock import Mock, MagicMock, patch
+import unittest
 
 from quantdsl.domain.model.call_dependencies import CallDependenciesRepository, CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependentsRepository, CallDependents
