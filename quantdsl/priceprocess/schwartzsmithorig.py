@@ -3,7 +3,7 @@ import numpy as np
 import os
 try:
     import matplotlib.pylab as plt
-    print "Imported matplotlib.pylab"
+    print("Imported matplotlib.pylab")
 except ImportError:
     pass
 
@@ -96,8 +96,8 @@ def main():
     if plt:
         plot(state_estimate_history)
     else:
-        print "Not showing plot..."
-    print "Done"
+        print("Not showing plot...")
+    print("Done")
 
 
 def kalman_filter(observations, observation_model, time_variable_constant_A, state_transition_model, control_input, initial_state_estimate, initial_estimate_covariance, observation_noise_covariance, process_noise_covariance):
@@ -154,9 +154,9 @@ def kalman_filter(observations, observation_model, time_variable_constant_A, sta
 
 def plot(state_estimate_history):
     estimated_spot = np.exp(state_estimate_history.sum(axis=1))
-    print estimated_spot
+    print(estimated_spot)
     longrun_mean = np.exp(state_estimate_history[:, 1])
-    print "Showing plot..."
+    print("Showing plot...")
     plt.plot(estimated_spot, '-r')
     plt.plot(longrun_mean, '-b')
     plt.plot()

@@ -2,22 +2,13 @@ import datetime
 import unittest
 
 import scipy
-import six
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.domain.model.call_dependencies import CallDependencies
-from quantdsl.domain.model.call_dependents import CallDependents
-from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult
-from quantdsl.domain.model.contract_specification import ContractSpecification
-from quantdsl.domain.model.contract_valuation import ContractValuation
-from quantdsl.domain.model.dependency_graph import DependencyGraph, register_dependency_graph
-from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
-from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id, register_simulated_price
-from quantdsl.domain.services.uuids import create_uuid4
-from quantdsl.domain.services.fixing_dates import list_fixing_dates
+from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
+from quantdsl.domain.services.fixing_dates import list_fixing_dates, regenerate_execution_order
 from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -29,120 +20,13 @@ class ApplicationTestCase(unittest.TestCase):
     def setUp(self):
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).setUp()
-        self.app = get_app()
+        self.app = QuantDslApplicationWithPythonObjects()
         scipy.random.seed(1354802735)
 
     def tearDown(self):
         super(ApplicationTestCase, self).tearDown()
         self.app.close()
         assert_event_handlers_empty()
-
-
-class TestEventSourcedRepos(ApplicationTestCase):
-
-    def test_register_market_calibration(self):
-        price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        calibration_params = {'param1': 10, 'param2': 20}
-
-        market_calibration = self.app.register_market_calibration(price_process_name, calibration_params)
-
-        assert isinstance(market_calibration, MarketCalibration)
-        assert market_calibration.id
-        market_calibration = self.app.market_calibration_repo[market_calibration.id]
-        assert isinstance(market_calibration, MarketCalibration)
-        self.assertEqual(market_calibration.price_process_name, DEFAULT_PRICE_PROCESS_NAME)
-        self.assertEqual(market_calibration.calibration_params['param1'], 10)
-        self.assertEqual(market_calibration.calibration_params['param2'], 20)
-
-    def test_register_contract_specification(self):
-        contract_spec = self.app.register_contract_specification('1 + 1')
-        self.assertIsInstance(contract_spec, ContractSpecification)
-        self.assertIsInstance(contract_spec.id, six.string_types)
-        contract_spec = self.app.contract_specification_repo[contract_spec.id]
-        assert isinstance(contract_spec, ContractSpecification)
-        self.assertEqual(contract_spec.specification, '1 + 1')
-
-    def test_register_dependency_graph(self):
-        contract_specification_id = create_uuid4()
-        dependency_graph = register_dependency_graph(contract_specification_id)
-        self.assertIsInstance(dependency_graph, DependencyGraph)
-        assert isinstance(dependency_graph, DependencyGraph)
-        self.assertEqual(dependency_graph.contract_specification_id, contract_specification_id)
-
-    def test_register_call_requirements(self):
-        call_id = create_uuid4()
-
-        self.assertRaises(KeyError, self.app.call_requirement_repo.__getitem__, call_id)
-
-        dsl_source = '1 + 1'
-        effective_present_time = datetime.datetime(2015, 9, 7, 0, 0, 0)
-
-        self.app.register_call_requirement(call_id=call_id, dsl_source=dsl_source,
-                                      effective_present_time=effective_present_time)
-
-        call_requirement = self.app.call_requirement_repo[call_id]
-        assert isinstance(call_requirement, CallRequirement)
-        self.assertEqual(call_requirement.dsl_source, dsl_source)
-        self.assertEqual(call_requirement.effective_present_time, effective_present_time)
-
-    def test_register_call_dependencies(self):
-        call_id = create_uuid4()
-
-        self.assertRaises(KeyError, self.app.call_dependencies_repo.__getitem__, call_id)
-
-        dependencies = ['123', '456']
-
-        self.app.register_call_dependencies(call_id=call_id, dependencies=dependencies)
-
-        call_dependencies = self.app.call_dependencies_repo[call_id]
-        assert isinstance(call_dependencies, CallDependencies)
-        self.assertEqual(call_dependencies.dependencies, dependencies)
-
-    def test_register_call_dependents(self):
-        call_id = create_uuid4()
-
-        self.assertRaises(KeyError, self.app.call_dependents_repo.__getitem__, call_id)
-
-        dependents = ['123', '456']
-
-        self.app.register_call_dependents(call_id=call_id, dependents=dependents)
-
-        call_dependents = self.app.call_dependents_repo[call_id]
-        assert isinstance(call_dependents, CallDependents)
-        self.assertEqual(call_dependents.dependents, dependents)
-
-    def test_register_call_result(self):
-        call_id = create_uuid4()
-
-        self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, call_id)
-
-        self.app.register_call_result(call_id=call_id, result_value=123)
-
-        call_result = self.app.call_result_repo[call_id]
-        assert isinstance(call_result, CallResult)
-        self.assertEqual(call_result.result_value, 123)
-
-    def test_register_simulated_price(self):
-
-        price_time = datetime.datetime(2011, 1, 1)
-        price_value = scipy.array([1.1, 1.2, 1.367345987359734598734598723459872345987235698237459862345])
-        simulation_id = create_uuid4()
-        self.assertRaises(KeyError, self.app.simulated_price_repo.__getitem__, simulation_id)
-
-        price = register_simulated_price(simulation_id, '#1', price_time, price_value)
-
-        assert isinstance(price, SimulatedPrice), price
-        assert price.id
-        price = self.app.simulated_price_repo[make_simulated_price_id(simulation_id, '#1', price_time)]
-        assert isinstance(price, SimulatedPrice)
-        import numpy
-        numpy.testing.assert_equal(price.value, price_value)
-
-    def test_register_contract_valuation(self):
-        v = self.app.register_contract_valuation(dependency_graph_id='123456')
-        self.assertIsInstance(v, ContractValuation)
-        v = self.app.contract_valuation_repo[v.id]
-        self.assertIsInstance(v, ContractValuation)
 
 
 # Todo: More about market calibration, especially generating the calibration params from historical data.
@@ -378,11 +262,15 @@ Fixing(
 def fib(n): return fib(n-1) + fib(n-2) if n > 1 else n
 fib(%d)
 """
-        self.assert_contract_value(fib_tmpl % 0, 0)
-        self.assert_contract_value(fib_tmpl % 1, 1)
-        self.assert_contract_value(fib_tmpl % 2, 1)
-        self.assert_contract_value(fib_tmpl % 3, 2)
-        self.assert_contract_value(fib_tmpl % 7, 13)
+        self.assert_contract_value(fib_tmpl % 0, 0, expected_call_count=2)
+        self.assert_contract_value(fib_tmpl % 1, 1, expected_call_count=2)
+        self.assert_contract_value(fib_tmpl % 2, 1, expected_call_count=4)
+        self.assert_contract_value(fib_tmpl % 3, 2, expected_call_count=5)
+        self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=6)
+        self.assert_contract_value(fib_tmpl % 5, 5, expected_call_count=7)
+        self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
+        self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
+        self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
 
     def test_functional_derivative_option_definition(self):
         specification = """
@@ -390,7 +278,7 @@ def Option(date, strike, x, y):
     return Wait(date, Choice(x - strike, y))
 Option(Date('2012-01-01'), 9, Underlying(Market('NBP')), 0)
 """
-        self.assert_contract_value(specification, 2.4557)
+        self.assert_contract_value(specification, 2.4557, expected_call_count=2)
 
     def test_functional_european_option_definition(self):
         specification = """
@@ -402,7 +290,7 @@ def European(date, strike, underlying):
 
 European(Date('2012-01-01'), 9, Market('NBP'))
 """
-        self.assert_contract_value(specification, 2.4557)
+        self.assert_contract_value(specification, 2.4557, expected_call_count=3)
 
     def test_generate_valuation_american_option(self):
         american_option_tmpl = """
@@ -422,10 +310,10 @@ American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)
 """
         self.assert_contract_value(american_option_tmpl % {
             'starts':'2011-01-02',
-            'ends': '2011-01-03',
+            'ends': '2011-01-04',
             'strike': 9,
             'underlying': '#1'
-        }, 1)
+        }, 1, expected_call_count=4)
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -440,7 +328,7 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.2081)
+        self.assert_contract_value(specification, 30.2081, expected_call_count=15)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
@@ -472,17 +360,20 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
 
 PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
 """
-        self.assert_contract_value(specification, 48)
+        self.assert_contract_value(specification, 48, expected_call_count=16)
 
-    def assert_contract_value(self, specification, expected_value):
+    def assert_contract_value(self, specification, expected_value, expected_call_count=None):
         contract_specification = self.app.register_contract_specification(specification=specification)
 
         # Generate the market simulation.
         market_simulation = self.setup_market_simulation(contract_specification)
 
         # Generate the contract valuation.
-        self.app.generate_contract_valuation(contract_specification.id, market_simulation)
+        self.app.create_contract_valuation(contract_specification.id, market_simulation)
 
+        if expected_call_count is not None:
+            call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+            self.assertEqual(call_count, expected_call_count)
         # Check the result.
         self.assertIn(contract_specification.id, self.app.call_result_repo)
         call_result = self.app.call_result_repo[contract_specification.id]
@@ -518,8 +409,3 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
             interest_rate='2.5',
         )
         return market_simulation
-
-
-def get_app():
-    # return QuantDslApplicationWithSQLAlchemy(db_uri='sqlite:///:memory:')
-    return QuantDslApplicationWithPythonObjects()

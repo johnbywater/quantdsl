@@ -10,7 +10,7 @@ except KeyError:
 
 
 def get_version():
-    return [line.split('=')[1].strip().strip(",").strip("'") for line in open('../setup.py').readlines() if 'version=' in line][0]
+    return [line.split('=')[1].strip().strip(",").strip("'") for line in open('../quantdsl/__init__.py').readlines() if '__version__' in line][0]
 
 
 def build_and_test(cwd):

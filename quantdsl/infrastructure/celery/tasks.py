@@ -16,35 +16,35 @@ def add(x, y):
     return x + y
 
 
-class MarketSimulations(object):
-    """
-    Provides access to market simulations.
-    """
-
-    def __init__(self, simulation_id):
-        self.simulation_id = simulation_id
-
-    def __len__(self):
-        # Todo: Make the validation of the simulation for the evaluation more explicit.
-        return 1
-
-    def __getitem__(self, key):
-        return MarketSimulation(simulation_id=self.simulation_id, name=key)
-
+# class MarketSimulations(object):
+#     """
+#     Provides access to market simulations.
+#     """
+#
+#     def __init__(self, simulation_id):
+#         self.simulation_id = simulation_id
+#
+#     def __len__(self):
+#         # Todo: Make the validation of the simulation for the evaluation more explicit.
+#         return 1
+#
+#     def __getitem__(self, key):
+#         return MarketSimulation(simulation_id=self.simulation_id, name=key)
+#
     # def values(self):
     #     return self.data.values()
     #
 
-class MarketSimulation(object):
-
-    def __init__(self, simulation_id, name):
-        self.simulation_id = simulation_id
-        self.name = name
-
-    def __getitem__(self, dt):
-        assert isinstance(dt, datetime.datetime)
-        app = get_quantdsl_app()
-        return app.simulated_price_repo[make_simulated_price_id(self.simulation_id, self.name, dt)]
+# class MarketSimulation(object):
+#
+#     def __init__(self, simulation_id, name):
+#         self.simulation_id = simulation_id
+#         self.name = name
+#
+#     def __getitem__(self, dt):
+#         assert isinstance(dt, datetime.datetime)
+#         app = get_quantdsl_app()
+#         return app.simulated_price_repo[make_simulated_price_id(self.simulation_id, self.name, dt)]
 
 
 @celery_app.task
@@ -64,8 +64,8 @@ def celery_evaluate_call(call_id, evaluation_kwds=None):
 
     assert isinstance(call_requirement, CallRequirement)
 
-    if not 'all_market_prices' in evaluation_kwds:
-        evaluation_kwds['all_market_prices'] = MarketSimulations(simulation_id=call_requirement.simulation_id)
+    # if not 'all_market_prices' in evaluation_kwds:
+    #     evaluation_kwds['all_market_prices'] = MarketSimulations(simulation_id=call_requirement.simulation_id)
 
     if not 'present_time' in evaluation_kwds:
         evaluation_kwds['present_time'] = call_requirement.effective_present_time

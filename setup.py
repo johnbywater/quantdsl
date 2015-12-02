@@ -19,9 +19,32 @@ setup(
     name='quantdsl',
     version=__version__,
     packages=find_packages(),
-    # just use auto-include and specify special items in MANIFEST.in
     zip_safe=False,
-    install_requires=open('requirements.txt').read().split('\n'),
+    install_requires=[
+        'argh',
+        'celery',
+        'numpy',
+        'scipy',
+        'python-dateutil',
+        'requests',
+        'six',
+        'eventsourcing',
+        'pytz',
+    ],
+    extras_require={
+        'test': [
+            'mock',
+            'cassandra-driver==2.6.0rc1',
+            'numpy',
+        ],
+        'sqlalchemy': [
+            'sqlalchemy',
+        ],
+        'cassandra': [
+            'cassandra-driver==2.6.0rc1',
+        ],
+    },
+
     scripts=[
         os.path.join('scripts', 'quant-dsl.py'),
     ],

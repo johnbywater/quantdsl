@@ -3,8 +3,8 @@ import unittest
 
 import mock
 import scipy
+from pytz import utc
 
-from quantdsl import utc
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.exceptions import DslSyntaxError

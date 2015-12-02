@@ -6,7 +6,6 @@ from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_requirement import StubbedCall, register_call_requirement
 from quantdsl.domain.model.call_result import CallResult, CallResultRepository
 from quantdsl.domain.model.contract_specification import ContractSpecification
-from quantdsl.domain.model.dependency_graph import register_dependency_graph
 from quantdsl.semantics import Module, DslNamespace, extract_defs_and_exprs, DslExpression, generate_stubbed_calls
 from quantdsl.domain.services.parser import dsl_parse
 
@@ -24,6 +23,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
 
     leaf_call_ids = []
     all_dependents = defaultdict(list)
+
     # Generate stubbed call from the parsed DSL module object.
     for stub in generate_stubbed_calls(contract_specification.id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
         assert isinstance(stub, StubbedCall)
@@ -49,6 +49,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     for call_id, dependents in all_dependents.items():
         register_call_dependents(call_id, dependents)
     register_call_dependents(contract_specification.id, [])
+
     # Generate and register the call order.
     link_id = contract_specification.id
     for call_id in generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependencies_repo):

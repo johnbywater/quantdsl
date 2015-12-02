@@ -5,9 +5,9 @@ import unittest
 from subprocess import Popen
 
 import scipy
-from quantdsl.domain.model.dependency_graph import DependencyGraph
+from pytz import utc
 
-from quantdsl import utc
+from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.application.main import get_quantdsl_app
 from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.simulated_price import register_simulated_price
