@@ -6,6 +6,7 @@ from quantdsl.domain.services.call_links import get_next_call_id
 
 # def get_next_call_id(call_link_repo, call_result_id):
 #     pass
+from quantdsl.domain.services.contract_valuations import find_dependents_ready_to_be_evaluated
 
 
 class CallResultSubscriber(object):
@@ -65,11 +66,20 @@ class CallResultSubscriber(object):
             # Todo: So you may benefit from parallel mode if the computation is widely branched.
             # Todo: But there might be race conditions so that doing it in parallel is unstable.
             # Todo: Therefore do it in parallel by default? At the moment it is done in series...
-            # Follow the series call order, the last call_result_id is the dependency_graph_id.
-            if call_result_id != dependency_graph_id:
-                next_call_id = get_next_call_id(self.call_link_repo, call_result_id)
-                if next_call_id != None:
-                    self.call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+
+            next_call_ids = find_dependents_ready_to_be_evaluated(call_id=call_result_id,
+                                                                  call_dependencies_repo=self.call_dependencies_repo,
+                                                                  call_dependents_repo=self.call_dependents_repo,
+                                                                  call_result_repo=self.call_result_repo)
+            for next_call_id in next_call_ids:
+                self.call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+
+
+            # # Follow the series call order, the last call_result_id is the dependency_graph_id.
+            # if call_result_id != dependency_graph_id:
+            #     next_call_id = get_next_call_id(self.call_link_repo, call_result_id)
+            #     if next_call_id != None:
+            #         self.call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
 
         # Otherwise, assume the calls are being made on a loop. Don't start recursing in Python. :-)
 

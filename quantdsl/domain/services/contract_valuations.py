@@ -1,7 +1,11 @@
+import six
+
+from quantdsl.domain.model.call_dependencies import CallDependencies, CallDependenciesRepository
+from quantdsl.domain.model.call_dependents import CallDependentsRepository, CallDependents
 from quantdsl.domain.model.call_leafs import CallLeafs
 from quantdsl.domain.model.call_link import CallLink
 from quantdsl.domain.model.call_requirement import CallRequirement
-from quantdsl.domain.model.call_result import register_call_result
+from quantdsl.domain.model.call_result import register_call_result, CallResultRepository
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.services.dependency_graphs import get_dependency_values
@@ -48,15 +52,15 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
     dependency_graph_id = contract_valuation.dependency_graph_id
 
-    # call_leafs = call_leafs_repo[dependency_graph_id]
-    # assert isinstance(call_leafs, CallLeafs)
-    #
-    # for call_id in call_leafs.leaf_ids:
-    #     call_evaluation_queue.put((contract_valuation_id, call_id))
+    call_leafs = call_leafs_repo[dependency_graph_id]
+    assert isinstance(call_leafs, CallLeafs)
 
-    call_link = call_link_repo[dependency_graph_id]
-    assert isinstance(call_link, CallLink)
-    call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, call_link.call_id))
+    for call_id in call_leafs.leaf_ids:
+        call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, call_id))
+
+    # call_link = call_link_repo[dependency_graph_id]
+    # assert isinstance(call_link, CallLink)
+    # call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, call_link.call_id))
 
 
 def evaluate_call_requirement(contract_valuation, call, market_simulation_repo, call_dependencies_repo, call_result_repo,
@@ -99,3 +103,42 @@ def evaluate_call_requirement(contract_valuation, call, market_simulation_repo, 
         contract_valuation_id=contract_valuation.id,
         dependency_graph_id=contract_valuation.dependency_graph_id,
     )
+
+
+def find_dependents_ready_to_be_evaluated(call_id, call_dependents_repo, call_dependencies_repo, call_result_repo):
+    assert isinstance(call_id, six.string_types)
+    assert isinstance(call_dependents_repo, CallDependentsRepository)
+    assert isinstance(call_dependencies_repo, CallDependenciesRepository)
+    assert isinstance(call_result_repo, CallResultRepository)
+
+    # Get dependents (if any exist).
+    try:
+        call_dependents = call_dependents_repo[call_id]
+
+    # Don't worry if there are none.
+    except KeyError:
+        pass
+
+    else:
+        # Check if any dependents are ready to be evaluated.
+        assert isinstance(call_dependents, CallDependents)
+        for dependent_id in call_dependents.dependents:
+
+            # Get the dependencies of this dependent.
+            dependent_dependencies = call_dependencies_repo[dependent_id]
+            assert isinstance(dependent_dependencies, CallDependencies)
+
+            # Dependent is ready if each of its dependencies already has a result.
+            for dependent_dependency_id in dependent_dependencies.dependencies:
+
+                # Assume this call has a result.
+                if dependent_dependency_id == call_id:
+                    continue
+
+                # Look for any unsatisfied dependencies.
+                if dependent_dependency_id not in call_result_repo:
+                    break
+
+            else:
+                # Return all dependents that do not have a dependency without a result.
+                yield dependent_id

@@ -416,14 +416,14 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
         self.app.start_contract_valuation(contract_specification.id, market_simulation)
 
         count = 0
-        while count < 600:
+        while count < 6000:
             # Check the result.
                 try:
                     call_result = self.app.call_result_repo[contract_specification.id]
                     break
                 except KeyError:
                     count += 1
-                    sleep(0.1)
+                    sleep(0.001)
 
         assert isinstance(call_result, CallResult)
         self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
