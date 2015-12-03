@@ -5,7 +5,7 @@ import six
 from quantdsl.domain.model.call_specification import CallSpecification
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
-from quantdsl.semantics import Module, DslNamespace, DslExpression, compile_dsl_module
+from quantdsl.semantics import Module, DslNamespace, DslExpression, compile_dsl_module, list_fixing_dates
 
 
 class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
@@ -100,7 +100,7 @@ def handle_result(call_requirement_id, result_value, results, dependents, depend
     # Set the results.
     results[call_requirement_id] = result_value
 
-    # Check if subscribers are ready to be executed.
+    # Check if dependents are ready to be executed.
     for dependent_id in dependents[call_requirement_id]:
         if dependent_id in results:
             continue

@@ -1539,3 +1539,25 @@ def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_
 def list_stub_dependencies(stubbed_expr):
     return [s.name for s in stubbed_expr.list_instances(Stub)]
 
+
+def list_fixing_dates(dsl_expr):
+    # Find all unique fixing dates.
+    return sorted(list(find_fixing_dates(dsl_expr)))
+
+
+def find_fixing_dates(dsl_expr):
+    for dsl_fixing in dsl_expr.find_instances(dsl_type=Fixing):
+        assert isinstance(dsl_fixing, Fixing)
+        if dsl_fixing.date is not None:
+            yield dsl_fixing.date
+
+
+def find_market_names(dsl_expr):
+    # Find all unique market names.
+    all_market_names = set()
+    for dsl_market in dsl_expr.find_instances(dsl_type=Market):
+        assert isinstance(dsl_market, Market)
+        market_name = dsl_market.name
+        if market_name not in all_market_names:  # Deduplicate.
+            all_market_names.add(market_name)
+            yield dsl_market.name

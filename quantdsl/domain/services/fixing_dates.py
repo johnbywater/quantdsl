@@ -1,8 +1,8 @@
-from quantdsl.domain.model.call_link import CallLinkRepository, CallLink
+from quantdsl.domain.model.call_link import CallLinkRepository
 from quantdsl.domain.model.call_requirement import CallRequirement, CallRequirementRepository
-from quantdsl.domain.model.dependency_graph import DependencyGraph
-from quantdsl.services import find_fixing_dates
+from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse
+from quantdsl.semantics import find_fixing_dates
 
 
 def list_fixing_dates(dependency_graph_id, call_requirement_repo, call_link_repo):
@@ -22,16 +22,3 @@ def list_fixing_dates(dependency_graph_id, call_requirement_repo, call_link_repo
 
     # Return a sorted list of fixing times.
     return sorted(list(fixing_dates))
-
-
-def regenerate_execution_order(dependency_graph_id, call_link_repo):
-    assert isinstance(call_link_repo, CallLinkRepository)
-    link_id = dependency_graph_id
-    while True:
-        call_link = call_link_repo[link_id]
-        assert isinstance(call_link, CallLink)
-        call_id = call_link.call_id
-        yield call_id
-        if call_id == dependency_graph_id:
-            break
-        link_id = call_id

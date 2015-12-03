@@ -25,7 +25,7 @@ class ContractValuation(EventSourcedEntity):
         return self._dependency_graph_id
 
 
-def register_contract_valuation(market_simulation_id, dependency_graph_id):
+def start_contract_valuation(dependency_graph_id, market_simulation_id):
     created_event = ContractValuation.Created(entity_id=create_uuid4(),
                                               market_simulation_id=market_simulation_id,
                                               dependency_graph_id=dependency_graph_id)

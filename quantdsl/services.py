@@ -11,8 +11,8 @@ from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
 from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
-from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject, \
-    compile_dsl_module
+from quantdsl.semantics import DslNamespace, DslExpression, Market, DslError, Module, StochasticObject, \
+    compile_dsl_module, list_fixing_dates, find_market_names
 
 ## Application services.
 
@@ -271,29 +271,6 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         }
     else:
         return value
-
-
-def list_fixing_dates(dsl_expr):
-    # Find all unique fixing dates.
-    return sorted(list(find_fixing_dates(dsl_expr)))
-
-
-def find_fixing_dates(dsl_expr):
-    for dsl_fixing in dsl_expr.find_instances(dsl_type=Fixing):
-        assert isinstance(dsl_fixing, Fixing)
-        if dsl_fixing.date is not None:
-            yield dsl_fixing.date
-
-
-def find_market_names(dsl_expr):
-    # Find all unique market names.
-    all_market_names = set()
-    for dsl_market in dsl_expr.find_instances(dsl_type=Market):
-        assert isinstance(dsl_market, Market)
-        market_name = dsl_market.name
-        if market_name not in all_market_names:  # Deduplicate.
-            all_market_names.add(market_name)
-            yield dsl_market.name
 
 
 def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None, **extraCompileKwds):

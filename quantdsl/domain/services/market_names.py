@@ -1,5 +1,5 @@
 from quantdsl.domain.model.contract_specification import ContractSpecification
-from quantdsl.services import find_market_names
+from quantdsl.semantics import find_market_names
 from quantdsl.domain.services.parser import dsl_parse
 
 

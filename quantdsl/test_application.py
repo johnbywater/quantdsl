@@ -1,5 +1,9 @@
 import datetime
 import unittest
+from time import sleep
+
+from six.moves import queue
+from threading import Thread
 
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
@@ -8,25 +12,60 @@ from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPytho
 from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
-from quantdsl.domain.services.fixing_dates import list_fixing_dates, regenerate_execution_order
+from quantdsl.domain.services.contract_valuations import evaluate_call_requirement
+from quantdsl.domain.services.fixing_dates import list_fixing_dates
+from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
 # Specification. Calibration. Simulation. Evaluation.
 
+
+
+
 class ApplicationTestCase(unittest.TestCase):
 
     def setUp(self):
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).setUp()
-        self.app = QuantDslApplicationWithPythonObjects()
+
+        self.call_evaluation_queue = queue.Queue(maxsize=0)
+        num_threads = 1
+
+        self.app = QuantDslApplicationWithPythonObjects(
+            call_evaluation_queue=self.call_evaluation_queue,
+            # call_result_queue=Queue(),
+        )
+
         scipy.random.seed(1354802735)
 
+        def do_stuff(q):
+            while True:
+                item = q.get()
+                try:
+                    dependency_graph_id, contract_valuation_id, call_id = item
+                    evaluate_call_requirement(
+                        self.app.contract_valuation_repo[contract_valuation_id],
+                        self.app.call_requirement_repo[call_id],
+                        self.app.market_simulation_repo,
+                        self.app.call_dependencies_repo,
+                        self.app.call_result_repo,
+                        self.app.simulated_price_repo
+                    )
+                finally:
+                    q.task_done()
+
+        for i in range(num_threads):
+            worker = Thread(target=do_stuff, args=(self.call_evaluation_queue,))
+            worker.setDaemon(True)
+            worker.start()
+
     def tearDown(self):
-        super(ApplicationTestCase, self).tearDown()
         self.app.close()
+        self.call_evaluation_queue.join()
         assert_event_handlers_empty()
+        super(ApplicationTestCase, self).tearDown()
 
 
 # Todo: More about market calibration, especially generating the calibration params from historical data.
@@ -365,18 +404,27 @@ PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
     def assert_contract_value(self, specification, expected_value, expected_call_count=None):
         contract_specification = self.app.register_contract_specification(specification=specification)
 
+        # Check the call count (the number of nodes of the call dependency graph).
+        if expected_call_count is not None:
+            call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+            self.assertEqual(call_count, expected_call_count)
+
         # Generate the market simulation.
         market_simulation = self.setup_market_simulation(contract_specification)
 
         # Generate the contract valuation.
-        self.app.create_contract_valuation(contract_specification.id, market_simulation)
+        self.app.start_contract_valuation(contract_specification.id, market_simulation)
 
-        if expected_call_count is not None:
-            call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
-            self.assertEqual(call_count, expected_call_count)
-        # Check the result.
-        self.assertIn(contract_specification.id, self.app.call_result_repo)
-        call_result = self.app.call_result_repo[contract_specification.id]
+        count = 0
+        while count < 600:
+            # Check the result.
+                try:
+                    call_result = self.app.call_result_repo[contract_specification.id]
+                    break
+                except KeyError:
+                    count += 1
+                    sleep(0.1)
+
         assert isinstance(call_result, CallResult)
         self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
 

@@ -7,13 +7,14 @@ from quantdsl.domain.services.dependency_graphs import generate_dependency_graph
 
 class DependencyGraphSubscriber(object):
 
-    def __init__(self, contract_specification_repo, call_dependencies_repo, call_dependents_repo):
+    def __init__(self, contract_specification_repo, call_dependencies_repo, call_dependents_repo, call_leafs_repo):
         assert isinstance(contract_specification_repo, ContractSpecificationRepository)
         assert isinstance(call_dependencies_repo, CallDependenciesRepository)
         assert isinstance(call_dependents_repo, CallDependentsRepository)
         self.contract_specification_repo = contract_specification_repo
         self.call_dependencies_repo = call_dependencies_repo
         self.call_dependents_repo = call_dependents_repo
+        self.call_leafs_repo = call_leafs_repo
         subscribe(self.contract_specification_created, self.generate_dependency_graph)
 
     def close(self):
@@ -25,4 +26,5 @@ class DependencyGraphSubscriber(object):
     def generate_dependency_graph(self, event):
         assert isinstance(event, ContractSpecification.Created)
         contract_specification = self.contract_specification_repo[event.entity_id]
-        generate_dependency_graph(contract_specification, self.call_dependencies_repo, self.call_dependents_repo)
+        generate_dependency_graph(contract_specification, self.call_dependencies_repo, self.call_dependents_repo,
+                                  self.call_leafs_repo)

@@ -2,6 +2,7 @@ from collections import defaultdict
 from quantdsl.domain.model.call_dependencies import CallDependencies, CallDependenciesRepository, \
     register_call_dependencies
 from quantdsl.domain.model.call_dependents import CallDependentsRepository, register_call_dependents
+from quantdsl.domain.model.call_leafs import register_call_leafs
 from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_requirement import StubbedCall, register_call_requirement
 from quantdsl.domain.model.call_result import CallResult, CallResultRepository
@@ -10,7 +11,7 @@ from quantdsl.semantics import Module, DslNamespace, extract_defs_and_exprs, Dsl
 from quantdsl.domain.services.parser import dsl_parse
 
 
-def generate_dependency_graph(contract_specification, call_dependencies_repo, call_dependents_repo):
+def generate_dependency_graph(contract_specification, call_dependencies_repo, call_dependents_repo, call_leafs_repo):
 
     assert isinstance(contract_specification, ContractSpecification)
     dsl_module = dsl_parse(dsl_source=contract_specification.specification)
@@ -21,7 +22,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     assert isinstance(dsl_expr, DslExpression)
     dsl_locals = DslNamespace()
 
-    leaf_call_ids = []
+    leaf_ids = []
     all_dependents = defaultdict(list)
 
     # Generate stubbed call from the parsed DSL module object.
@@ -40,7 +41,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
 
         # Keep track of the leaves and the dependents.
         if len(dependencies) == 0:
-            leaf_call_ids.append(call_id)
+            leaf_ids.append(call_id)
         else:
             for dependency_call_id in dependencies:
                 all_dependents[dependency_call_id].append(call_id)
@@ -52,9 +53,12 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
 
     # Generate and register the call order.
     link_id = contract_specification.id
-    for call_id in generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependencies_repo):
+    for call_id in generate_execution_order(leaf_ids, call_dependents_repo, call_dependencies_repo):
         register_call_link(link_id, call_id)
         link_id = call_id
+
+    # Register the leaf ids.
+    register_call_leafs(contract_specification.id, leaf_ids)
 
 
 def get_dependency_values(call_id, dependencies_repo, result_repo):

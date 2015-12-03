@@ -4,7 +4,7 @@ import scipy
 import six
 from eventsourcing.infrastructure.event_store import EventStore
 from eventsourcing.infrastructure.persistence_subscriber import PersistenceSubscriber
-from eventsourcing.infrastructure.stored_events.base import InMemoryStoredEventRepository
+from eventsourcing.infrastructure.stored_events.python_objects_stored_events import PythonObjectsStoredEventRepository
 from mock import Mock, MagicMock, patch
 import unittest
 
@@ -19,7 +19,8 @@ from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.services.dependency_graphs import generate_execution_order, get_dependency_values, \
     generate_dependency_graph
-from quantdsl.domain.services.fixing_dates import regenerate_execution_order, list_fixing_dates
+from quantdsl.domain.services.fixing_dates import list_fixing_dates
+from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.domain.services.simulated_prices import simulate_future_prices, generate_simulated_prices
@@ -27,6 +28,7 @@ from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.exceptions import DslError
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
+from quantdsl.infrastructure.event_sourced_repos.call_leafs_repo import CallLeafsRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
@@ -42,10 +44,11 @@ class TestUUIDs(unittest.TestCase):
 class TestDependencyGraph(unittest.TestCase):
 
     def setUp(self):
-        self.es = EventStore(stored_event_repo=InMemoryStoredEventRepository())
+        self.es = EventStore(stored_event_repo=PythonObjectsStoredEventRepository())
         self.ps = PersistenceSubscriber(self.es)
         self.call_dependencies_repo = CallDependenciesRepo(self.es)
         self.call_dependents_repo = CallDependentsRepo(self.es)
+        self.call_leafs_repo = CallLeafsRepo(self.es)
 
     def tearDown(self):
         self.ps.close()
@@ -61,7 +64,8 @@ double(1 + 1)
         generate_dependency_graph(
             contract_specification=contract_specification,
             call_dependencies_repo=self.call_dependencies_repo,
-            call_dependents_repo=self.call_dependents_repo
+            call_dependents_repo=self.call_dependents_repo,
+            call_leafs_repo=self.call_leafs_repo,
         )
 
         root_dependencies = self.call_dependencies_repo[contract_specification.id]
