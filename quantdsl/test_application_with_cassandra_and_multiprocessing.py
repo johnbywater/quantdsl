@@ -122,7 +122,7 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-10'), Market('NBP'), 30)
 """
-        self.assert_contract_value(specification, 30.2081, expected_call_count=None)
+        self.assert_contract_value(specification, 89.9434, expected_call_count=56)
 
 if __name__ == '__main__':
     unittest.main()

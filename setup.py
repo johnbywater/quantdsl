@@ -36,6 +36,7 @@ setup(
             'mock',
             'cassandra-driver==2.6.0rc1',
             'numpy',
+            'sqlalchemy',
         ],
         'sqlalchemy': [
             'sqlalchemy',

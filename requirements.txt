@@ -7,3 +7,4 @@ requests
 six==1.7.3
 eventsourcing
 cassandra-driver==2.6.0rc1
+sqlalchemy
