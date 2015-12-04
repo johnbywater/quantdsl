@@ -1,3 +1,5 @@
+from threading import Lock
+
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 
 from quantdsl.domain.model.call_result import CallResult
@@ -8,6 +10,7 @@ from quantdsl.domain.services.call_links import get_next_call_id
 #     pass
 from quantdsl.domain.services.contract_valuations import find_dependents_ready_to_be_evaluated
 
+seen = set()
 
 class CallResultSubscriber(object):
     """
@@ -48,29 +51,27 @@ class CallResultSubscriber(object):
         If there is no evaluation queue, then it is not the responsibility of this class to
         evaluate the calls, because that would soon hit recursion limits.
         """
+
         assert isinstance(event, CallResult.Created)
         contract_valuation_id = event.contract_valuation_id
         dependency_graph_id = event.dependency_graph_id
         call_result_id = event.entity_id
 
+        if call_result_id in seen:
+            raise Exception("Result subscriber already seen result ID: %s" % call_result_id)
+        seen.add(call_result_id)
+
         # If we have a result queue, just put the call ID on the result queue.
         if self.call_result_queue:
-            self.call_result_queue.put((contract_valuation_id, call_result_id))
+            self.call_result_queue.put((dependency_graph_id, contract_valuation_id, call_result_id))
 
         # If we have an evaluation queue, identify the next calls to be evaluated and put them on the queue.
         elif self.call_evaluation_queue:
-            # Todo: What decides between following a series order and parallel order?
-            # Todo: - without parallel order, there is no point having more than one evaluation worker. So
-            # Todo:   if there are more than one evaluation workers, you need to do it in parallel? Not
-            # Todo:   necessarily because the other workers could be working on other computations at the same time.
-            # Todo: So you may benefit from parallel mode if the computation is widely branched.
-            # Todo: But there might be race conditions so that doing it in parallel is unstable.
-            # Todo: Therefore do it in parallel by default? At the moment it is done in series...
-
             next_call_ids = find_dependents_ready_to_be_evaluated(call_id=call_result_id,
                                                                   call_dependencies_repo=self.call_dependencies_repo,
                                                                   call_dependents_repo=self.call_dependents_repo,
                                                                   call_result_repo=self.call_result_repo)
+
             for next_call_id in next_call_ids:
                 self.call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
 

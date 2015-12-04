@@ -13,7 +13,8 @@ from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import register_simulated_price, SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.test_application import ApplicationTestCase
+from quantdsl.test_application_with_pythonobjects_and_singlethread import ApplicationTestCase
+from quantdsl.test_application_with_pythonobjects_and_multithreading import Queue
 
 
 class TestEventSourcedRepos(ApplicationTestCase):
@@ -118,5 +119,3 @@ class TestEventSourcedRepos(ApplicationTestCase):
         assert isinstance(price, SimulatedPrice)
         import numpy
         numpy.testing.assert_equal(price.value, price_value)
-
-

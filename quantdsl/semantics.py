@@ -1208,11 +1208,8 @@ class LongstaffSchwartz(object):
                 if isinstance(state_value, (int, float)):
                     underlying_value = self.get_simulated_value(self.first_market_name, state.time)
                     path_count = len(underlying_value)
-                    if state_value == 0:
-                        state_value = scipy.zeros(path_count)
-                    else:
-                        ones = scipy.ones(path_count)
-                        state_value = ones * state_value
+                    ones = scipy.ones(path_count)
+                    state_value = ones * state_value
                 if not isinstance(state_value, scipy.ndarray):
                     raise Exception("State value type is '%s' when scipy.ndarray is required: %s" % (
                         type(state_value), state_value))

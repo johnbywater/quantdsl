@@ -1,20 +1,19 @@
 import datetime
 import unittest
+from threading import Thread, Lock
 from time import sleep
-
-from six.moves import queue
-from threading import Thread
 
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.domain.model.call_result import CallResult
+from quantdsl.domain.model.call_result import CallResult, register_call_result
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
-from quantdsl.domain.services.contract_valuations import evaluate_call_requirement
-from quantdsl.domain.services.fixing_dates import list_fixing_dates
 from quantdsl.domain.services.call_links import regenerate_execution_order
+from quantdsl.domain.services.contract_valuations import evaluate_call_requirement, \
+    find_dependents_ready_to_be_evaluated
+from quantdsl.domain.services.fixing_dates import list_fixing_dates
 from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -22,55 +21,147 @@ from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 # Specification. Calibration. Simulation. Evaluation.
 
 
-
-
 class ApplicationTestCase(unittest.TestCase):
+
+    PATH_COUNT = 2000
 
     def setUp(self):
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).setUp()
 
-        self.call_evaluation_queue = queue.Queue(maxsize=0)
-        num_threads = 1
-
-        self.app = QuantDslApplicationWithPythonObjects(
-            call_evaluation_queue=self.call_evaluation_queue,
-            # call_result_queue=Queue(),
-        )
-
         scipy.random.seed(1354802735)
 
-        def do_stuff(q):
-            while True:
-                item = q.get()
-                try:
-                    dependency_graph_id, contract_valuation_id, call_id = item
-                    evaluate_call_requirement(
-                        self.app.contract_valuation_repo[contract_valuation_id],
-                        self.app.call_requirement_repo[call_id],
-                        self.app.market_simulation_repo,
-                        self.app.call_dependencies_repo,
-                        self.app.call_result_repo,
-                        self.app.simulated_price_repo
-                    )
-                finally:
-                    q.task_done()
+        self.setup_queues_app_and_workers()
 
-        for i in range(num_threads):
-            worker = Thread(target=do_stuff, args=(self.call_evaluation_queue,))
-            worker.setDaemon(True)
-            worker.start()
+    def setup_queues_app_and_workers(self):
+
+        call_evaluation_queue, call_result_lock = self.create_queue_and_lock()
+
+        self.app = QuantDslApplicationWithPythonObjects(
+            call_evaluation_queue=call_evaluation_queue
+        )
+
+        self.start_workers(call_evaluation_queue, call_result_lock)
+
+    def create_queue_and_lock(self):
+        return None, None
+
+    def start_workers(self, call_evaluation_queue, call_result_lock):
+
+        def do_evaluation(evaluation_queue, call_result_lock):
+            while True:
+
+                item = evaluation_queue.get()
+                dependency_graph_id, contract_valuation_id, call_id = item
+                result_value = evaluate_call_requirement(
+                    self.app.contract_valuation_repo[contract_valuation_id],
+                    self.app.call_requirement_repo[call_id],
+                    self.app.market_simulation_repo,
+                    self.app.call_dependencies_repo,
+                    self.app.call_result_repo,
+                    self.app.simulated_price_repo
+                )
+
+                if call_result_lock is not None:
+                    call_result_lock.acquire()
+                try:
+                    # Register the result.
+                    register_call_result(
+                        call_id=call_id,
+                        result_value=result_value,
+                        contract_valuation_id=contract_valuation_id,
+                        dependency_graph_id=dependency_graph_id,
+                    )
+
+                    next_call_ids = find_dependents_ready_to_be_evaluated(
+                        call_id=call_id,
+                        call_dependencies_repo=self.app.call_dependencies_repo,
+                        call_dependents_repo=self.app.call_dependents_repo,
+                        call_result_repo=self.app.call_result_repo)
+                finally:
+                    if call_result_lock is not None:
+                        call_result_lock.release()
+
+                for next_call_id in next_call_ids:
+                    call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+
+        if call_evaluation_queue is not None:
+            num_evaluation_queue_workers = 2
+            for _ in range(num_evaluation_queue_workers):
+                evaluation_queue_worker = Thread(target=do_evaluation, args=(call_evaluation_queue, call_result_lock))
+                evaluation_queue_worker.setDaemon(True)
+                evaluation_queue_worker.start()
 
     def tearDown(self):
         self.app.close()
-        self.call_evaluation_queue.join()
+        # self.call_evaluation_queue.join()
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).tearDown()
+
+    def assert_contract_value(self, specification, expected_value, expected_call_count=None):
+
+        contract_specification = self.app.register_contract_specification(specification=specification)
+
+        self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, contract_specification.id)
+
+        # Check the call count (the number of nodes of the call dependency graph).
+        if expected_call_count is not None:
+            call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+            self.assertEqual(call_count, expected_call_count)
+
+        # Generate the market simulation.
+        market_simulation = self.setup_market_simulation(contract_specification)
+
+        # Generate the contract valuation.
+        self.app.start_contract_valuation(contract_specification.id, market_simulation)
+
+        patience = (expected_call_count or 10) * self.PATH_COUNT / 2000  # Guesses.
+        while patience > 0:
+            if contract_specification.id in self.app.call_result_repo:
+                break
+            interval = 0.01
+            sleep(interval)
+            patience -= interval
+        else:
+            self.fail("Timeout whilst waiting for result")
+
+        call_result = self.app.call_result_repo[contract_specification.id]
+        assert isinstance(call_result, CallResult)
+        self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
+
+    def setup_market_simulation(self, contract_specification):
+        price_process_name = DEFAULT_PRICE_PROCESS_NAME
+        calibration_params = {
+            '#1-LAST-PRICE': 10,
+            '#2-LAST-PRICE': 20,
+            '#1-ACTUAL-HISTORICAL-VOLATILITY': 0,
+            '#2-ACTUAL-HISTORICAL-VOLATILITY': 20,
+            '#1-#2-CORRELATION': 0,
+            'NBP-LAST-PRICE': 10,
+            'TTF-LAST-PRICE': 10,
+            'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            'TTF-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            'NBP-TTF-CORRELATION': 0.5,
+        }
+        market_calibration =  self.app.register_market_calibration(price_process_name, calibration_params)
+
+        market_names = list_market_names(contract_specification)
+        fixing_dates = list_fixing_dates(contract_specification.id, self.app.call_requirement_repo, self.app.call_link_repo)
+        observation_date = datetime.date(2011, 1, 1)
+        path_count = self.PATH_COUNT
+        market_simulation = self.app.register_market_simulation(
+            market_calibration_id=market_calibration.id,
+            market_names=market_names,
+            fixing_dates=fixing_dates,
+            observation_date=observation_date,
+            path_count=path_count,
+            interest_rate='2.5',
+        )
+        return market_simulation
 
 
 # Todo: More about market calibration, especially generating the calibration params from historical data.
 class TestMarketCalibration(ApplicationTestCase):
-
     pass
 
 
@@ -131,7 +222,6 @@ class TestContractValuation(ApplicationTestCase):
 
     NUMBER_MARKETS = 2
     NUMBER_DAYS = 5
-    PATH_COUNT = 2000
 
     def test_generate_valuation_simple_addition(self):
         self.assert_contract_value("""1 + 2""", 3)
@@ -374,9 +464,8 @@ Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
         Choice(
-            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, 0)
-                + ProfitFromRunning(start_date, underlying, time_since_off),
-            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, NextTime(time_since_off))
+            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, 0) + ProfitFromRunning(start_date, underlying, time_since_off),
+            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, NextTime(time_since_off)),
         )
     else:
         return 0
@@ -400,60 +489,3 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
 PowerPlant(Date('2012-01-01'), Date('2012-01-06'), Market('#1'), 2)
 """
         self.assert_contract_value(specification, 48, expected_call_count=16)
-
-    def assert_contract_value(self, specification, expected_value, expected_call_count=None):
-        contract_specification = self.app.register_contract_specification(specification=specification)
-
-        # Check the call count (the number of nodes of the call dependency graph).
-        if expected_call_count is not None:
-            call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
-            self.assertEqual(call_count, expected_call_count)
-
-        # Generate the market simulation.
-        market_simulation = self.setup_market_simulation(contract_specification)
-
-        # Generate the contract valuation.
-        self.app.start_contract_valuation(contract_specification.id, market_simulation)
-
-        count = 0
-        while count < 6000:
-            # Check the result.
-                try:
-                    call_result = self.app.call_result_repo[contract_specification.id]
-                    break
-                except KeyError:
-                    count += 1
-                    sleep(0.001)
-
-        assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
-
-    def setup_market_simulation(self, contract_specification):
-        price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        calibration_params = {
-            '#1-LAST-PRICE': 10,
-            '#2-LAST-PRICE': 20,
-            '#1-ACTUAL-HISTORICAL-VOLATILITY': 0,
-            '#2-ACTUAL-HISTORICAL-VOLATILITY': 20,
-            '#1-#2-CORRELATION': 0,
-            'NBP-LAST-PRICE': 10,
-            'TTF-LAST-PRICE': 10,
-            'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            'TTF-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            'NBP-TTF-CORRELATION': 0.5,
-        }
-        market_calibration =  self.app.register_market_calibration(price_process_name, calibration_params)
-
-        market_names = list_market_names(contract_specification)
-        fixing_dates = list_fixing_dates(contract_specification.id, self.app.call_requirement_repo, self.app.call_link_repo)
-        observation_date = datetime.date(2011, 1, 1)
-        path_count = self.PATH_COUNT
-        market_simulation = self.app.register_market_simulation(
-            market_calibration_id=market_calibration.id,
-            market_names=market_names,
-            fixing_dates=fixing_dates,
-            observation_date=observation_date,
-            path_count=path_count,
-            interest_rate='2.5',
-        )
-        return market_simulation

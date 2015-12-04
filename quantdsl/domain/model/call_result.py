@@ -1,3 +1,5 @@
+from threading import Lock
+
 from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
 from eventsourcing.domain.model.events import publish
 
@@ -36,13 +38,23 @@ class CallResult(EventSourcedEntity):
             return self._result_value
 
 
+seen = set()
+
+lock = Lock()
+
 def register_call_result(call_id, result_value, contract_valuation_id, dependency_graph_id):
+    if call_id in seen:
+        raise Exception("Already registered a result for call ID '%s'" % call_id)
+    seen.add(call_id)
     created_event = CallResult.Created(entity_id=call_id, result_value=result_value,
                                        contract_valuation_id=contract_valuation_id,
                                        dependency_graph_id=dependency_graph_id,
                                        )
     call_result = CallResult.mutator(event=created_event)
+
+    # lock.acquire()
     publish(created_event)
+    # lock.release()
     return call_result
 
 

@@ -81,17 +81,17 @@ class BaseQuantDslApplication(EventSourcingApplication):
             call_evaluation_queue=self.call_evaluation_queue,
             call_leafs_repo=self.call_leafs_repo,
         )
-        self.call_result_subscriber = CallResultSubscriber(
-            call_result_queue=self.call_result_queue,
-            call_evaluation_queue=self.call_evaluation_queue,
-            call_link_repo=self.call_link_repo,
-            call_dependencies_repo=self.call_dependencies_repo,
-            call_dependents_repo=self.call_dependents_repo,
-            call_result_repo=self.call_result_repo,
-        )
+        # self.call_result_subscriber = CallResultSubscriber(
+        #     call_result_queue=self.call_result_queue,
+        #     call_evaluation_queue=self.call_evaluation_queue,
+        #     call_link_repo=self.call_link_repo,
+        #     call_dependencies_repo=self.call_dependencies_repo,
+        #     call_dependents_repo=self.call_dependents_repo,
+        #     call_result_repo=self.call_result_repo,
+        # )
 
     def close(self):
-        self.call_result_subscriber.close()
+        # self.call_result_subscriber.close()
         self.evaluation_subscriber.close()
         self.dependency_graph_subscriber.close()
         self.simulation_subscriber.close()

@@ -34,13 +34,21 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
         assert isinstance(call, CallRequirement)
 
         # Evaluate the call requirement.
-        evaluate_call_requirement(
+        result_value = evaluate_call_requirement(
             contract_valuation=contract_valuation,
             call=call,
             market_simulation_repo=market_simulation_repo,
             call_dependencies_repo=call_dependencies_repo,
             call_result_repo=call_result_repo,
             simulated_price_repo=simulated_price_repo,
+        )
+
+        # Register the result.
+        register_call_result(
+            call_id=call_id,
+            result_value=result_value,
+            contract_valuation_id=contract_valuation_id,
+            dependency_graph_id=dependency_graph_id,
         )
 
 
@@ -65,6 +73,10 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
 def evaluate_call_requirement(contract_valuation, call, market_simulation_repo, call_dependencies_repo, call_result_repo,
                               simulated_price_repo):
+
+    assert isinstance(call_result_repo, CallResultRepository)
+    if call.id in call_result_repo:
+        return
 
     assert isinstance(contract_valuation, ContractValuation), contract_valuation
     assert isinstance(call, CallRequirement), call
@@ -94,19 +106,11 @@ def evaluate_call_requirement(contract_valuation, call, market_simulation_repo, 
         'present_time': call.effective_present_time or market_simulation.observation_date,
         'first_market_name': first_market_name,
     }
-    result_value = dsl_expr.evaluate(**evaluation_kwds)
-
-    # Register the result.
-    register_call_result(
-        call_id=call.id,
-        result_value=result_value,
-        contract_valuation_id=contract_valuation.id,
-        dependency_graph_id=contract_valuation.dependency_graph_id,
-    )
+    return dsl_expr.evaluate(**evaluation_kwds)
 
 
 def find_dependents_ready_to_be_evaluated(call_id, call_dependents_repo, call_dependencies_repo, call_result_repo):
-    assert isinstance(call_id, six.string_types)
+    assert isinstance(call_id, six.string_types), call_id
     assert isinstance(call_dependents_repo, CallDependentsRepository)
     assert isinstance(call_dependencies_repo, CallDependenciesRepository)
     assert isinstance(call_result_repo, CallResultRepository)
@@ -131,8 +135,12 @@ def find_dependents_ready_to_be_evaluated(call_id, call_dependents_repo, call_de
             # Dependent is ready if each of its dependencies already has a result.
             for dependent_dependency_id in dependent_dependencies.dependencies:
 
-                # Assume this call has a result.
+                # Skip if this dependent dependency is the given call.
                 if dependent_dependency_id == call_id:
+                    continue
+
+                # Skip if there is already a result for this dependent.
+                if dependent_dependency_id in call_result_repo:
                     continue
 
                 # Look for any unsatisfied dependencies.
