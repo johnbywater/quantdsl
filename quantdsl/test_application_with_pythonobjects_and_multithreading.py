@@ -2,7 +2,7 @@ from threading import Lock, Thread
 
 from quantdsl.application.base import BaseQuantDslApplication
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.test_application_with_pythonobjects_and_singlethread import TestContractValuation, do_evaluation
+from quantdsl.test_application_with_pythonobjects_and_singlethread import TestContractValuation
 
 try:
     from queue import Queue
