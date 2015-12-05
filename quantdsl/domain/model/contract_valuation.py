@@ -26,12 +26,12 @@ class ContractValuation(EventSourcedEntity):
 
 
 def start_contract_valuation(dependency_graph_id, market_simulation_id):
-    created_event = ContractValuation.Created(entity_id=create_uuid4(),
-                                              market_simulation_id=market_simulation_id,
-                                              dependency_graph_id=dependency_graph_id)
-    contract_specification = ContractValuation.mutator(event=created_event)
-    publish(created_event)
-    return contract_specification
+    contract_valuation_created = ContractValuation.Created(entity_id=create_uuid4(),
+                                                           market_simulation_id=market_simulation_id,
+                                                           dependency_graph_id=dependency_graph_id)
+    contract_valuation = ContractValuation.mutator(event=contract_valuation_created)
+    publish(contract_valuation_created)
+    return contract_valuation
 
 
 class ContractValuationRepository(EntityRepository):

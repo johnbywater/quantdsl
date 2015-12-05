@@ -7,7 +7,7 @@ import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.domain.model.call_result import CallResult, register_call_result
+from quantdsl.domain.model.call_result import CallResult, register_call_result, make_call_result_id
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
@@ -102,8 +102,6 @@ class ApplicationTestCase(unittest.TestCase):
 
         contract_specification = self.app.register_contract_specification(specification=specification)
 
-        self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, contract_specification.id)
-
         # Check the call count (the number of nodes of the call dependency graph).
         if expected_call_count is not None:
             call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
@@ -113,11 +111,12 @@ class ApplicationTestCase(unittest.TestCase):
         market_simulation = self.setup_market_simulation(contract_specification)
 
         # Generate the contract valuation.
-        self.app.start_contract_valuation(contract_specification.id, market_simulation)
+        contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
 
+        call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id)
         patience = (expected_call_count or 10) * self.PATH_COUNT / 2000  # Guesses.
         while patience > 0:
-            if contract_specification.id in self.app.call_result_repo:
+            if call_result_id in self.app.call_result_repo:
                 break
             interval = 0.01
             sleep(interval)
@@ -125,7 +124,7 @@ class ApplicationTestCase(unittest.TestCase):
         else:
             self.fail("Timeout whilst waiting for result")
 
-        call_result = self.app.call_result_repo[contract_specification.id]
+        call_result = self.app.call_result_repo[call_result_id]
         assert isinstance(call_result, CallResult)
         self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
 

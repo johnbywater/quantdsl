@@ -5,7 +5,7 @@ from quantdsl.domain.model.call_dependents import CallDependentsRepository, regi
 from quantdsl.domain.model.call_leafs import register_call_leafs
 from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_requirement import StubbedCall, register_call_requirement
-from quantdsl.domain.model.call_result import CallResult, CallResultRepository
+from quantdsl.domain.model.call_result import CallResult, CallResultRepository, make_call_result_id
 from quantdsl.domain.model.contract_specification import ContractSpecification
 from quantdsl.semantics import Module, DslNamespace, extract_defs_and_exprs, DslExpression, generate_stubbed_calls
 from quantdsl.domain.services.parser import dsl_parse
@@ -61,14 +61,15 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     register_call_leafs(contract_specification.id, leaf_ids)
 
 
-def get_dependency_values(call_id, dependencies_repo, result_repo):
+def get_dependency_values(contract_valution_id, call_id, dependencies_repo, result_repo):
     assert isinstance(result_repo, CallResultRepository), result_repo
     dependency_values = {}
     stub_dependencies = dependencies_repo[call_id]
     assert isinstance(stub_dependencies, CallDependencies), stub_dependencies
     for stub_id in stub_dependencies:
+        call_result_id = make_call_result_id(contract_valution_id, stub_id)
         try:
-            stub_result = result_repo[stub_id]
+            stub_result = result_repo[call_result_id]
         except KeyError:
             raise
         else:

@@ -38,24 +38,25 @@ class CallResult(EventSourcedEntity):
             return self._result_value
 
 
-seen = set()
-
-lock = Lock()
-
 def register_call_result(call_id, result_value, contract_valuation_id, dependency_graph_id):
-    if call_id in seen:
-        raise Exception("Already registered a result for call ID '%s'" % call_id)
-    seen.add(call_id)
-    created_event = CallResult.Created(entity_id=call_id, result_value=result_value,
+    call_result_id = make_call_result_id(contract_valuation_id, call_id)
+    created_event = CallResult.Created(entity_id=call_result_id,
+                                       result_value=result_value,
                                        contract_valuation_id=contract_valuation_id,
+                                       # Todo: Don't persist this, get the contract valuation object when needed.
+                                       # Todo: Also save the list of fixing dates separately (if needs to be saved).
                                        dependency_graph_id=dependency_graph_id,
                                        )
     call_result = CallResult.mutator(event=created_event)
 
-    # lock.acquire()
     publish(created_event)
-    # lock.release()
     return call_result
+
+
+def make_call_result_id(contract_valuation_id, call_id):
+    assert call_id
+    assert contract_valuation_id
+    return contract_valuation_id + call_id
 
 
 class CallResultRepository(EntityRepository):

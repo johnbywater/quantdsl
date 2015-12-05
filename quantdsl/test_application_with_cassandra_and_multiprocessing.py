@@ -50,6 +50,7 @@ def do_evaluation(call_evaluation_queue, call_result_queue, lock):
             )
 
             next_call_ids = find_dependents_ready_to_be_evaluated(
+                contract_valuation_id=contract_valuation_id,
                 call_id=call_id,
                 call_dependencies_repo=app.call_dependencies_repo,
                 call_dependents_repo=app.call_dependents_repo,
@@ -120,7 +121,7 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-01-10'), Market('NBP'), 30)
+Swing(Date('2011-01-01'), Date('2011-01-10'), Market('NBP'), 27)
 """
         self.assert_contract_value(specification, 89.9434, expected_call_count=56)
 

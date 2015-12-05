@@ -5,13 +5,11 @@ from quantdsl.domain.model.call_dependencies import register_call_dependencies
 from quantdsl.domain.model.call_dependents import register_call_dependents
 from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_requirement import register_call_requirement
-from quantdsl.domain.model.call_result import register_call_result
 from quantdsl.domain.model.contract_specification import register_contract_specification
 from quantdsl.domain.model.contract_valuation import start_contract_valuation
 from quantdsl.domain.model.dependency_graph import register_dependency_graph
 from quantdsl.domain.model.market_calibration import register_market_calibration, compute_market_calibration_params
 from quantdsl.domain.model.market_simulation import register_market_simulation, MarketSimulation
-from quantdsl.infrastructure.call_result_subscriber import CallResultSubscriber
 from quantdsl.infrastructure.dependency_graph_subscriber import DependencyGraphSubscriber
 from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo

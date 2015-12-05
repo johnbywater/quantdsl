@@ -8,8 +8,8 @@ from pytz import utc
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.exceptions import DslSyntaxError
-from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
-from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
+# from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
+# from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
 from quantdsl.semantics import Module, compile_dsl_module, Number, UnarySub, String, Name, Add, Sub, Mult, Div, \
     FloorDiv, Pow, Mod, Compare, IfExp, If, Max, Date, TimeDelta, On, FunctionDef, FunctionCall, Fixing
 from quantdsl.services import dsl_compile, dsl_eval

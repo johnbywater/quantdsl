@@ -6,7 +6,7 @@ import six
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement, register_call_requirement
-from quantdsl.domain.model.call_result import CallResult, register_call_result
+from quantdsl.domain.model.call_result import CallResult, register_call_result, make_call_result_id
 from quantdsl.domain.model.contract_specification import ContractSpecification
 from quantdsl.domain.model.dependency_graph import register_dependency_graph, DependencyGraph
 from quantdsl.domain.model.market_calibration import MarketCalibration
@@ -95,12 +95,13 @@ class TestEventSourcedRepos(ApplicationTestCase):
         contract_valuation_id = create_uuid4()
         call_id = create_uuid4()
 
-        self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, call_id)
+        call_result_id = make_call_result_id(contract_valuation_id, call_id)
+        self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, call_result_id)
 
         register_call_result(call_id=call_id, contract_valuation_id=contract_valuation_id,
-                            dependency_graph_id=dependency_graph_id, result_value=123)
+                             dependency_graph_id=dependency_graph_id, result_value=123)
 
-        call_result = self.app.call_result_repo[call_id]
+        call_result = self.app.call_result_repo[call_result_id]
         assert isinstance(call_result, CallResult)
         self.assertEqual(call_result.result_value, 123)
 

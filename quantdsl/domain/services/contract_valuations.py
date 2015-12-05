@@ -5,7 +5,7 @@ from quantdsl.domain.model.call_dependents import CallDependentsRepository, Call
 from quantdsl.domain.model.call_leafs import CallLeafs
 from quantdsl.domain.model.call_link import CallLink
 from quantdsl.domain.model.call_requirement import CallRequirement
-from quantdsl.domain.model.call_result import register_call_result, CallResultRepository
+from quantdsl.domain.model.call_result import register_call_result, CallResultRepository, make_call_result_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.services.dependency_graphs import get_dependency_values
@@ -75,16 +75,13 @@ def evaluate_call_requirement(contract_valuation, call, market_simulation_repo, 
                               simulated_price_repo):
 
     assert isinstance(call_result_repo, CallResultRepository)
-    if call.id in call_result_repo:
-        return
-
     assert isinstance(contract_valuation, ContractValuation), contract_valuation
     assert isinstance(call, CallRequirement), call
 
     market_simulation = market_simulation_repo[contract_valuation.market_simulation_id]
     assert isinstance(market_simulation, MarketSimulation), market_simulation
 
-    dependency_values = get_dependency_values(call.id, call_dependencies_repo, call_result_repo)
+    dependency_values = get_dependency_values(contract_valuation.id, call.id, call_dependencies_repo, call_result_repo)
 
     # Parse the DSL expr.
     stubbed_module = dsl_parse(call.dsl_source)
@@ -109,7 +106,9 @@ def evaluate_call_requirement(contract_valuation, call, market_simulation_repo, 
     return dsl_expr.evaluate(**evaluation_kwds)
 
 
-def find_dependents_ready_to_be_evaluated(call_id, call_dependents_repo, call_dependencies_repo, call_result_repo):
+def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_dependents_repo, call_dependencies_repo,
+                                          call_result_repo):
+    assert isinstance(contract_valuation_id, six.string_types), contract_valuation_id
     assert isinstance(call_id, six.string_types), call_id
     assert isinstance(call_dependents_repo, CallDependentsRepository)
     assert isinstance(call_dependencies_repo, CallDependenciesRepository)
@@ -139,14 +138,11 @@ def find_dependents_ready_to_be_evaluated(call_id, call_dependents_repo, call_de
                 if dependent_dependency_id == call_id:
                     continue
 
-                # Skip if there is already a result for this dependent.
-                if dependent_dependency_id in call_result_repo:
-                    continue
-
-                # Look for any unsatisfied dependencies.
-                if dependent_dependency_id not in call_result_repo:
+                # Look for any unsatisfied dependencies....
+                call_result_id = make_call_result_id(contract_valuation_id, dependent_dependency_id)
+                if call_result_id not in call_result_repo:
                     break
 
             else:
-                # Return all dependents that do not have a dependency without a result.
+                # ....return all dependents that do not have a dependency without a result.
                 yield dependent_id
