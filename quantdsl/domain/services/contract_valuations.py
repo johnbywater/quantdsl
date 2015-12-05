@@ -18,6 +18,47 @@ from quantdsl.semantics import Module, DslNamespace, DslExpression
 # Todo: and then have a call result subscriber that calls a domain service to see if any of the
 # Todo: dependents have all their dependency results available.
 
+def do_evaluation(call_evaluation_queue, contract_valuation_repo, call_requirement_repo, market_simulation_repo,
+                  call_dependencies_repo, call_result_repo, simulated_price_repo, call_dependents_repo, lock):
+    while True:
+        item = call_evaluation_queue.get()
+        dependency_graph_id, contract_valuation_id, call_id = item
+
+        result_value = evaluate_call_requirement(
+            contract_valuation_repo[contract_valuation_id],
+            call_requirement_repo[call_id],
+            market_simulation_repo,
+            call_dependencies_repo,
+            call_result_repo,
+            simulated_price_repo
+        )
+
+        if lock is not None:
+            lock.acquire()
+        try:
+            register_call_result(
+                call_id=call_id,
+                result_value=result_value,
+                contract_valuation_id=contract_valuation_id,
+                dependency_graph_id=dependency_graph_id,
+            )
+
+            next_call_ids = list(find_dependents_ready_to_be_evaluated(
+                contract_valuation_id=contract_valuation_id,
+                call_id=call_id,
+                call_dependencies_repo=call_dependencies_repo,
+                call_dependents_repo=call_dependents_repo,
+                call_result_repo=call_result_repo))
+
+        finally:
+            if lock is not None:
+                lock.release()
+
+        for next_call_id in next_call_ids:
+            call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+
+
+
 def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, market_simulation_repo,
                                 simulated_price_repo, call_requirement_repo, call_dependencies_repo, call_link_repo,
                                 call_result_repo):

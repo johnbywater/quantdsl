@@ -31,67 +31,10 @@ class ApplicationTestCase(unittest.TestCase):
 
         scipy.random.seed(1354802735)
 
-        self.setup_queues_app_and_workers()
+        self.setup_application()
 
-    def setup_queues_app_and_workers(self):
-
-        call_evaluation_queue, call_result_lock = self.create_queue_and_lock()
-
-        self.app = QuantDslApplicationWithPythonObjects(
-            call_evaluation_queue=call_evaluation_queue
-        )
-
-        self.start_workers(call_evaluation_queue, call_result_lock)
-
-    def create_queue_and_lock(self):
-        return None, None
-
-    def start_workers(self, call_evaluation_queue, call_result_lock):
-
-        def do_evaluation(evaluation_queue, call_result_lock):
-            while True:
-
-                item = evaluation_queue.get()
-                dependency_graph_id, contract_valuation_id, call_id = item
-                result_value = evaluate_call_requirement(
-                    self.app.contract_valuation_repo[contract_valuation_id],
-                    self.app.call_requirement_repo[call_id],
-                    self.app.market_simulation_repo,
-                    self.app.call_dependencies_repo,
-                    self.app.call_result_repo,
-                    self.app.simulated_price_repo
-                )
-
-                if call_result_lock is not None:
-                    call_result_lock.acquire()
-                try:
-                    # Register the result.
-                    register_call_result(
-                        call_id=call_id,
-                        result_value=result_value,
-                        contract_valuation_id=contract_valuation_id,
-                        dependency_graph_id=dependency_graph_id,
-                    )
-
-                    next_call_ids = find_dependents_ready_to_be_evaluated(
-                        contract_valuation_id=contract_valuation_id,
-                        call_id=call_id,
-                        call_dependencies_repo=self.app.call_dependencies_repo,
-                        call_dependents_repo=self.app.call_dependents_repo,
-                        call_result_repo=self.app.call_result_repo)
-                finally:
-                    if call_result_lock is not None:
-                        call_result_lock.release()
-
-                for next_call_id in next_call_ids:
-                    call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
-
-        if call_evaluation_queue is not None:
-            num_evaluation_queue_workers = 2
-            for _ in range(num_evaluation_queue_workers):
-                evaluation_queue_worker = Thread(target=do_evaluation, args=(call_evaluation_queue, call_result_lock))
-                evaluation_queue_worker.setDaemon(True)
-                evaluation_queue_worker.start()
+    def setup_application(self):
+        self.app = QuantDslApplicationWithPythonObjects()
 
     def tearDown(self):
         self.app.close()
@@ -104,18 +47,20 @@ class ApplicationTestCase(unittest.TestCase):
         contract_specification = self.app.register_contract_specification(specification=specification)
 
         # Check the call count (the number of nodes of the call dependency graph).
+        call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+
         if expected_call_count is not None:
-            call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
             self.assertEqual(call_count, expected_call_count)
 
         # Generate the market simulation.
         market_simulation = self.setup_market_simulation(contract_specification)
 
+
         # Generate the contract valuation.
         contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
 
         call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id)
-        patience = (expected_call_count or 10) * self.PATH_COUNT / 2000  # Guesses.
+        patience = call_count * (0.1 + self.PATH_COUNT / 200)  # Guesses.
         while patience > 0:
             if call_result_id in self.app.call_result_repo:
                 break
