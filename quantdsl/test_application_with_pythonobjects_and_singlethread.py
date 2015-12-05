@@ -74,6 +74,7 @@ class ApplicationTestCase(unittest.TestCase):
                     )
 
                     next_call_ids = find_dependents_ready_to_be_evaluated(
+                        contract_valuation_id=contract_valuation_id,
                         call_id=call_id,
                         call_dependencies_repo=self.app.call_dependencies_repo,
                         call_dependents_repo=self.app.call_dependents_repo,

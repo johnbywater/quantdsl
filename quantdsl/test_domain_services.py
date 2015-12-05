@@ -145,15 +145,15 @@ double(1 + 1)
     def test_get_dependency_values(self):
         call_dependencies_repo = MagicMock(spec=CallDependenciesRepository,
                                          __getitem__=lambda self, x: {
-                                             1: CallDependencies(dependencies=[2, 3], entity_id=123, entity_version=0, timestamp=1),
+                                             '1': CallDependencies(dependencies=['2', '3'], entity_id=123, entity_version=0, timestamp=1),
                                          }[x])
         call_result_repo = MagicMock(spec=CallResultRepository,
                                      __getitem__=lambda self, x: {
-                                        2: Mock(spec=CallResult, result_value=12),
-                                        3: Mock(spec=CallResult, result_value=13),
+                                        'valuation2': Mock(spec=CallResult, result_value=12),
+                                        'valuation3': Mock(spec=CallResult, result_value=13),
                                      }[x])
-        values = get_dependency_values(1, call_dependencies_repo, call_result_repo)
-        self.assertEqual(values, {2: 12, 3: 13})
+        values = get_dependency_values('valuation', '1', call_dependencies_repo, call_result_repo)
+        self.assertEqual(values, {'2': 12, '3': 13})
 
 
 class TestFixingTimes(unittest.TestCase):
