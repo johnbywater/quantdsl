@@ -14,20 +14,38 @@ class CeleryQueueFacade(object):
 
 queue_facade = CeleryQueueFacade()
 
-file_lock = FileLock('/tmp/quantdsl-results-lock')
+file_lock = None
 
-quantdsl_app = get_quantdsl_app(call_evaluation_queue=queue_facade)
-assert isinstance(quantdsl_app, BaseQuantDslApplication)
+def get_results_file_lock():
+    global file_lock
+    if file_lock is None:
+        file_lock = FileLock('/tmp/quantdsl-results-lock')
+    return file_lock
+
+quantdsl_app = None
+
+def get_app_for_celery_task():
+
+    lock = get_results_file_lock()
+    lock.acquire()
+    lock.release()
+
+    global quantdsl_app
+    if quantdsl_app is None:
+        quantdsl_app = get_quantdsl_app(call_evaluation_queue=queue_facade)
+        assert isinstance(quantdsl_app, BaseQuantDslApplication)
+    return quantdsl_app
 
 
 @celery_app.task
 def celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id):
 
-    quantdsl_app.evaluate_call_and_queue_next_calls(
+    get_app_for_celery_task().evaluate_call_and_queue_next_calls(
         contract_valuation_id=contract_valuation_id,
         dependency_graph_id=dependency_graph_id,
         call_id=call_id,
-        lock=file_lock,
+        lock=get_results_file_lock()
+,
     )
 
 

@@ -2,7 +2,9 @@ import unittest
 
 from cassandra.cqlengine.management import drop_keyspace
 from eventsourcing.application.with_cassandra import DEFAULT_CASSANDRA_KEYSPACE
+from eventsourcing.infrastructure.stored_events.cassandra_stored_events import create_cassandra_keyspace_and_tables
 
+from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
 from quantdsl.application.with_multiprocessing_and_cassandra import QuantDslApplicationWithMultiprocessingAndCassandra
 from quantdsl.test_application_with_singlethread_and_pythonobjects import ApplicationTestCase
 
@@ -19,6 +21,8 @@ class TestQuantDslApplicationWithMultiprocessingAndCassandra(ApplicationTestCase
     def setup_application(self):
         # self.app = get_app(num_workers=self.NUMBER_WORKERS)
         self.app = QuantDslApplicationWithMultiprocessingAndCassandra(num_workers=self.NUMBER_WORKERS)
+        # Create Cassandra keyspace and tables.
+        create_cassandra_keyspace_and_tables(DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE)
 
     def test_generate_valuation_swing_option(self):
         specification = """
