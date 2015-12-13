@@ -4,7 +4,7 @@ import os
 from cassandra.cqlengine.management import drop_keyspace
 from eventsourcing.application.with_cassandra import DEFAULT_CASSANDRA_KEYSPACE
 
-from quantdsl.test_application_with_pythonobjects_and_singlethread import ApplicationTestCase
+from quantdsl.test_application_with_singlethread_and_pythonobjects import ApplicationTestCase
 
 
 class TestApplicationWithCassandraAndCelery(ApplicationTestCase):

@@ -13,8 +13,7 @@ from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import register_simulated_price, SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.test_application_with_pythonobjects_and_singlethread import ApplicationTestCase
-from quantdsl.test_application_with_pythonobjects_and_multithreading import Queue
+from quantdsl.test_application_with_singlethread_and_pythonobjects import ApplicationTestCase
 
 
 class TestEventSourcedRepos(ApplicationTestCase):

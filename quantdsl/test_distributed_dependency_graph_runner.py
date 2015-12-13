@@ -12,7 +12,7 @@ from quantdsl.application.main import get_quantdsl_app
 from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.simulated_price import register_simulated_price
 from quantdsl.domain.services.uuids import create_uuid4
-from quantdsl.infrastructure.celery.tasks import celery_evaluate_call, celery_handle_result
+from quantdsl.infrastructure.celery.tasks import celery_evaluate_call
 from quantdsl.infrastructure.runners.distributed import DistributedDependencyGraphRunner
 from quantdsl.services import dsl_compile
 
@@ -33,14 +33,14 @@ class TestDistributedDependencyGraphRunner(unittest.TestCase):
         assert isinstance(call_result, CallResult)
         self.assertEqual(call_result.result_value, 3)
 
-    def _test_handle_result(self):
-        app = get_quantdsl_app()
-        call_id = create_uuid4()
-        app.register_call_requirement(call_id, '1 + 2', datetime.datetime.now())
-        app.register_call_dependencies(call_id, [])
-        app.register_call_dependents(call_id, [])
-        celery_handle_result(call_id, 3)
-        return
+    # def _test_handle_result(self):
+    #     app = get_quantdsl_app()
+    #     call_id = create_uuid4()
+    #     app.register_call_requirement(call_id, '1 + 2', datetime.datetime.now())
+    #     app.register_call_dependencies(call_id, [])
+    #     app.register_call_dependents(call_id, [])
+    #     celery_handle_result(call_id, 3)
+    #     return
 
     def _test_distributed_dependency_graph_runner(self):
         # Setup the contract.

@@ -30,6 +30,6 @@ class TestDependencyGraphSubscriber(unittest.TestCase):
 
     @patch('quantdsl.infrastructure.dependency_graph_subscriber.generate_dependency_graph')
     def test_dependency_graph_subscriber(self, generate_dependency_graph):
-        market_simulation_created = ContractSpecification.Created(entity_id='1')
+        market_simulation_created = ContractSpecification.Created(entity_id='1', specification='1')
         publish(market_simulation_created)
         self.assertEqual(generate_dependency_graph.call_count, 1)

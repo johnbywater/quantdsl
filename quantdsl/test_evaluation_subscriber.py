@@ -1,7 +1,7 @@
 import datetime
 import unittest
 
-from eventsourcing.domain.model.events import publish
+from eventsourcing.domain.model.events import publish, assert_event_handlers_empty
 from mock import MagicMock, Mock
 from mock import patch
 
@@ -19,6 +19,7 @@ from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
 class TestEvaluationSubscriber(unittest.TestCase):
 
     def setUp(self):
+        assert_event_handlers_empty()
         contract_valuation_repo = MagicMock(spec=ContractValuationRepository)
         contract_valuation_repo.__getitem__.return_value = Mock(spec=ContractValuation)
         market_simulation_repo = MagicMock(spec=MarketSimulationRepository)
@@ -40,8 +41,9 @@ class TestEvaluationSubscriber(unittest.TestCase):
 
     def tearDown(self):
         self.evaluation_subscriber.close()
+        assert_event_handlers_empty()
 
-    @patch('quantdsl.infrastructure.evaluation_subscriber.evaluate_contract_in_series')
+    @patch('quantdsl.infrastructure.evaluation_subscriber.generate_contract_valuation')
     def test_evaluation_subscriber(self, evaluate_contract_in_series):
         # Check that when an event is published, the domain service is called.
         contract_valuation_created = ContractValuation.Created(
