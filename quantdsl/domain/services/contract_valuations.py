@@ -134,7 +134,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
                                        call_requirement_repo[call_id], market_simulation,
                                        call_dependencies_repo, call_result_repo, simulated_price_repo)
 
-    # Lock the results.
+    # # Lock the results.
     if call_result_lock is not None:
         call_result_lock.acquire()
 
@@ -157,6 +157,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
 
     finally:
         # Unlock the results.
+        pass
         if call_result_lock is not None:
             call_result_lock.release()
 

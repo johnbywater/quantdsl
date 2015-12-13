@@ -81,7 +81,6 @@ class BaseQuantDslApplication(EventSourcingApplication):
         )
 
     def close(self):
-        # self.call_result_subscriber.close()
         self.evaluation_subscriber.close()
         self.dependency_graph_subscriber.close()
         self.simulation_subscriber.close()

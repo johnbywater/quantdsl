@@ -18,14 +18,7 @@ def get_next_call_id(call_link_repo, link_id):
     try:
         call_link = call_link_repo[link_id]
     except KeyError:
-        return None
+        pass
     else:
         assert isinstance(call_link, CallLink)
         return call_link.call_id
-    # try:
-    #     call_link = call_link_repo[link_id]
-    # except KeyError:
-    #     raise
-    # else:
-    #     assert isinstance(call_link, CallLink)
-    #     return call_link.call_id
