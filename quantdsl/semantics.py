@@ -1004,6 +1004,9 @@ functionalDslClasses = {
 }
 
 
+simulated_price_cache = {}
+
+
 class Market(StochasticObject, DslExpression):
 
     def validate(self, args):
@@ -1033,13 +1036,23 @@ class Market(StochasticObject, DslExpression):
             )
 
         simulated_price_id = make_simulated_price_id(kwds['simulation_id'], market_name=self.name, price_time=present_time)
+
+        try:
+            simulated_price_value = simulated_price_cache[simulated_price_id]
+        except KeyError:
+            pass
+        else:
+            return simulated_price_value
+
         try:
             simulated_price = simulated_price_repo[simulated_price_id]
         except KeyError:
             raise DslError("Can't find simulated price at '%s' for market '%s' using simulated price ID '%s'." % (present_time, self.name, simulated_price_id))
 
-        return simulated_price.value
+        simulated_price_value = simulated_price.value
+        simulated_price_cache[simulated_price_id] = simulated_price_value
 
+        return simulated_price_value
 
 class Settlement(StochasticObject, DatedDslObject, DslExpression):
     """

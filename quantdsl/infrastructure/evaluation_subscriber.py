@@ -7,7 +7,7 @@ from quantdsl.domain.model.call_result import CallResultRepository
 from quantdsl.domain.model.contract_valuation import ContractValuation, ContractValuationRepository
 from quantdsl.domain.model.market_simulation import MarketSimulationRepository
 from quantdsl.domain.model.simulated_price import SimulatedPriceRepository
-from quantdsl.domain.services.contract_valuations import evaluate_contract_in_series, evaluate_contract_in_parallel
+from quantdsl.domain.services.contract_valuations import generate_contract_valuation
 
 
 class EvaluationSubscriber(object):
@@ -41,23 +41,13 @@ class EvaluationSubscriber(object):
 
     def generate_contract_valuation(self, event):
         assert isinstance(event, ContractValuation.Created)
-
-        if self.call_evaluation_queue:
-            evaluate_contract_in_parallel(
-                contract_valuation_id=event.entity_id,
-                contract_valuation_repo=self.contract_valuation_repo,
-                call_leafs_repo=self.call_leafs_repo,
-                call_evaluation_queue=self.call_evaluation_queue,
-                call_link_repo=self.call_link_repo,
-            )
-        else:
-            evaluate_contract_in_series(
-                contract_valuation_id=event.entity_id,
-                contract_valuation_repo=self.contract_valuation_repo,
-                market_simulation_repo=self.market_simulation_repo,
-                simulated_price_repo=self.simulated_price_repo,
-                call_requirement_repo=self.call_requirement_repo,
-                call_dependencies_repo=self.call_dependencies_repo,
-                call_link_repo=self.call_link_repo,
-                call_result_repo=self.call_result_repo,
-            )
+        generate_contract_valuation(contract_valuation_id=event.entity_id,
+                                    call_dependencies_repo=self.call_dependencies_repo,
+                                    call_evaluation_queue=self.call_evaluation_queue,
+                                    call_leafs_repo=self.call_leafs_repo,
+                                    call_link_repo=self.call_link_repo,
+                                    call_requirement_repo=self.call_requirement_repo,
+                                    call_result_repo=self.call_result_repo,
+                                    contract_valuation_repo=self.contract_valuation_repo,
+                                    market_simulation_repo=self.market_simulation_repo,
+                                    simulated_price_repo=self.simulated_price_repo)

@@ -1,18 +1,15 @@
 import datetime
 import unittest
-from threading import Thread, Lock
 from time import sleep
 
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.domain.model.call_result import CallResult, register_call_result, make_call_result_id
+from quantdsl.domain.model.call_result import CallResult, make_call_result_id
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.domain.services.contract_valuations import evaluate_call_requirement, \
-    find_dependents_ready_to_be_evaluated
 from quantdsl.domain.services.fixing_dates import list_fixing_dates
 from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
@@ -38,7 +35,6 @@ class ApplicationTestCase(unittest.TestCase):
 
     def tearDown(self):
         self.app.close()
-        # self.call_evaluation_queue.join()
         assert_event_handlers_empty()
         super(ApplicationTestCase, self).tearDown()
 
@@ -60,7 +56,7 @@ class ApplicationTestCase(unittest.TestCase):
         contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
 
         call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id)
-        patience = call_count * (0.1 + self.PATH_COUNT / 200)  # Guesses.
+        patience = call_count * (0.1 + max(self.PATH_COUNT, 2000) / 200)  # Guesses.
         while patience > 0:
             if call_result_id in self.app.call_result_repo:
                 break
@@ -400,8 +396,10 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
+#Swing(Date('2011-01-01'), Date('2012-01-01'), Market('NBP'), 30)
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
+        # self.assert_contract_value(specification, 30.2081, expected_call_count=10882)
         self.assert_contract_value(specification, 30.2081, expected_call_count=15)
 
     def test_generate_valuation_power_plant_option(self):

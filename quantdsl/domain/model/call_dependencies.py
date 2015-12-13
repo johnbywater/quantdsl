@@ -3,6 +3,9 @@ from eventsourcing.domain.model.events import publish
 
 
 class CallDependencies(EventSourcedEntity):
+    """
+    A call dependency is a call that must be evaluated before this call can be evaluated.
+    """
 
     class Created(EventSourcedEntity.Created):
         pass
