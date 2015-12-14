@@ -51,9 +51,16 @@ class TestApplicationWithCassandraAndCelery(ApplicationTestCase, ContractValuati
         # Shutdown the celery worker.
         # - its usage as a context manager causes a wait for it to finish
         # after it has been terminated, and its stdin and stdout are closed
-        with getattr(cls, 'worker') as worker:
-            if worker is not None:
+        worker = getattr(cls, 'worker', None)
+        if worker is not None:
+            assert isinstance(worker, Popen)
+            if hasattr(worker, '__exit__'):
+                with worker:
+                    worker.terminate()
+            else:
                 worker.terminate()
+                worker.wait()
+            cls.worker = None
 
     def setup_application(self):
         self.app = self._app  # Makes it available for each test.
