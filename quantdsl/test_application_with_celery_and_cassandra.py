@@ -36,7 +36,7 @@ class TestApplicationWithCassandraAndCelery(ApplicationTestCase, ContractValuati
             cls.is_celery_worker_started = True
             # Check the example task returns correct result (this assumes the celery worker IS running).
             # - invoke a celery worker process as a subprocess
-            worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.tasks', '-P', 'prefork', '-c', '1', '-l', 'info']
+            worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.tasks', '-P', 'eventlet', '-c', '1000', '-l', 'info']
             cls.worker = Popen(worker_cmd)
 
     @classmethod

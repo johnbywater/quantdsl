@@ -1,4 +1,6 @@
 from collections import defaultdict
+from threading import Thread
+
 from quantdsl.domain.model.call_dependencies import CallDependencies, CallDependenciesRepository, \
     register_call_dependencies
 from quantdsl.domain.model.call_dependents import CallDependentsRepository, register_call_dependents
@@ -61,22 +63,31 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     register_call_leafs(contract_specification.id, leaf_ids)
 
 
-def get_dependency_values(contract_valution_id, call_id, dependencies_repo, result_repo):
+def get_dependency_values(contract_valuation_id, call_id, dependencies_repo, result_repo):
     assert isinstance(result_repo, CallResultRepository), result_repo
     dependency_values = {}
     stub_dependencies = dependencies_repo[call_id]
     assert isinstance(stub_dependencies, CallDependencies), stub_dependencies
+    threads = []
     for stub_id in stub_dependencies:
-        call_result_id = make_call_result_id(contract_valution_id, stub_id)
-        try:
-            stub_result = result_repo[call_result_id]
-        except KeyError:
-            raise
-        else:
-            assert isinstance(stub_result, CallResult), stub_result
-            dependency_values[stub_id] = stub_result.result_value
+        t = Thread(target=get_dependency_value,
+                   args=(contract_valuation_id, stub_id, result_repo, dependency_values))
+        t.start()
+        threads.append(t)
+    [t.join() for t in threads]
     return dependency_values
 
+
+def get_dependency_value(contract_valuation_id, stub_id, result_repo, dependency_values):
+    call_result_id = make_call_result_id(contract_valuation_id, stub_id)
+    try:
+        stub_result = result_repo[call_result_id]
+    except KeyError:
+        raise
+    else:
+        assert isinstance(stub_result, CallResult), stub_result
+        value = stub_result.result_value
+        dependency_values[stub_id] = value
 
 def generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependencies_repo):
     assert isinstance(call_dependents_repo, CallDependentsRepository)
