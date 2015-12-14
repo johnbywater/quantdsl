@@ -4,6 +4,7 @@ sudo: false
 
 services:
   - cassandra
+  - rabbitmq
 
 matrix:
   include:
