@@ -192,52 +192,84 @@ def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_d
 
         ready_dependents = []
 
+        is_multithreaded = False
+        # Multi-threaded identification of dependents ready to be evaluated.
         for dependent_id in call_dependents.dependents:
 
-            thread = Thread(target=get_dependencies_of_this_dependent,
-                            args=(call_dependencies_repo,
-                                  call_id, call_result_repo,
-                                  contract_valuation_id, dependent_id, ready_dependents))
-            thread.start()
-            dependent_threads.append(thread)
+            if is_multithreaded:
+                thread = Thread(target=add_dependent_if_ready,
+                                args=(call_dependencies_repo,
+                                      call_id,
+                                      call_result_repo,
+                                      contract_valuation_id,
+                                      dependent_id,
+                                      ready_dependents))
+                thread.start()
+                dependent_threads.append(thread)
+            else:
+                add_dependent_if_ready(call_dependencies_repo,
+                                       call_id,
+                                       call_result_repo,
+                                       contract_valuation_id,
+                                       dependent_id,
+                                       ready_dependents)
 
         [t.join() for t in dependent_threads]
 
         return ready_dependents
 
 
-def get_dependencies_of_this_dependent(call_dependencies_repo, call_id, call_result_repo, contract_valuation_id,
-                                       dependent_id, ready_dependents):
+def add_dependent_if_ready(call_dependencies_repo, call_id, call_result_repo, contract_valuation_id,
+                           dependent_id, ready_dependents):
 
     # Get the dependencies of this dependent.
     dependent_dependencies = call_dependencies_repo[dependent_id]
     assert isinstance(dependent_dependencies, CallDependencies)
-    dependency_threads = []
-    is_unsatisfied = Event()
-    # Dependent is ready if each of its dependencies already has a result.
-    for dependent_dependency_id in dependent_dependencies.dependencies:
 
-        # Skip if this dependent dependency is the given call.
-        if dependent_dependency_id == call_id:
-            continue
+    is_multithreaded = False
+    if is_multithreaded:
 
-        # Look for any unsatisfied dependencies....
-        thread = Thread(
-            target=check_result_missing,
-            args=(contract_valuation_id, dependent_dependency_id, call_result_repo, is_unsatisfied)
-        )
-        thread.start()
-        dependency_threads.append(thread)
-    [thread.join() for thread in dependency_threads]
-    if not is_unsatisfied.is_set():
-        # ....append all dependents that do not have a dependency without a result.
-        ready_dependents.append(dependent_id)
+        # Multi-threaded checking of dependency results for this dependent.
+        dependency_threads = []
+        is_unsatisfied = Event()
+        # Dependent is ready if each of its dependencies has a result.
+        for dependent_dependency_id in dependent_dependencies.dependencies:
 
+            # Skip if this dependent dependency is the given call.
+            if dependent_dependency_id == call_id:
+                continue
 
-def check_result_missing(contract_valuation_id, dependent_dependency_id, call_result_repo, is_unsatisfied):
+            # Look for any unsatisfied dependencies....
+            thread = Thread(
+                target=lambda *args: (is_result_missing(*args) and is_unsatisfied.set()),
+                args=(contract_valuation_id, dependent_dependency_id, call_result_repo)
+            )
+            thread.start()
+            dependency_threads.append(thread)
+
+        [thread.join() for thread in dependency_threads]
+        if not is_unsatisfied.is_set():
+            # ....append all dependents that do not have a dependency without a result.
+            ready_dependents.append(dependent_id)
+    else:
+
+        # Single threaded checking of dependency results for this dependent.
+        for dependent_dependency_id in dependent_dependencies.dependencies:
+
+            # Skip if this dependent dependency is the given call.
+            if dependent_dependency_id == call_id:
+                continue
+
+            # Skip if a result is missing.
+            if is_result_missing(contract_valuation_id, dependent_dependency_id, call_result_repo):
+                break
+
+        else:
+            ready_dependents.append(dependent_id)
+
+def is_result_missing(contract_valuation_id, dependent_dependency_id, call_result_repo):
     call_result_id = make_call_result_id(contract_valuation_id, dependent_dependency_id)
-    if call_result_id not in call_result_repo:
-        is_unsatisfied.set()
+    return call_result_id not in call_result_repo
 
 
 def compute_call_result(contract_valuation, call, market_simulation, call_dependencies_repo, call_result_repo,
