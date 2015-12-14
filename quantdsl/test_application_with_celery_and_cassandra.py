@@ -9,7 +9,7 @@ from eventsourcing.domain.model.events import assert_event_handlers_empty
 from eventsourcing.infrastructure.stored_events.cassandra_stored_events import create_cassandra_keyspace_and_tables
 
 from quantdsl.application.main import get_quantdsl_app
-from quantdsl.infrastructure.celery.tasks import CeleryQueueFacade
+from quantdsl.infrastructure.celery.tasks import CeleryCallEvaluationQueueFacade
 from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
 from quantdsl.test_application import ApplicationTestCase, ContractValuationTests
 
@@ -20,69 +20,63 @@ class TestApplicationWithCassandraAndCelery(ApplicationTestCase, ContractValuati
 
     @classmethod
     def setUpClass(cls):
-        # Set up the application and the workers for the class, not each test, otherwise they drag.
+        # Check it's a clean start.
         assert_event_handlers_empty()
-        os.environ['QUANTDSL_BACKEND'] = 'cassandra'
 
-        # Create Cassandra keyspace and tables.
-        cls._app = get_quantdsl_app(call_evaluation_queue=CeleryQueueFacade())
+        # Set up the application and the workers for the class, not each test, otherwise they drag.
+        os.environ['QUANTDSL_BACKEND'] = 'cassandra'
+        cls._app = get_quantdsl_app(call_evaluation_queue=CeleryCallEvaluationQueueFacade())
+
+        # Create Cassandra keyspace and tables - they are dropped at the end of this test case.
         create_cassandra_keyspace_and_tables(DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE)
 
-        # Check we've got a path to the 'celery' command line program (hopefully it's next to this python executable).
+        # Check we've got a path to the 'celery' program.
+        #  - expect it to be next to the current Python executable
         celery_script_path = os.path.join(os.path.dirname(sys.executable), 'celery')
         assert os.path.exists(celery_script_path), celery_script_path
 
-        if not hasattr(cls, 'is_celeryworker_started'):
-            cls.is_celery_worker_started = True
-            # Check the example task returns correct result (this assumes the celery worker IS running).
-            # - invoke a celery worker process as a subprocess
-            worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.tasks', '-P', 'eventlet', '-c', '1000', '-l', 'info']
-            cls.worker = Popen(worker_cmd)
+        # Invoke a celery worker process as a subprocess - it is terminates at the end of this test case.
+        worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.worker',
+                      '-P', 'eventlet', '-c', str(cls.NUMBER_WORKERS), '-l', 'info']
+        cls.worker = Popen(worker_cmd)
 
     @classmethod
     def tearDownClass(cls):
         # Drop the keyspace.
         drop_keyspace(DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE)   # Drop keyspace before closing the application.
+
+        # Close the application.
         cls._app.close()
+
+        # Check everything is unsubscribed.
         assert_event_handlers_empty()
 
+        # Reset the environment.
         os.environ.pop('QUANTDSL_BACKEND')
 
         # Shutdown the celery worker.
-        # - its usage as a context manager causes a wait for it to finish
-        # after it has been terminated, and its stdin and stdout are closed
         worker = getattr(cls, 'worker', None)
         if worker is not None:
             assert isinstance(worker, Popen)
             if hasattr(worker, '__exit__'):
+                # Python3
                 with worker:
                     worker.terminate()
             else:
+                # Python2
                 worker.terminate()
                 worker.wait()
             cls.worker = None
 
     def setup_application(self):
-        self.app = self._app  # Makes it available for each test.
+        # Make cls._app available as self.app, as expected by the test methods.
+        self.app = self._app
 
     def tearDown(self):
-        self.app = None  # Stops is being closed at the end of each test.
+        # Prevent the app being closed at the end of each test by super method.
+        self.app = None
         super(TestApplicationWithCassandraAndCelery, self).tearDown()
 
-#     def test_generate_valuation_swing_option(self):
-#         specification = """
-# def Swing(start_date, end_date, underlying, quantity):
-#     if (quantity != 0) and (start_date < end_date):
-#         return Choice(
-#             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, underlying),
-#             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
-#         )
-#     else:
-#         return 0
-#
-# Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
-# """
-#         self.assert_contract_value(specification, 30.2075, expected_call_count=15)
 
 if __name__ == '__main__':
     unittest.main()
