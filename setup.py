@@ -30,6 +30,7 @@ setup(
         'six',
         'eventsourcing',
         'pytz',
+        'blist',
     ],
     extras_require={
         'test': [
