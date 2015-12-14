@@ -19,8 +19,8 @@ class TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy(ApplicationTestCas
         )
 
     def tearDown(self):
-        os.unlink(self.tempfile_name)
         super(TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy, self).tearDown()
+        os.unlink(self.tempfile_name)
 
 
 if __name__ == '__main__':
