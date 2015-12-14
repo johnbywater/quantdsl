@@ -15,12 +15,17 @@ class CeleryCallEvaluationQueueFacade(object):
 quantdsl_app = None
 
 
-@celery_app.task
-def celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id):
-
+def get_quant_dsl_app_for_celery_worker():
     global quantdsl_app
     if quantdsl_app is None:
         quantdsl_app = get_quantdsl_app(call_evaluation_queue=CeleryCallEvaluationQueueFacade())
+    return quantdsl_app
+
+
+@celery_app.task
+def celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id):
+
+    quantdsl_app = get_quant_dsl_app_for_celery_worker()
 
     assert isinstance(quantdsl_app, BaseQuantDslApplication)
 
