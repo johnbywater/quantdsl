@@ -37,6 +37,7 @@ setup(
             'cassandra-driver==2.6.0rc1',
             'numpy',
             'sqlalchemy',
+            'eventlet'
         ],
         'sqlalchemy': [
             'sqlalchemy',
