@@ -20,21 +20,8 @@ class TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy(ApplicationTestCas
 
     def tearDown(self):
         os.unlink(self.tempfile_name)
-#     def test_generate_valuation_swing_option(self):
-#         specification = """
-# def Swing(start_date, end_date, underlying, quantity):
-#     if (quantity != 0) and (start_date < end_date):
-#         return Choice(
-#             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, underlying),
-#             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
-#         )
-#     else:
-#         return 0
-#
-# Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
-# """
-#         self.assert_contract_value(specification, 30.2051, expected_call_count=15)
-#
+        super(TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy, self).tearDown()
+
 
 if __name__ == '__main__':
     unittest.main()
