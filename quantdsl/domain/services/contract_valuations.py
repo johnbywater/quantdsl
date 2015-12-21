@@ -2,6 +2,7 @@ from multiprocessing.pool import Pool
 from multiprocessing.sharedctypes import SynchronizedArray
 from threading import Thread, Event
 
+import eventlet
 import scipy
 import six
 from multiprocessing import Value, Array, Process
@@ -19,18 +20,8 @@ drag_with_sharedmem = False
 
 def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo, call_link_repo,
                                 call_requirement_repo, call_result_repo, contract_valuation_repo,
-                                market_simulation_repo, simulated_price_repo, result_counters):
-    if call_evaluation_queue:
-        evaluate_contract_in_parallel(
-            contract_valuation_id=contract_valuation_id,
-            contract_valuation_repo=contract_valuation_repo,
-            call_leafs_repo=call_leafs_repo,
-            call_evaluation_queue=call_evaluation_queue,
-            call_link_repo=call_link_repo,
-            result_counters=result_counters,
-            call_dependencies_repo=call_dependencies_repo,
-        )
-    else:
+                                market_simulation_repo, simulated_price_repo, result_counters, call_dependents_repo):
+    if not call_evaluation_queue:
         evaluate_contract_in_series(
             contract_valuation_id=contract_valuation_id,
             contract_valuation_repo=contract_valuation_repo,
@@ -41,6 +32,43 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             call_link_repo=call_link_repo,
             call_result_repo=call_result_repo,
         )
+    else:
+        evaluate_contract_in_parallel(
+            contract_valuation_id=contract_valuation_id,
+            contract_valuation_repo=contract_valuation_repo,
+            call_leafs_repo=call_leafs_repo,
+            call_evaluation_queue=call_evaluation_queue,
+            call_link_repo=call_link_repo,
+            result_counters=result_counters,
+            call_dependencies_repo=call_dependencies_repo,
+        )
+        if isinstance(call_evaluation_queue, eventlet.Queue):
+            pool = eventlet.GreenPool()
+            # Keep looping if there are new calls to evaluate, or workers that may produce more.
+            while True:
+                item = call_evaluation_queue.get()
+                dependency_graph_id, contract_valuation_id, call_id = item
+
+                pool.spawn_n(evaluate_call_and_queue_next_calls,
+                    contract_valuation_id=contract_valuation_id,
+                    dependency_graph_id=dependency_graph_id,
+                    call_id=call_id,
+                    call_evaluation_queue=call_evaluation_queue,
+                    contract_valuation_repo=contract_valuation_repo,
+                    call_requirement_repo=call_requirement_repo,
+                    market_simulation_repo=market_simulation_repo,
+                    call_dependencies_repo=call_dependencies_repo,
+                    call_result_repo=call_result_repo,
+                    simulated_price_repo=simulated_price_repo,
+                    call_dependents_repo=call_dependents_repo,
+                    call_result_lock=None,
+                    compute_pool=None,
+                    result_counters=result_counters,
+                )
+                if call_id == dependency_graph_id:
+                    # The last one.
+                    pool.waitall()
+                    break
 
 
 def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, market_simulation_repo,
@@ -215,7 +243,7 @@ def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_d
             for dependent_id in call_dependents.dependents:
                 try:
                     result_counters[dependent_id].pop()  # Pop one of the array (atomic decrement).
-                except:
+                except (KeyError, IndexError):
                     ready_dependents.append(dependent_id)
             return ready_dependents
 

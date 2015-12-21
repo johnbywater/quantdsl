@@ -45,17 +45,17 @@ class BaseQuantDslApplication(EventSourcingApplication):
 
     def __init__(self, call_evaluation_queue=None, result_counters=None, *args, **kwargs):
         super(BaseQuantDslApplication, self).__init__(*args, **kwargs)
-        self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store)
-        self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store)
-        self.market_calibration_repo = MarketCalibrationRepo(event_store=self.event_store)
-        self.market_simulation_repo = MarketSimulationRepo(event_store=self.event_store)
-        self.simulated_price_repo = SimulatedPriceRepo(event_store=self.event_store)
-        self.call_requirement_repo = CallRequirementRepo(event_store=self.event_store)
-        self.call_dependencies_repo = CallDependenciesRepo(event_store=self.event_store)
-        self.call_dependents_repo = CallDependentsRepo(event_store=self.event_store)
-        self.call_leafs_repo = CallLeafsRepo(event_store=self.event_store)
-        self.call_link_repo = CallLinkRepo(event_store=self.event_store)
-        self.call_result_repo = CallResultRepo(event_store=self.event_store)
+        self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
+        self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
+        self.market_calibration_repo = MarketCalibrationRepo(event_store=self.event_store, use_cache=True)
+        self.market_simulation_repo = MarketSimulationRepo(event_store=self.event_store, use_cache=True)
+        self.simulated_price_repo = SimulatedPriceRepo(event_store=self.event_store, use_cache=True)
+        self.call_requirement_repo = CallRequirementRepo(event_store=self.event_store, use_cache=True)
+        self.call_dependencies_repo = CallDependenciesRepo(event_store=self.event_store, use_cache=True)
+        self.call_dependents_repo = CallDependentsRepo(event_store=self.event_store, use_cache=True)
+        self.call_leafs_repo = CallLeafsRepo(event_store=self.event_store, use_cache=True)
+        self.call_link_repo = CallLinkRepo(event_store=self.event_store, use_cache=True)
+        self.call_result_repo = CallResultRepo(event_store=self.event_store, use_cache=True)
         self.call_evaluation_queue = call_evaluation_queue
         self.result_counters = result_counters
 
@@ -81,6 +81,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
             call_evaluation_queue=self.call_evaluation_queue,
             call_leafs_repo=self.call_leafs_repo,
             result_counters=self.result_counters,
+            call_dependents_repo=self.call_dependents_repo,
         )
 
     def close(self):

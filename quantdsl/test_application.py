@@ -17,7 +17,7 @@ from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 class ApplicationTestCase(unittest.TestCase):
 
-    PATH_COUNT = 2000
+    PATH_COUNT = 20000
     NUMBER_WORKERS = 30
     NUMBER_MARKETS = 2
     NUMBER_DAYS = 5
@@ -372,9 +372,9 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-4-15'), Market('NBP'), 15)
+Swing(Date('2011-01-01'), Date('2011-2-15'), Market('NBP'), 15)
 """
-        self.assert_contract_value(specification, 30.2081, expected_call_count=1561)
+        self.assert_contract_value(specification, 30.2081, expected_call_count=617)
 
     def _test_generate_valuation_power_plant_option(self):
         specification = """
@@ -410,7 +410,7 @@ PowerPlant(Date('2012-01-01'), Date('2013-06-01'), Market('#1'), 30)
 
 class ContractValuationTests(
         # ExpressionTests,
-        FunctionTests,
-        # LongerTests
+        # FunctionTests,
+        LongerTests
 ): pass
 

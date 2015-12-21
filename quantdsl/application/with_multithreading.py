@@ -5,7 +5,7 @@ try:
 except ImportError:
     from Queue import Queue
 
-from threading import Lock, Thread
+from threading import Thread
 
 from quantdsl.application.base import BaseQuantDslApplication
 
@@ -13,15 +13,11 @@ from quantdsl.application.base import BaseQuantDslApplication
 class QuantDslApplicationWithMultithreading(BaseQuantDslApplication):
 
     def __init__(self, num_workers, *args, **kwargs):
+        # Todo: Refactor the counter logic into a class, or find something that already does this. Perhaps use range.
         result_counters = {}
         super(QuantDslApplicationWithMultithreading, self).__init__(call_evaluation_queue=Queue(),
                                                                     result_counters=result_counters, *args, **kwargs)
-
-        # Create a thread lock.
-        # call_result_lock = Lock()
         call_result_lock = None
-
-        # compute_pool = get_compute_pool()
         compute_pool = None
 
         # Start evaluation worker threads.
