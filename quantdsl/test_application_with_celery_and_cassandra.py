@@ -37,7 +37,8 @@ class TestApplicationWithCassandraAndCelery(ApplicationTestCase, ContractValuati
 
         # Invoke a celery worker process as a subprocess - it is terminates at the end of this test case.
         worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.worker',
-                      '-P', 'eventlet', '-c', str(cls.NUMBER_WORKERS), '-l', 'info']
+                      '-P', 'prefork',
+                      '-c', str(cls.NUMBER_WORKERS), '-l', 'info']
         cls.worker = Popen(worker_cmd)
 
     @classmethod

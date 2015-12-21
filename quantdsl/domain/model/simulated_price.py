@@ -30,9 +30,9 @@ def register_simulated_price(market_simulation_id, market_name, fixing_date, pri
 
 
 def make_simulated_price_id(market_simulation_id, market_name, price_time):
-    assert isinstance(market_simulation_id, six.string_types), market_simulation_id
-    assert isinstance(market_name, six.string_types), market_name
-    assert isinstance(price_time, datetime.date), price_time
+    # assert isinstance(market_simulation_id, six.string_types), market_simulation_id
+    # assert isinstance(market_name, six.string_types), market_name
+    # assert isinstance(price_time, datetime.date), price_time
     return market_simulation_id + market_name + str(price_time)
 
 

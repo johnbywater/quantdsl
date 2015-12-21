@@ -13,7 +13,7 @@ def list_fixing_dates(dependency_graph_id, call_requirement_repo, call_link_repo
 
         # Get the stubbed expression.
         call_requirement = call_requirement_repo[call_id]
-        assert isinstance(call_requirement, CallRequirement)
+        # assert isinstance(call_requirement, CallRequirement)
         dsl_expr = dsl_parse(call_requirement.dsl_source)
 
         # Find all the fixing times involved in this expression.

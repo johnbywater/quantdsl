@@ -37,6 +37,7 @@ class TestEvaluationSubscriber(unittest.TestCase):
             market_simulation_repo=market_simulation_repo,
             call_leafs_repo=call_leafs_repo,
             call_evaluation_queue=None,
+            result_counters=None,
         )
 
     def tearDown(self):

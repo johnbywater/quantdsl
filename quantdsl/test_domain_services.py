@@ -29,7 +29,7 @@ from quantdsl.exceptions import DslError
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
 from quantdsl.infrastructure.event_sourced_repos.call_leafs_repo import CallLeafsRepo
-from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
+from quantdsl.infrastructure.event_sourced_repos.call_requirement_repo import CallRequirementRepo
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -49,6 +49,7 @@ class TestDependencyGraph(unittest.TestCase):
         self.call_dependencies_repo = CallDependenciesRepo(self.es)
         self.call_dependents_repo = CallDependentsRepo(self.es)
         self.call_leafs_repo = CallLeafsRepo(self.es)
+        self.call_requirement_repo = CallRequirementRepo(self.es)
 
     def tearDown(self):
         self.ps.close()
@@ -66,6 +67,7 @@ double(1 + 1)
             call_dependencies_repo=self.call_dependencies_repo,
             call_dependents_repo=self.call_dependents_repo,
             call_leafs_repo=self.call_leafs_repo,
+            call_requirement_repo=self.call_requirement_repo,
         )
 
         root_dependencies = self.call_dependencies_repo[contract_specification.id]

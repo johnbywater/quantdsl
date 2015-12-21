@@ -1,7 +1,10 @@
+from eventsourcing.infrastructure.stored_events.cassandra_stored_events import setup_cassandra_connection, \
+    get_cassandra_setup_params
 from filelock import FileLock
 
 from quantdsl.application.base import BaseQuantDslApplication
 from quantdsl.application.main import get_quantdsl_app
+from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
 from quantdsl.infrastructure.celery.app import celery_app
 
 
@@ -19,6 +22,8 @@ def get_quant_dsl_app_for_celery_worker():
     global quantdsl_app
     if quantdsl_app is None:
         quantdsl_app = get_quantdsl_app(call_evaluation_queue=CeleryCallEvaluationQueueFacade())
+        # setup_cassandra_connection(*get_cassandra_setup_params(default_keyspace=DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE))
+
     return quantdsl_app
 
 

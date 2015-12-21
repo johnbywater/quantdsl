@@ -43,7 +43,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
     Evaluate contract given call dependency graph and market simulation.
     """
 
-    def __init__(self, call_evaluation_queue=None, *args, **kwargs):
+    def __init__(self, call_evaluation_queue=None, result_counters=None, *args, **kwargs):
         super(BaseQuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store)
@@ -57,6 +57,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
         self.call_link_repo = CallLinkRepo(event_store=self.event_store)
         self.call_result_repo = CallResultRepo(event_store=self.event_store)
         self.call_evaluation_queue = call_evaluation_queue
+        self.result_counters = result_counters
 
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
@@ -67,6 +68,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
             call_dependencies_repo=self.call_dependencies_repo,
             call_dependents_repo=self.call_dependents_repo,
             call_leafs_repo=self.call_leafs_repo,
+            call_requirement_repo=self.call_requirement_repo,
         )
         self.evaluation_subscriber = EvaluationSubscriber(
             contract_valuation_repo=self.contract_valuation_repo,
@@ -78,6 +80,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
             market_simulation_repo=self.market_simulation_repo,
             call_evaluation_queue=self.call_evaluation_queue,
             call_leafs_repo=self.call_leafs_repo,
+            result_counters=self.result_counters,
         )
 
     def close(self):
@@ -85,7 +88,6 @@ class BaseQuantDslApplication(EventSourcingApplication):
         self.dependency_graph_subscriber.close()
         self.simulation_subscriber.close()
         super(BaseQuantDslApplication, self).close()
-
 
     # Todo: Register historical data.
 
@@ -144,7 +146,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
         assert isinstance(market_simulation, MarketSimulation)
         return start_contract_valuation(dependency_graph_id, market_simulation.id)
 
-    def loop_on_evaluation_queue(self, call_result_lock):
+    def loop_on_evaluation_queue(self, call_result_lock, compute_pool=None, result_counters=None):
         loop_on_evaluation_queue(
             call_evaluation_queue=self.call_evaluation_queue,
             contract_valuation_repo=self.contract_valuation_repo,
@@ -154,7 +156,9 @@ class BaseQuantDslApplication(EventSourcingApplication):
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
             call_dependents_repo=self.call_dependents_repo,
-            call_result_lock=call_result_lock
+            call_result_lock=call_result_lock,
+            compute_pool=compute_pool,
+            result_counters=result_counters,
         )
 
     def evaluate_call_and_queue_next_calls(self, contract_valuation_id, dependency_graph_id, call_id, lock):

@@ -1,7 +1,11 @@
+# from multiprocessing.sharedctypes import SynchronizedArray
 from threading import Lock
 
+import scipy
 from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
 from eventsourcing.domain.model.events import publish
+
+# from quantdsl.semantics import numpy_from_sharedmem
 
 
 class CallResult(EventSourcedEntity):
@@ -32,10 +36,12 @@ class CallResult(EventSourcedEntity):
 
     @property
     def scalar_result_value(self):
-        try:
-            return self._result_value.mean()
-        except AttributeError:
-            return self._result_value
+        result_value = self._result_value
+        # if isinstance(result_value, SynchronizedArray):
+        #     result_value = numpy_from_sharedmem(result_value)
+        if isinstance(result_value, scipy.ndarray):
+            result_value = result_value.mean()
+        return result_value
 
 
 def register_call_result(call_id, result_value, contract_valuation_id, dependency_graph_id):

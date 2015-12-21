@@ -11,7 +11,7 @@ from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
 # from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
 # from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
-from quantdsl.semantics import DslNamespace, DslExpression, Market, DslError, Module, StochasticObject, \
+from quantdsl.semantics import DslNamespace, DslExpression, Market, DslError, StochasticObject, \
     compile_dsl_module, list_fixing_dates, find_market_names
 
 ## Application services.
@@ -37,7 +37,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
     if evaluation_kwds is None:
         evaluation_kwds = DslNamespace()
-    assert isinstance(evaluation_kwds, dict)
+    # assert isinstance(evaluation_kwds, dict)
     evaluation_kwds.update(extra_evaluation_kwds)
 
     if is_show_source:
@@ -289,13 +289,13 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
     """
     if compile_kwds is None:
         compile_kwds = DslNamespace()
-    assert isinstance(compile_kwds, dict)
+    # assert isinstance(compile_kwds, dict)
     compile_kwds.update(extraCompileKwds)
 
     # Parse the source into a DSL module object.
     dsl_module = dsl_parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
 
-    assert isinstance(dsl_module, Module)
+    # assert isinstance(dsl_module, Module)
 
     # Compile the module into either a dependency graph
     # if 'is_parallel' is True, otherwise a single primitive expression.
