@@ -1,0 +1,137 @@
+Domain Analysis for Quantative Analysis
+=======================================
+
+Motivation for analysis project
+-------------------------------
+
+Generate analysis of support provided by quantative analysis.
+
+The following process are supported by quantative analysis:
+
+1. Selling derivatives contracts.
+2. Buying derivatives contracts.
+3. Statistical arbitrage.
+
+
+Scope of the Work
+-----------------
+
+"Productive business activities."
+
+Event: Somebody wants to trade a derivative contract.
+Response: Calculate a price for a derivative contract.
+Outcome: Price of the derivative contract.
+
+Event: Somebody signs a derivative contract.
+Response: Book the derivative.
+Outcome: New derivative contract registered on the book.
+
+Event: New derivative contract on the book.
+Response: Set initial hedges.
+Outcome: Derivative contracts are hedged correctly.
+
+Event: At frequency of book monitoring.
+Response: Send request to monitor the book.
+Outcome: Request to monitor the book.
+
+Event: Receive request to monitor value of book.
+Response: Calculate the value and greeks of the book.
+Outcome: Send alert about value of the book.
+
+Event: Receive alert about value of book.
+Response: Send request to flatten the book.
+Outcome: Request to flatten the book.
+
+Event: At frequency of re-hedging.
+Response: Send request to flatten the book.
+Outcome: Request to flatten the book.
+
+Event: Derivative contract is cancelled.
+Response: Take derivative contract off the book.
+Outcome: Derivative not registered on the book.
+
+Event: Derivative contract expires.
+Response: Take derivative contract off the book.
+Outcome: Derivative not registered on the book.
+
+Event: Old derivative contract removed from the book.
+Response: Send request to flatten the book.
+Outcome: Request to flatten the book.
+
+Event: Receive request to flatten book.
+Response: Make trades according to value and greeks of the book.
+Outcome: Book is (sufficiently) flat.
+
+
+Scope of the System
+-------------------
+
+"Interactions with a software service."
+
+Calculate the price of a derivatives contract
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Product Use Case: Create software model for a derivatives contract.
+Requirement: The system shall support creating software models for a forward contract.
+Requirement: The system shall support creating software models for a european option (on forward contract).
+Requirement: The system shall support creating software models for a american option (on forward contract).
+Requirement: The system shall support creating software models for a swing option (on set of forward contracts).
+Requirement: The system shall support creating software models for a european option (on european option).
+Requirement: The system shall support creating software models for a general state machine contract.
+
+Product Use Case: Select market model for a derivatives contract.
+Requirement: The system shall support adding market models.
+Requirement: The system shall support updating market models.
+Requirement: The system shall support selecting a market model.
+Requirement: The system shall support selecting a black scholes price process.
+Requirement: The system shall support selecting a local volatility price process.
+
+Product Use Case: Read software model for a derivatives contract.
+Requirement: The system shall support reading software models of a derivatives contract.
+
+Product Use Case: Update software model for a derivatives contract.
+Requirement: The system shall support updating software models for a forward contract.
+Requirement: The system shall support updating software models for a european option (on forward contract).
+Requirement: The system shall support updating software models for a american option (on forward contract).
+Requirement: The system shall support updating software models for a swing option (on set of forward contracts).
+Requirement: The system shall support updating software models for a european option (on european option).
+Requirement: The system shall support updating software models for a general state machine contract.
+
+Product Use Case: List software model for a derivatives contract.
+Requirement: The system shall support listing software models of a derivatives contract.
+
+Product Use Case: Delete software model for a derivatives contract.
+Requirement: The system shall support deleting software models of a derivatives contract.
+
+Product Use Case: Execute software model for a derivatives contract.
+Requirement: The system shall support executing black scholes solution for european contract model with black scholes price process.
+Requirement: The system shall support executing binomial solution for european contract model with local volatility price process.
+Requirement: The system shall support executing black scholes solution for binary contract model with black scholes price process.
+Requirement: The system shall support executing binomial solution for binary contract model with local volatility price process.
+Requirement: The system shall support executing binomial solution for american contract model with black scholes price process.
+Requirement: The system shall support executing binomial solution for american contract model with local volatility price process.
+Requirement: The system shall support executing binomial solution for swing contract model with black scholes price process.
+Requirement: The system shall support executing binomial solution for swing contract model with local volatility price process.
+Requirement: The system shall support executing monte carlo solution for general statement machine contract model.
+
+Product Use Case: Save results of executing software model for a derivatives contract.
+Requirement: The system shall support saving results of executing software model for a derivatives contract.
+
+
+#Product Use Case: Read latest value and hedges of the entire book.
+#Requirement: The system shall support calculating the total value of all contracts and hedges.
+#
+#Product Use Case: Read a booked contract.
+#Requirement: The system shall support reading details of a given booked derivatives contract.
+#
+#Product Use Case: Register a new derivatives contract.
+#Requirement: The system shall support registering a new derivatives contract.
+#
+#Product Use Case: List the booked contracts.
+#Requirement: The system shall support list all booked derivatives contracts.
+
+
+Waiting Room
+------------
+
+

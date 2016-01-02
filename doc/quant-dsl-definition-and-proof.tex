@@ -1,0 +1,293 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+\newcommand{\sembrack}[1]{[\![#1]\!]}
+
+\title{Quant DSL Language Guide}
+\author{Appropriate Software Foundation}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\begin{abstract}
+This article describes Quant DSL, a domain specific language for quantitative analytics. Language elements are combined according to the language syntax to form a statement of value which is evaluated according to the language semantics. The syntax of the language is defined with Backus–Naur Form. The semantics are defined with mathematical expressions commonly used within quantitative analytics. The validity of Monte Carlo simulation for all possible expressions in the language is proven by induction. Quant DSL has been implemented in Python as a part of the Quant software application.
+\end{abstract}
+
+\section{Synthesis}
+
+Quant DSL is a domain specific language for quantitative analytics. The value of any domain specific language consists in obtaining a declarative syntax by which domain functionality can be invoked with potentially infinite variation, so that a complex domain can be supported with relatively simple software. Once underlying functionality has been abstracted to the level of a domain specific language, support for a new case can be established in a relatively short time. Because new code does not need to be written for a new case, proliferation of code that is hard to test (and therefore expensive to maintain) can be avoided.
+
+Quant DSL is used to record and evaluate statements of value. It is hoped that the elements of the Quant DSL (for example "Market", "Fixing", "Settlement") are recognised as common terms within quantitative analytics; whilst the elements are defined fully in this article, each element may be familiar to people who are familiar with the domain. Consequently, it is hoped that statements of value that are written in Quant DSL will be readable (as well as writable).
+
+Given the infinite variation of expression in the language, it is necessary to obtain an inductive proof of the integrity of the language for any possible expression. Although alternative proofs may be obtained, an inductive proof has been devised.
+
+Quant DSL was invented during the development of the Quant Python package. Quant is an open source application of both the SciPy Python package (a library for scientific computation) and the Domain Model Python package (a toolkit for enterprise applications). Recent advances in software engineering practice (for example Martin Fowler's patterns of enterprise application architecture, the agile approach, or open source software) have suggested new ways to obtain appropriate functionality. In particular, the recent maturation of dynamic languages such as Python means the focus of development can remain on the supported domain. Quant has benefited from these tendencies.
+
+Quant DSL is based on professional experience in financial institutions in London, academic training in mathematics and mathematical engineering, and professional experience in the architecture and development of enterprise applications. It is hoped that Quant DSL constitutes a fresh approach to a common concern.
+
+\section{Syntax}
+
+In Quant DSL, a statement of value is an expression in the following form.
+
+\subsection{Expressions}
+
+An expression is either a constant value, or an expected market price, or fixes an expression to a date, or settles an expression on a date, or waits until a date for an expression, or chooses between the two expressions, or is the maximum (or addition or subtraction or multiplication or division) of two expressions, or negates an expression.
+
+\begin{tabular}{rl}
+\\
+<Expression> ::= & <Constant> \\
+          | & "Market(" <MarketId> ")" \\
+          | & "Fixing(" <Date> "," <Expression> ")" \\
+          | & "Settlement(" <Date> "," <Expression> ")" \\
+          | & "Wait(" <Date> "," <Expression> ")" \\
+          | & "Choice(" <Expression> "," <Expression> ")" \\
+          | & "Max(" <Expression> "," <Expression> ")" \\
+          | & <Expression> "+" <Expression> \\
+          | & <Expression> "-" <Expression> \\
+          | & <Expression> "*" <Expression> \\
+          | & <Expression> "/" <Expression> \\
+          | & "-" <Expression> \\
+\end{tabular}
+
+\subsection{Markets and Dates}
+
+Market identifiers are constrained in practice by the object model of the market exchange. Dates start with a four digit year and have dashes.
+
+\begin{tabular}{rl}
+\\
+<MarketId> ::= & "\#"<Integer> \\
+<Date> ::= & <Year>"-"<Month>"-"<Day> \\
+<Year> ::= & <Digit><Digit><Digit><Digit> \\
+<Month> ::= & <Digit><Digit> \\
+<Day> ::= & <Digit><Digit> \\
+\end{tabular}
+
+\subsection{Constants}
+
+A constant is either an integer or a floating point number. A digit is a digit in base 10.
+
+\begin{tabular}{rl}
+\\
+<Constant> ::= & <Float> | <Integer>\\
+<Float> ::= & <Integer>"."<Integer> \\
+<Integer> ::= & <Integer><Digit> | <Digit>\\
+<Digit> ::= & "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" \\
+\end{tabular}
+
+\section{Semantics}
+
+A statement of value is an expression $v$ evaluated at present time $t_0$.
+
+\begin{tabular}{rl}
+\\
+$ E[ \sembrack{v}(t_0) ]$ \\
+\end{tabular}
+
+
+\subsection{Functions of Time}
+
+Expression $v$ defines a function $\sembrack{v}(t)$ from present time $t$ to a random variable in a probability space.
+
+\begin{tabular}{rl}
+\\
+$\sembrack{Market(i)}(t) $ & $= S_i e^{\sigma_i z(t - t_0) - \frac{1}{2} \sigma_i^2 (t - t_0) }$ \\
+\\
+$\sembrack{Fixing(d, x)}(t) $ & $= \sembrack{x}(d) $ \\
+\\
+$\sembrack{Settlement(d, x)}(t) $ & $= e^{r(t-d)} \sembrack{x}(t)$ \\
+\\
+$\sembrack{Wait(d, x)}(t) $ & $= \sembrack{Settlement(d, Fixing(d, x))}(t) $ \\
+\\
+$\sembrack{Choice(x, y)}(t) $ & $= max( E[ \sembrack{x}(t) | F(t) ], E[\sembrack{y}(t) | F(t) ] )$ \\
+\\
+$\sembrack{Max(x, y)}(t) $ & $= max(\sembrack{x}(t),  \sembrack{y}(t))$ \\
+\\
+$\sembrack{x + y}(t) $ & $= \sembrack{x}(t) + \sembrack{y}(t)$ \\
+\\
+$\sembrack{x - y}(t) $ & $= \sembrack{x}(t) - \sembrack{y}(t)$ \\
+\\
+$\sembrack{x * y}(t) $ & $= \sembrack{x}(t) \sembrack{y}(t)$ \\
+\\
+$\sembrack{x / y}(t) $ & $= \sembrack{x}(t)  /  \sembrack{y}(t)$ \\
+\\
+$\sembrack{- x}(t) $ & $= - \sembrack{x}(t) $ \\
+\\
+\end{tabular}
+
+For market $i$, the last price $S_i$ and volatility $\sigma_i$ are determined using only market price data generated before $t_0$.
+
+Brownian motion $z$ is used in diffusion. Constant interest rate $r$ is used in discounting. Expectation $E$ is conditioned on filtration $F$.
+
+
+\section{Simulation}
+
+A random variable is simulated with a number $N$ of samples from its distribution. The language semantics are simulated such that for any valid expression $v$, the simulated value $\sembrack{v}_m(t)$ converges in mean square and in probability to the true value of $\sembrack{v}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+
+\subsection{Proof by Induction}
+The inductive hypothesis $I(v)$ is defined to be true if and only if, for any time $t$, the simulated value $\sembrack{v}_m(t)$ converges in mean square and in probability to the true value $\sembrack{v}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Below, $I(v)$ is shown to be true for all $v$.
+
+
+\subsubsection{Market}
+
+Let $i$ reference a market price history. Let $z_m$ be a simulatation of Brownian motion $z$. Suppose $I(z)$.
+
+The true value $\sembrack{Market(i)}(t)$ is simulated as $S_i e^{\sigma_i z_m(t - t_0) - \frac{1}{2} \sigma_i^2 (t - t_0) }$.
+
+Since Brownian motion, exponentiation and multiplication by a constant are continuous, the simulated value $S_i e^{\sigma_i z_m(t - t_0) - \frac{1}{2} \sigma_i^2 (t - t_0) }$ converges in mean square and in probability to the true value $S_i e^{\sigma_i z(t - t_0) - \frac{1}{2} \sigma_i^2 (t - t_0) }$ as the number $N$ of paths in the simulation goes to infinity.
+
+Thus, $\sembrack{Market(i)}_m(t)$ converges in mean square and in probability to $\sembrack{Market(i)}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Hence $I(Market(i))$.
+
+\subsubsection{Fixing}
+Let $d$ be a date. Suppose $I(x)$.
+
+The true value $\sembrack{Fixing(x, d)}(t)$ is simulated as $ \sembrack{x}_m(d) $.
+
+Since $d$ is also a time, the simulated value $ \sembrack{x}_m(d) $ converges in mean square and in probability to the true value $ \sembrack{x}(d) $ as the number $N$ of paths in the simulation goes to infinity.
+
+Thus, $\sembrack{Fixing(x, d)}_m(t)$ converges in mean square and in probability to $\sembrack{Fixing(x, d)}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Hence $I(Fixing(x, d))$.
+
+\subsubsection{Settlement}
+Let $x$ be an expression, and $d$ a date. Suppose $I(x)$.
+
+The true value $\sembrack{Settlement(x,d)}(t)$ is simulated as $e^{r(t-d)} \sembrack{x}_m(t)$.
+
+Since $e^{r(t-d)}$ is constant, and multiplication by a constant is continuous, the simulated value $e^{r(t-d)} \sembrack{x}_m(d)$ converges in mean square and in probability to the true value $e^{r(t-d)} \sembrack{x}(d)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Thus, $\sembrack{Settlement(x,d)}_m(t)$ converges in mean square and in probability to $\sembrack{Settlement(x,d)}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Hence $I(Settlement(x,d))$.
+
+\subsubsection{Wait}
+Let $x$ be an expression, and $d$ a date. Suppose $I(Fixing(d,x))$ and $I(Settlement(d,x))$.
+
+The true value $\sembrack{Wait(x,d)}(t)$ is simulated as $\sembrack{Settlement(d,Fixing(d, x))}_m(t)$.
+
+Since $Fixing(d,x)$ is an expression, the simulated value converges in mean square and in probability to $\sembrack{Settlement(d,Fixing(d, x))}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Thus, $\sembrack{Wait(x,d)}_m(t)$ converges in mean square and in probability to $\sembrack{Wait(x,d)}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Hence $I(Wait(x,d))$.
+
+\subsubsection{Choice}
+Let $x$ and $y$ be expressions. Let $R = \{x, y\}$ be the alternatives for a decision to be made at time $t$. Let $P(r) = 0$ be the immediate payoff associated with alternative $r$. Let $V(r)$ be the true continuation value associated with alternative $r$, where $V(x) = \sembrack{x}$, and $V(y) = \sembrack{y}$. Suppose $I(x)$ and $I(y)$.
+
+The true value $\sembrack{Choice(x,y)}(t)$ is simulated as $LSM(P_m, V_m)$, where $LSM$ is a function which computes a single step of the Longstaff and Schwartz least-squares monte carlo algorithm \cite{Longstaff}, where $P_m(x)=0$ and $P_m(y)=0$, and where $V_m(x)=\sembrack{x}_m(t)$ and $V_m(y)=\sembrack{y}_m(t)$.
+
+According to Longstaff and Schwartz, the simulated value $LSM(P_m, V_m)$ converges in mean square and in probability to the true value of the maxmimum over $R$ of $E[P(r) + V(r)| F(t)]$ as the number $N$ of paths in the simulation goes to infinity.
+
+By substituting for $R$, $P$ and $V$, the maxmimum over $R$ of $E[P(r) + V(r)| F(t)]$ becomes $max (E[ \sembrack{x}(t) | F(t) ], E[ \sembrack{y}(t) | F(t) ])$.
+
+Thus, $\sembrack{Choice(x,y)}_m(t)$ converges in mean square and in probability to the true value $\sembrack{Choice(x,y)}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+
+Hence $I(Choice(x, y))$.
+
+\subsubsection{Max}
+Let $x$ and $y$ be expressions. Suppose $I(x)$ and $I(y)$.
+
+The true value $\sembrack{Max(x,y)}(t)$ is simulated as $ max(\sembrack{x}_m(t),  \sembrack{y}_m(t)) $.
+
+Since maximisation is continuous, the simulated value $max(\sembrack{x}_m(t), \sembrack{y}_m(t))$ converges in mean square and in probability to the true value $max(\sembrack{x}(t),  \sembrack{y}(t))$.
+
+Thus, $\sembrack{Max(x,y)}_m(t)$ converges in mean square and in probability to $\sembrack{Max(x,y)}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+  
+Hence $I(Max(x, y))$.
+
+\subsubsection{Addition}
+Let $x$ and $y$ be expressions. Suppose $I(x)$ and $I(y)$.
+
+The true value $\sembrack{x + y}(t)$ is simulated as $ \sembrack{x}_m(t) + \sembrack{y}_m(t) $.
+
+Since addition is continuous, the simulated value $\sembrack{x}_m(t) + \sembrack{y}_m(t)$ converges in mean square and in probability to the true value $\sembrack{x}(t) + \sembrack{y}(t)$.
+
+Thus, $\sembrack{x + y}_m(t)$ converges in mean square and in probability to $\sembrack{x + y}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+  
+Hence $I(x + y)$.
+
+\subsubsection{Subtraction}
+Let $x$ and $y$ be expressions. Suppose $I(x)$ and $I(y)$.
+
+The true value $\sembrack{x - y}(t)$ is simulated as $ \sembrack{x}_m(t) - \sembrack{y}_m(t) $.
+
+Since subtraction is continuous, the simulated value $\sembrack{x}_m(t) - \sembrack{y}_m(t)$ converges in mean square and in probability to the true value $\sembrack{x}(t) - \sembrack{y}(t)$.
+
+Thus, $\sembrack{x - y}_m(t)$ converges in mean square and in probability to $\sembrack{x - y}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+  
+Hence $I(x - y)$.
+
+
+\subsubsection{Multiplication}
+Let $x$ and $y$ be expressions. Suppose $I(x)$ and $I(y)$.
+
+The true value $\sembrack{x * y}(t)$ is simulated as $ \sembrack{x}_m(t) \sembrack{y}_m(t) $.
+
+Since multiplication is continuous, $\sembrack{x}_m(t) \sembrack{y}_m(t)$ converges in mean square and in probability to the true value $\sembrack{x}(t) \sembrack{y}(t)$.
+
+Thus, $\sembrack{x * y}_m(t)$ converges in mean square and in probability to $\sembrack{x * y}(t)$ as the number $N$ of paths in the simulation goes to infinity.
+  
+Hence $I(x * y)$.
+
+\subsubsection{Division}
+Let $x$ and $y$ be expressions. Suppose $I(x)$ and $I(y)$.
+
+Todo: Show that $I(x / y)$. 
+
+Hence $I(x / y)$.
+
+
+\section{Software}
+
+\subsection{Quant Python Package}
+
+Quant DSL has been implemented within a module ($quant/dsl.py$) of the Python package called Quant \cite{Quant}.
+
+Quant is an application of SciPy \cite{SciPy} and Domain Model \cite{DomainModel}. Quant provides a Web user interface that allows books of trades to be defined and evaluated with real market data. Quant can be installed on Linux platforms.
+
+
+\section{Future Development}
+
+Various enhancements are anticipated.
+
+Elements to simplify common expressions, such as $Option$ or $European$, will be added soon.
+
+\begin{tabular}{rl}
+\\
+$\sembrack{Option(d, k, x, y)}(t) $ & $= \sembrack{Wait(d, Choice(x-k, y))}(t) $ \\
+\\
+$\sembrack{European(d, k, x)}(t) $ & $= \sembrack{Option(d, k, x, 0)}(t) $ \\
+\\
+\end{tabular}
+
+Many users will want to express optionality over a period of time.
+
+\begin{tabular}{rl}
+\\
+$\sembrack{American(d, k, x)}(t) = \sembrack{Option(t, k, x, Option(t+\delta{t}, k, x, Option( $ \\
+$ t+2\delta{t}, k, x,  ... Option(d -\delta{t}, k, x, Option(d, k, x, 0))))))}(t) $ \\
+\\
+\end{tabular}
+
+Some users may wish to define new elements of the language, and so an extension mechanism would be desirable.
+
+Others may benefit from evaluating statements by using analytic solutions instead of a Monte Carlo solution, where that would be a valid evaluation of the statement.
+
+Others may wish to be warned about common usage errors, for example it should be possible to detect if a $Max$ expression operates on expressions which depend on the underlyings at a different present time.
+
+Others may wish to customise the random processes applied to market prices. Others may wish to evaluate statements with variable interest rates. Others may wish to derive expected cash flows from the statement of value.
+
+
+\bibliography{quant-dsl-definition-and-proof}{}
+\bibliographystyle{unsrt}
+
+\end{document}
