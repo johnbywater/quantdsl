@@ -34,7 +34,7 @@ class DslObject(six.with_metaclass(ABCMeta)):
 
     def __init__(self, *args, **kwds):
         self.node = kwds.pop('node', None)
-        # self.validate(args)
+        self.validate(args)
         self._args = list(args)
 
     def __str__(self, indent=0):
@@ -259,7 +259,7 @@ class TimeDelta(DslConstant):
         elif isinstance(value, datetime.timedelta):
             return value
         else:
-            raise DslSystemError("shouldn't get_quantdsl_app here", value, node=self.node)
+            raise DslSystemError("shouldn't get here", value, node=self.node)
 
 
 class UnaryOp(DslExpression):
@@ -1023,7 +1023,12 @@ class Market(StochasticObject, DslExpression):
     def name(self):
         return self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
 
+    @property
+    def delivery_time(self):
+        return ''
+
     def evaluate(self, **kwds):
+        # Get the effective present time (needed to form the simulated_value_id).
         try:
             present_time = kwds['present_time']
         except KeyError:
@@ -1032,6 +1037,8 @@ class Market(StochasticObject, DslExpression):
                 ", ".join(kwds.keys()),
                 node=self.node
             )
+
+        # Get the dict of simulated values.
         try:
             simulated_value_dict = kwds['simulated_value_dict']
         except KeyError:
@@ -1041,8 +1048,13 @@ class Market(StochasticObject, DslExpression):
                 node=self.node
             )
 
-        simulated_price_id = make_simulated_price_id(kwds['simulation_id'], market_name=self.name, price_time=present_time)
+        # Make the simulated price ID.
+        simulated_price_id = make_simulated_price_id(kwds['simulation_id'],
+                                                     market_name=self.name,
+                                                     price_time=present_time,
+                                                     delivery_time=self.delivery_time)
 
+        # Check the cache.
         try:
             simulated_price_value = simulated_price_cache[simulated_price_id]
         except KeyError:
@@ -1050,17 +1062,48 @@ class Market(StochasticObject, DslExpression):
         else:
             return simulated_price_value
 
+        # Get the value from the dict of simulated values.
         try:
-            simulated_price = simulated_value_dict[simulated_price_id]
+            simulated_price_value = simulated_value_dict[simulated_price_id]
         except KeyError:
             raise DslError("Can't find simulated price at '%s' for market '%s' using simulated price ID '%s'." % (present_time, self.name, simulated_price_id))
 
-        # simulated_price_value = numpy_from_sharedmem(simulated_price)
-        simulated_price_value = simulated_price
+        # simulated_price_value = numpy_from_sharedmem(simulated_price_value)
 
+        # Put the value in the cache.
         simulated_price_cache[simulated_price_id] = simulated_price_value
 
         return simulated_price_value
+
+
+class ForwardMarket(Market):
+
+    def validate(self, args):
+        self.assert_args_len(args, required_len=2)
+        self.assert_args_arg(args, posn=0, required_type=(six.string_types, String, Name))
+        self.assert_args_arg(args, posn=1, required_type=(String, Date, Name, BinOp))
+
+    @property
+    def delivery_time(self):
+        # Refactor this w.r.t. the Settlement.date property.
+        if not hasattr(self, '_delivery_time'):
+            date = self._args[1]
+            if isinstance(date, Name):
+                raise DslSyntaxError("date value name '%s' must be resolved to a datetime before it can be used" % date.name, node=self.node)
+            if isinstance(date, datetime.date):
+                pass
+            if isinstance(date, six.string_types):
+                date = String(date)
+            if isinstance(date, String):
+                date = Date(date, node=date.node)
+            if isinstance(date, (Date, BinOp)):
+                date = date.evaluate()
+            if not isinstance(date, datetime.date):
+                raise DslSyntaxError("delivery date value should be a datetime.datetime by now, but it's a %s" % date, node=self.node)
+            self._delivery_time = date
+        return self._delivery_time
+
+
 
 class Settlement(StochasticObject, DatedDslObject, DslExpression):
     """
@@ -1069,7 +1112,7 @@ class Settlement(StochasticObject, DatedDslObject, DslExpression):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(String, Date, Name,BinOp))
+        self.assert_args_arg(args, posn=0, required_type=(String, Date, Name, BinOp))
         self.assert_args_arg(args, posn=1, required_type=DslExpression)
 
     def evaluate(self, **kwds):
@@ -1364,6 +1407,7 @@ defaultDslClasses.update({
     'Choice': Choice,
     'Fixing': Fixing,
     'Market': Market,
+    'ForwardMarket': ForwardMarket,
     'On': On,
     'Settlement': Settlement,
     'Wait': Wait,

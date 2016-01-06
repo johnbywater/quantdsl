@@ -5,12 +5,13 @@ from quantdsl.domain.model.call_dependencies import register_call_dependencies
 from quantdsl.domain.model.call_dependents import register_call_dependents
 from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_requirement import register_call_requirement
-from quantdsl.domain.model.contract_specification import register_contract_specification
+from quantdsl.domain.model.contract_specification import register_contract_specification, ContractSpecification
 from quantdsl.domain.model.contract_valuation import start_contract_valuation
 from quantdsl.domain.model.dependency_graph import register_dependency_graph
 from quantdsl.domain.model.market_calibration import register_market_calibration, compute_market_calibration_params
 from quantdsl.domain.model.market_simulation import register_market_simulation, MarketSimulation
 from quantdsl.domain.services.contract_valuations import loop_on_evaluation_queue, evaluate_call_and_queue_next_calls
+from quantdsl.domain.services.simulated_prices import list_market_names_and_fixing_dates
 from quantdsl.infrastructure.dependency_graph_subscriber import DependencyGraphSubscriber
 from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
@@ -27,7 +28,7 @@ from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import Sim
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 
 
-class BaseQuantDslApplication(EventSourcingApplication):
+class QuantDslApplication(EventSourcingApplication):
     """
 
     Flow of user stories:
@@ -44,7 +45,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
     """
 
     def __init__(self, call_evaluation_queue=None, result_counters=None, *args, **kwargs):
-        super(BaseQuantDslApplication, self).__init__(*args, **kwargs)
+        super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
         self.market_calibration_repo = MarketCalibrationRepo(event_store=self.event_store, use_cache=True)
@@ -88,7 +89,7 @@ class BaseQuantDslApplication(EventSourcingApplication):
         self.evaluation_subscriber.close()
         self.dependency_graph_subscriber.close()
         self.simulation_subscriber.close()
-        super(BaseQuantDslApplication, self).close()
+        super(QuantDslApplication, self).close()
 
     # Todo: Register historical data.
 
@@ -141,6 +142,12 @@ class BaseQuantDslApplication(EventSourcingApplication):
 
     def register_call_link(self, link_id, call_id):
         return register_call_link(link_id, call_id)
+
+    def list_market_names_and_fixing_dates(self, contract_specification):
+        assert isinstance(contract_specification, ContractSpecification), contract_specification
+        return list_market_names_and_fixing_dates(contract_specification.id,
+                                                  self.call_requirement_repo,
+                                                  self.call_link_repo)
 
     def start_contract_valuation(self, dependency_graph_id, market_simulation):
         assert isinstance(dependency_graph_id, six.string_types), dependency_graph_id

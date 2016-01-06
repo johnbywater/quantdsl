@@ -17,6 +17,7 @@ class CallRequirement(EventSourcedEntity):
         super(CallRequirement, self).__init__(**kwargs)
         self._dsl_source = dsl_source
         self._effective_present_time = effective_present_time
+        self._dsl_expr = None
 
     @property
     def dsl_source(self):

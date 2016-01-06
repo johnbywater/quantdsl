@@ -6,6 +6,7 @@ from mock import MagicMock, Mock
 from mock import patch
 
 from quantdsl.domain.model.call_dependencies import CallDependenciesRepository
+from quantdsl.domain.model.call_dependents import CallDependentsRepository
 from quantdsl.domain.model.call_leafs import CallLeafsRepository, CallLeafs
 from quantdsl.domain.model.call_link import CallLinkRepository
 from quantdsl.domain.model.call_requirement import CallRequirementRepository
@@ -26,6 +27,7 @@ class TestEvaluationSubscriber(unittest.TestCase):
         market_simulation_repo.__getitem__.return_value = Mock(spec=MarketSimulation)
         call_leafs_repo = MagicMock(spec=CallLeafsRepository)
         call_leafs_repo.__getitem__.return_value = Mock(spec=CallLeafs)
+        call_dependents_repo = MagicMock(spec=CallDependentsRepository)
 
         self.evaluation_subscriber = EvaluationSubscriber(
             contract_valuation_repo=contract_valuation_repo,
@@ -38,6 +40,7 @@ class TestEvaluationSubscriber(unittest.TestCase):
             call_leafs_repo=call_leafs_repo,
             call_evaluation_queue=None,
             result_counters=None,
+            call_dependents_repo=call_dependents_repo
         )
 
     def tearDown(self):

@@ -1,9 +1,9 @@
 from eventlet import Queue
 
-from quantdsl.application.base import BaseQuantDslApplication
+from quantdsl.application.base import QuantDslApplication
 
 
-class QuantDslApplicationWithGreenThreads(BaseQuantDslApplication):
+class QuantDslApplicationWithGreenThreads(QuantDslApplication):
 
     def __init__(self, *args, **kwargs):
         result_counters = {}

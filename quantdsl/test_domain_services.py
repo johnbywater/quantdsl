@@ -13,17 +13,16 @@ from quantdsl.domain.model.call_dependents import CallDependentsRepository, Call
 from quantdsl.domain.model.call_link import CallLinkRepository, CallLink
 from quantdsl.domain.model.call_requirement import CallRequirementRepository, CallRequirement
 from quantdsl.domain.model.call_result import CallResultRepository, CallResult
-from quantdsl.domain.model.contract_specification import ContractSpecification, register_contract_specification
+from quantdsl.domain.model.contract_specification import register_contract_specification
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.services.dependency_graphs import generate_execution_order, get_dependency_values, \
     generate_dependency_graph
-from quantdsl.domain.services.fixing_dates import list_fixing_dates
 from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.domain.services.price_processes import get_price_process
-from quantdsl.domain.services.simulated_prices import simulate_future_prices, generate_simulated_prices
+from quantdsl.domain.services.simulated_prices import simulate_future_prices, generate_simulated_prices, \
+    list_market_names_and_fixing_dates
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.exceptions import DslError
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
@@ -158,7 +157,7 @@ double(1 + 1)
         self.assertEqual(values, {'2': 12, '3': 13})
 
 
-class TestFixingTimes(unittest.TestCase):
+class TestCallLinks(unittest.TestCase):
 
     def test_regenerate_execution_order(self):
         dependency_graph = Mock(spec=DependencyGraph, id=1)
@@ -172,13 +171,16 @@ class TestFixingTimes(unittest.TestCase):
         order = list(order)
         self.assertEqual(order, [2, 3, 1])
 
-    def test_list_fixing_dates(self):
+
+class TestListMarketNamesAndFixingDates(unittest.TestCase):
+
+    def test_list_market_names_and_fixing_dates(self):
         dependency_graph = Mock(spec=DependencyGraph, id=1)
         call_requirement_repo = MagicMock(spec=CallRequirementRepository,
                                    __getitem__=lambda self, x: {
-                                       1: Mock(spec=CallRequirement, dsl_source="Fixing('2011-01-01', 1)"),
-                                       2: Mock(spec=CallRequirement, dsl_source="Fixing('2012-02-02', 1)"),
-                                       3: Mock(spec=CallRequirement, dsl_source="Fixing('2013-03-03', 1)"),
+                                       1: Mock(spec=CallRequirement, dsl_source="Fixing('2011-01-01', Market('1'))", _dsl_expr=None),
+                                       2: Mock(spec=CallRequirement, dsl_source="Fixing('2012-02-02', Market('2'))", _dsl_expr=None),
+                                       3: Mock(spec=CallRequirement, dsl_source="Fixing('2013-03-03', Market('3'))", _dsl_expr=None),
                                    }[x])
         call_link_repo = MagicMock(spec=CallLinkRepository,
                                    __getitem__=lambda self, x: {
@@ -186,16 +188,12 @@ class TestFixingTimes(unittest.TestCase):
                                        2: Mock(spec=CallLink, call_id=3),
                                        3: Mock(spec=CallLink, call_id=1),
                                    }[x])
-        dates = list_fixing_dates(dependency_graph.id, call_requirement_repo, call_link_repo)
+
+        names, dates = list_market_names_and_fixing_dates(dependency_graph.id, call_requirement_repo, call_link_repo)
+
         self.assertEqual(dates, [datetime.date(2011, 1, 1), datetime.date(2012, 2, 2), datetime.date(2013, 3, 3)])
-
-
-class TestMarketNames(unittest.TestCase):
-
-    def test_list_market_names(self):
-        contract_specification = Mock(spec=ContractSpecification, specification="Market('#1') + Market('#2')")
-        names = list_market_names(contract_specification=contract_specification)
-        self.assertEqual(names, ['#1', '#2'])
+        self.assertEqual(names, ['1', '2', '3'])
+        # Todo: Maybe there should be pairs of (name, date) so we don't spuriously generate simulated prices.
 
 
 class TestSimulatedPrices(unittest.TestCase):
@@ -209,7 +207,7 @@ class TestSimulatedPrices(unittest.TestCase):
     def test_generate_simulated_prices(self, simulate_future_prices, register_simuated_price):
         market_calibration = Mock(spec=MarketCalibration)
         market_simulation = Mock(spec=MarketSimulation)
-        generate_simulated_prices(market_calibration=market_calibration, market_simulation=market_simulation)
+        generate_simulated_prices(market_simulation=market_simulation, market_calibration=market_calibration)
         self.assertEqual(register_simuated_price.call_count, len(simulate_future_prices.return_value))
 
     @patch('quantdsl.domain.services.simulated_prices.get_price_process', new=lambda name: Mock(

@@ -7,6 +7,8 @@ import scipy
 import six
 from multiprocessing import Value, Array, Process
 
+from eventlet import tpool
+
 from quantdsl.domain.model.call_result import register_call_result, make_call_result_id
 from quantdsl.domain.model.contract_specification import make_simulated_price_id
 from quantdsl.domain.services.dependency_graphs import get_dependency_values
@@ -18,8 +20,8 @@ from quantdsl.semantics import DslNamespace, list_fixing_dates
 drag_with_sharedmem = False
 
 
-def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo, call_link_repo,
-                                call_requirement_repo, call_result_repo, contract_valuation_repo,
+def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo,
+                                call_link_repo, call_requirement_repo, call_result_repo, contract_valuation_repo,
                                 market_simulation_repo, simulated_price_repo, result_counters, call_dependents_repo):
     if not call_evaluation_queue:
         evaluate_contract_in_series(
@@ -42,6 +44,7 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             result_counters=result_counters,
             call_dependencies_repo=call_dependencies_repo,
         )
+        # Also run the green pool here.
         if isinstance(call_evaluation_queue, eventlet.Queue):
             pool = eventlet.GreenPool()
             # Keep looping if there are new calls to evaluate, or workers that may produce more.
@@ -49,22 +52,23 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
                 item = call_evaluation_queue.get()
                 dependency_graph_id, contract_valuation_id, call_id = item
 
+                compute_pool = get_compute_pool()
                 pool.spawn_n(evaluate_call_and_queue_next_calls,
-                    contract_valuation_id=contract_valuation_id,
-                    dependency_graph_id=dependency_graph_id,
-                    call_id=call_id,
-                    call_evaluation_queue=call_evaluation_queue,
-                    contract_valuation_repo=contract_valuation_repo,
-                    call_requirement_repo=call_requirement_repo,
-                    market_simulation_repo=market_simulation_repo,
-                    call_dependencies_repo=call_dependencies_repo,
-                    call_result_repo=call_result_repo,
-                    simulated_price_repo=simulated_price_repo,
-                    call_dependents_repo=call_dependents_repo,
-                    call_result_lock=None,
-                    compute_pool=None,
-                    result_counters=result_counters,
-                )
+                             contract_valuation_id=contract_valuation_id,
+                             dependency_graph_id=dependency_graph_id,
+                             call_id=call_id,
+                             call_evaluation_queue=call_evaluation_queue,
+                             contract_valuation_repo=contract_valuation_repo,
+                             call_requirement_repo=call_requirement_repo,
+                             market_simulation_repo=market_simulation_repo,
+                             call_dependencies_repo=call_dependencies_repo,
+                             call_result_repo=call_result_repo,
+                             simulated_price_repo=simulated_price_repo,
+                             call_dependents_repo=call_dependents_repo,
+                             call_result_lock=None,
+                             compute_pool=compute_pool,
+                             result_counters=result_counters,
+                             )
                 if call_id == dependency_graph_id:
                     # The last one.
                     pool.waitall()
@@ -177,14 +181,25 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
     # assert isinstance(market_simulation, MarketSimulation)
 
     call_requirement = call_requirement_repo[call_id]
-    result_value = compute_call_result(contract_valuation,
-                                       call_requirement,
-                                       market_simulation,
-                                       call_dependencies_repo,
-                                       call_result_repo,
-                                       simulated_price_repo,
-                                       compute_pool,
-                                       path_count=market_simulation.path_count)
+    if isinstance(call_evaluation_queue, eventlet.Queue):
+        result_value = tpool.execute(compute_call_result, contract_valuation,
+                                           call_requirement,
+                                           market_simulation,
+                                           call_dependencies_repo,
+                                           call_result_repo,
+                                           simulated_price_repo,
+                                           compute_pool,
+                                           path_count=market_simulation.path_count)
+    else:
+        result_value = compute_call_result(contract_valuation,
+                                           call_requirement,
+                                           market_simulation,
+                                           call_dependencies_repo,
+                                           call_result_repo,
+                                           simulated_price_repo,
+                                           compute_pool,
+                                           path_count=market_simulation.path_count)
+
 
     # # Lock the results.
     if call_result_lock is not None:
@@ -200,14 +215,17 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
         )
 
         # Find next calls.
-        next_call_ids = list(find_dependents_ready_to_be_evaluated(
-            contract_valuation_id=contract_valuation_id,
-            call_id=call_id,
-            call_dependencies_repo=call_dependencies_repo,
-            call_dependents_repo=call_dependents_repo,
-            call_result_repo=call_result_repo,
-            result_counters=result_counters,
-        ))
+        ready_generator = find_dependents_ready_to_be_evaluated(contract_valuation_id=contract_valuation_id, call_id=call_id,
+                                                          call_dependencies_repo=call_dependencies_repo,
+                                                          call_dependents_repo=call_dependents_repo,
+                                                          call_result_repo=call_result_repo,
+                                                          result_counters=result_counters, )
+        if call_result_lock is not None:
+            next_call_ids = list(ready_generator)
+        else:
+            next_call_ids = []
+            for next_call_id in ready_generator:
+                call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
 
     finally:
         # Unlock the results.
@@ -345,7 +363,7 @@ def compute_call_result(contract_valuation, call, market_simulation, call_depend
 
     # Todo: Put getting the dependency values in a separate thread, and perhaps make each call a separate thread.
     # Parse the DSL source into a DSL module object (composite tree of objects that provide the DSL semantics).
-    if hasattr(call, '_dsl_expr'):
+    if call._dsl_expr is not None:
         dsl_expr = call._dsl_expr
     else:
         dsl_module = dsl_parse(call.dsl_source)
@@ -380,22 +398,33 @@ def compute_call_result(contract_valuation, call, market_simulation, call_depend
 
     # Compute the call result.
     if compute_pool is None:
-        result_value = evaluate_dsl_expr(dsl_expr, market_simulation, present_time, simulated_value_dict,
+        result_value = evaluate_dsl_expr(dsl_expr, market_simulation.market_names, market_simulation.id,
+                                         market_simulation.interest_rate, present_time, simulated_value_dict,
                                          None, None, **dependency_values)
     else:
-        raise Exception("Blah")
         # We are multi-threading the call evaluation, but the computation can be dispatched to a subprocess
         # using shared memory to pass the data.
-        result_array = Array('d', scipy.zeros(path_count))
-        p = Process(
-            target=evaluate_dsl_expr,
-            args=(call.dsl_source, market_simulation, present_time, simulated_value_dict, result_array, path_count),
-            kwargs=dependency_values
+        assert isinstance(compute_pool, Pool)
+        # result_value = evaluate_dsl_expr(dsl_expr, market_simulation, present_time, simulated_value_dict,
+        #                                  None, None, **dependency_values)
+
+        result = compute_pool.apply_async(
+            evaluate_dsl_expr,
+            args=(dsl_expr, market_simulation.market_names, market_simulation.id, market_simulation.interest_rate,
+                  present_time, simulated_value_dict, None, path_count),
+            kwds=dependency_values
         )
-        p.start()
-        p.join()
-        # result_value = numpy_from_sharedmem(result_array)
-        result_value = result_array
+        result_value = result.get()
+        # result_array = Array('d', scipy.zeros(path_count))
+        # p = Process(
+        #     target=evaluate_dsl_expr,
+        #     args=(call.dsl_source, market_simulation, present_time, simulated_value_dict, result_array, path_count),
+        #     kwargs=dependency_values
+        # )
+        # p.start()
+        # p.join()
+        # # result_value = numpy_from_sharedmem(result_array)
+        # result_value = result_array
 
     # Return the result.
     return result_value
@@ -412,7 +441,7 @@ def sharedmem_from_numpy(simulated_price):
         raise NotImplementedError(type(simulated_price))
 
 
-def evaluate_dsl_expr(dsl_expr, market_simulation, present_time, simulated_value_dict, result_array, path_count,
+def evaluate_dsl_expr(dsl_expr, market_names, simulation_id, interest_rate, present_time, simulated_value_dict, result_array, path_count,
                       **dependency_values):
 
     # assert isinstance(result_array, (SynchronizedArray, type(None)))
@@ -424,12 +453,12 @@ def evaluate_dsl_expr(dsl_expr, market_simulation, present_time, simulated_value
     dsl_expr = dsl_expr.reduce(dsl_locals=dsl_locals, dsl_globals=DslNamespace())
     # assert isinstance(dsl_expr, DslExpression), dsl_expr
 
-    first_market_name = market_simulation.market_names[0] if market_simulation.market_names else None
+    first_market_name = market_names[0] if market_names else None
     evaluation_kwds = {
         # 'simulated_price_repo': simulated_price_repo,
         'simulated_value_dict': simulated_value_dict,
-        'simulation_id': market_simulation.id,
-        'interest_rate': market_simulation.interest_rate,
+        'simulation_id': simulation_id,
+        'interest_rate': interest_rate,
         'present_time': present_time,
         'first_market_name': first_market_name,
     }
@@ -451,5 +480,5 @@ def get_compute_pool():
     # return None
     global dsl_expr_pool
     if dsl_expr_pool is None:
-        dsl_expr_pool = Pool(processes=1)
+        dsl_expr_pool = Pool(processes=4)
     return dsl_expr_pool

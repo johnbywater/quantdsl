@@ -1,6 +1,6 @@
 import datetime
 import unittest
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta
 from time import sleep
 
 import scipy
@@ -10,14 +10,12 @@ from six import with_metaclass
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_result import make_call_result_id, CallResult
 from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.domain.services.fixing_dates import list_fixing_dates
-from quantdsl.domain.services.market_names import list_market_names
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
 class ApplicationTestCase(unittest.TestCase):
 
-    PATH_COUNT = 20000
+    PATH_COUNT = 2000
     NUMBER_WORKERS = 30
     NUMBER_MARKETS = 2
     NUMBER_DAYS = 5
@@ -45,22 +43,21 @@ class ApplicationTestCase(unittest.TestCase):
 
     def setup_market_simulation(self, contract_specification):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        calibration_params = {
-            '#1-LAST-PRICE': 10,
-            '#2-LAST-PRICE': 20,
-            '#1-ACTUAL-HISTORICAL-VOLATILITY': 0,
-            '#2-ACTUAL-HISTORICAL-VOLATILITY': 20,
-            '#1-#2-CORRELATION': 0,
-            'NBP-LAST-PRICE': 10,
-            'TTF-LAST-PRICE': 10,
-            'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            'TTF-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            'NBP-TTF-CORRELATION': 0.5,
-        }
+        calibration_params = \
+{
+    '#1-LAST-PRICE': 10,
+    '#2-LAST-PRICE': 20,
+    '#1-ACTUAL-HISTORICAL-VOLATILITY': 0,
+    '#2-ACTUAL-HISTORICAL-VOLATILITY': 20,
+    '#1-#2-CORRELATION': 0,
+    'NBP-LAST-PRICE': 10,
+    'TTF-LAST-PRICE': 10,
+    'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+    'TTF-ACTUAL-HISTORICAL-VOLATILITY': 50,
+    'NBP-TTF-CORRELATION': 0.5,
+}
         market_calibration =  self.app.register_market_calibration(price_process_name, calibration_params)
-
-        market_names = list_market_names(contract_specification)
-        fixing_dates = list_fixing_dates(contract_specification.id, self.app.call_requirement_repo, self.app.call_link_repo)
+        market_names, fixing_dates = self.app.list_market_names_and_fixing_dates(contract_specification)
         observation_date = datetime.date(2011, 1, 1)
         path_count = self.PATH_COUNT
         market_simulation = self.app.register_market_simulation(
@@ -366,15 +363,30 @@ class LongerTests(ContractValuationTestCase):
 def Swing(start_date, end_date, underlying, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Choice(
-            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, underlying),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, Market(underlying)),
             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
         )
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-2-15'), Market('NBP'), 15)
+Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 """
-        self.assert_contract_value(specification, 30.2081, expected_call_count=617)
+        self.assert_contract_value(specification, 30.2081, expected_call_count=15)
+
+    def _test_value_swing_option_with_forward_markets(self):
+        specification = """
+def Swing(start_date, end_date, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Choice(
+            Swing(start_date + TimeDelta('1d'), end_date, quantity-1) + Fixing(start_date, ForwardMarket('NBP', start_date + TimeDelta('1d'))),
+            Swing(start_date + TimeDelta('1d'), end_date, quantity)
+        )
+    else:
+        return 0
+
+Swing(Date('2011-01-01'), Date('2011-1-4'), 30)
+"""
+        self.assert_contract_value(specification, 20.00, expected_call_count=11)
 
     def _test_generate_valuation_power_plant_option(self):
         specification = """

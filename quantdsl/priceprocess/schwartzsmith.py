@@ -34,13 +34,24 @@ from __future__ import division
 #% into one simulation. The advantages of such a model allows for more accurate modeling of spark spreads and pricing of deals
 #% that are dependent on multiple commodities prices. I have included all files, including excel, associated with this calibration
 #% and simulation.
+from quantdsl.priceprocess.base import PriceProcess
 
-
-from matplotlib import pylab as plt, pylab
+try:
+    from matplotlib import pylab as plt, pylab
+except RuntimeError:
+    pass
 import scipy as np
 from scipy.optimize import basinhopping
 
 np.seterr(over='raise')
+
+
+class SchwartzSmithFromFuturesAndImpliedVols(PriceProcess):
+
+    def simulate_future_prices(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
+        raise NotImplementedError()
+
+
 
 # Replacement spread sheet.
 

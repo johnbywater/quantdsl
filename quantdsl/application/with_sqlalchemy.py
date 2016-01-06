@@ -1,7 +1,7 @@
 from eventsourcing.application.with_sqlalchemy import EventSourcingWithSQLAlchemy
-from quantdsl.application.base import BaseQuantDslApplication
+from quantdsl.application.base import QuantDslApplication
 
 
-class QuantDslApplicationWithSQLAlchemy(EventSourcingWithSQLAlchemy, BaseQuantDslApplication):
+class QuantDslApplicationWithSQLAlchemy(EventSourcingWithSQLAlchemy, QuantDslApplication):
 
     pass

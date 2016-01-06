@@ -1,10 +1,10 @@
 from multiprocessing.pool import Pool
 from multiprocessing import Manager
 
-from quantdsl.application.base import BaseQuantDslApplication
+from quantdsl.application.base import QuantDslApplication
 
 
-class QuantDslApplicationWithMultiprocessing(BaseQuantDslApplication):
+class QuantDslApplicationWithMultiprocessing(QuantDslApplication):
 
     def __init__(self, num_workers=None, call_evaluation_queue=None, **kwargs):
         if num_workers is not None:

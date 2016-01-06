@@ -38,9 +38,21 @@ def calc_result(id):
     set_value(id, result)
 
 
+def echo(a):
+    # for i in range(10000):
+    #     a = a * a
+    return a
+
 class TestMultiprocessing(unittest.TestCase):
 
-    def test(self):
+    def test_pickle_numpy(self):
+        a = scipy.ones(200000)
+        pool = Pool()
+        results = pool.map(echo, [a] * 1000)
+        for result in results:
+            assert result.all() == scipy.ones(10000).all(), result
+
+    def test_sharedmem(self):
         path_count = 2000
         d1 = {}
         d2 = {}

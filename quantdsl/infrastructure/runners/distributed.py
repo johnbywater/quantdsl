@@ -1,4 +1,4 @@
-from quantdsl.application.base import BaseQuantDslApplication
+from quantdsl.application.base import QuantDslApplication
 from quantdsl.infrastructure.celery.tasks import celery_evaluate_call
 from quantdsl.infrastructure.runners.base import DependencyGraphRunner
 
@@ -54,7 +54,7 @@ class DistributedDependencyGraphRunner(DependencyGraphRunner):
 
     def __init__(self, dependency_graph, app):
         super(DistributedDependencyGraphRunner, self).__init__(dependency_graph)
-        assert isinstance(app, BaseQuantDslApplication)
+        assert isinstance(app, QuantDslApplication)
         self.app = app
 
     def run(self, **kwargs):
