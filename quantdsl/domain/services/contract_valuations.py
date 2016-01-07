@@ -11,6 +11,7 @@ from eventlet import tpool
 
 from quantdsl.domain.model.call_result import register_call_result, make_call_result_id
 from quantdsl.domain.model.contract_specification import make_simulated_price_id
+from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.services.dependency_graphs import get_dependency_values
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse
@@ -85,7 +86,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
 
     # Get the contract valuation entity (it knows which call dependency graph and which market simualation to use).
     contract_valuation = contract_valuation_repo[contract_valuation_id]
-    # assert isinstance(contract_valuation, ContractValuation), contract_valuation
+    assert isinstance(contract_valuation, ContractValuation), contract_valuation
 
     # Get the dependency graph ID.
     dependency_graph_id = contract_valuation.dependency_graph_id
@@ -101,17 +102,22 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
         market_simulation = market_simulation_repo[contract_valuation.market_simulation_id]
 
         # Compute the call result.
-        result_value = compute_call_result(contract_valuation=contract_valuation, call=call,
-                                           market_simulation=market_simulation,
-                                           call_dependencies_repo=call_dependencies_repo,
-                                           call_result_repo=call_result_repo,
-                                           simulated_price_repo=simulated_price_repo)
+        result_value = compute_call_result(
+            contract_valuation=contract_valuation,
+            call=call,
+            market_simulation=market_simulation,
+            call_dependencies_repo=call_dependencies_repo,
+            call_result_repo=call_result_repo,
+            simulated_price_repo=simulated_price_repo,
+        )
+
         # Register the result.
         register_call_result(
             call_id=call_id,
             result_value=result_value,
             contract_valuation_id=contract_valuation_id,
             dependency_graph_id=dependency_graph_id,
+            perturbed_market_name=contract_valuation.perturbed_market_name,
         )
 
 
@@ -175,6 +181,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
 
     # Get the contract valuation.
     contract_valuation = contract_valuation_repo[contract_valuation_id]
+    assert isinstance(contract_valuation, ContractValuation)
 
     # Get the market simulation.
     market_simulation = market_simulation_repo[contract_valuation.market_simulation_id]
@@ -182,14 +189,16 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
 
     call_requirement = call_requirement_repo[call_id]
     if isinstance(call_evaluation_queue, eventlet.Queue):
-        result_value = tpool.execute(compute_call_result, contract_valuation,
-                                           call_requirement,
-                                           market_simulation,
-                                           call_dependencies_repo,
-                                           call_result_repo,
-                                           simulated_price_repo,
-                                           compute_pool,
-                                           path_count=market_simulation.path_count)
+        result_value = tpool.execute(compute_call_result,
+                                        contract_valuation,
+                                        call_requirement,
+                                        market_simulation,
+                                        call_dependencies_repo,
+                                        call_result_repo,
+                                        simulated_price_repo,
+                                        compute_pool,
+                                        path_count=market_simulation.path_count,
+                                        )
     else:
         result_value = compute_call_result(contract_valuation,
                                            call_requirement,
@@ -198,7 +207,8 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
                                            call_result_repo,
                                            simulated_price_repo,
                                            compute_pool,
-                                           path_count=market_simulation.path_count)
+                                           path_count=market_simulation.path_count,
+                                           )
 
 
     # # Lock the results.
@@ -212,6 +222,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
             result_value=result_value,
             contract_valuation_id=contract_valuation_id,
             dependency_graph_id=dependency_graph_id,
+            perturbed_market_name=contract_valuation.perturbed_market_name
         )
 
         # Find next calls.
@@ -387,7 +398,7 @@ def compute_call_result(contract_valuation, call, market_simulation, call_depend
             simulated_value_dict[price_id] = price_value
 
     # Get all the call results depended on by this call.
-    dependency_values = get_dependency_values(contract_valuation.id, call.id, call_dependencies_repo, call_result_repo)
+    dependency_values = get_dependency_values(contract_valuation.id, call.id, contract_valuation.perturbed_market_name, call_dependencies_repo, call_result_repo)
 
     for key in dependency_values.keys():
         call_result_value = dependency_values[key]
@@ -400,7 +411,7 @@ def compute_call_result(contract_valuation, call, market_simulation, call_depend
     if compute_pool is None:
         result_value = evaluate_dsl_expr(dsl_expr, market_simulation.market_names, market_simulation.id,
                                          market_simulation.interest_rate, present_time, simulated_value_dict,
-                                         None, None, **dependency_values)
+                                         None, None, contract_valuation.perturbed_market_name, **dependency_values)
     else:
         # We are multi-threading the call evaluation, but the computation can be dispatched to a subprocess
         # using shared memory to pass the data.
@@ -411,10 +422,11 @@ def compute_call_result(contract_valuation, call, market_simulation, call_depend
         result = compute_pool.apply_async(
             evaluate_dsl_expr,
             args=(dsl_expr, market_simulation.market_names, market_simulation.id, market_simulation.interest_rate,
-                  present_time, simulated_value_dict, None, path_count),
+                  present_time, simulated_value_dict, None, None, contract_valuation.perturbed_market_name),
             kwds=dependency_values
         )
         result_value = result.get()
+
         # result_array = Array('d', scipy.zeros(path_count))
         # p = Process(
         #     target=evaluate_dsl_expr,
@@ -441,8 +453,8 @@ def sharedmem_from_numpy(simulated_price):
         raise NotImplementedError(type(simulated_price))
 
 
-def evaluate_dsl_expr(dsl_expr, market_names, simulation_id, interest_rate, present_time, simulated_value_dict, result_array, path_count,
-                      **dependency_values):
+def evaluate_dsl_expr(dsl_expr, market_names, simulation_id, interest_rate, present_time, simulated_value_dict,
+                      result_array, path_count, perturbed_market_name=None, **dependency_values):
 
     # assert isinstance(result_array, (SynchronizedArray, type(None)))
 
@@ -461,16 +473,18 @@ def evaluate_dsl_expr(dsl_expr, market_names, simulation_id, interest_rate, pres
         'interest_rate': interest_rate,
         'present_time': present_time,
         'first_market_name': first_market_name,
+        'perturbed_market_name': perturbed_market_name,
     }
     result_value = dsl_expr.evaluate(**evaluation_kwds)
 
     if result_array is None:
         return result_value
     else:
-        if isinstance(result_value, six.integer_types + (float,)):
-            result_value = scipy.ones(path_count) * result_value
-        result_array[:] = result_value
-        return None
+        raise Exception("I don't think this is used any more?")
+        # if isinstance(result_value, six.integer_types + (float,)):
+        #     result_value = scipy.ones(path_count) * result_value
+        # result_array[:] = result_value
+        # return None
 
 
 dsl_expr_pool = None

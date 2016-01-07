@@ -67,7 +67,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     register_call_leafs(contract_specification.id, leaf_ids)
 
 
-def get_dependency_values(contract_valuation_id, call_id, dependencies_repo, result_repo):
+def get_dependency_values(contract_valuation_id, call_id, perturbed_market_name, dependencies_repo, result_repo):
     assert isinstance(result_repo, CallResultRepository), result_repo
     dependency_values = {}
     stub_dependencies = dependencies_repo[call_id]
@@ -78,17 +78,17 @@ def get_dependency_values(contract_valuation_id, call_id, dependencies_repo, res
     for stub_id in stub_dependencies:
         if is_threaded:
             t = Thread(target=get_dependency_value,
-                       args=(contract_valuation_id, stub_id, result_repo, dependency_values))
+                       args=(contract_valuation_id, stub_id, perturbed_market_name, result_repo, dependency_values))
             t.start()
             threads.append(t)
         else:
-            get_dependency_value(contract_valuation_id, stub_id, result_repo, dependency_values)
+            get_dependency_value(contract_valuation_id, stub_id, perturbed_market_name, result_repo, dependency_values)
     [t.join() for t in threads]
     return dependency_values
 
 
-def get_dependency_value(contract_valuation_id, stub_id, result_repo, dependency_values):
-    call_result_id = make_call_result_id(contract_valuation_id, stub_id)
+def get_dependency_value(contract_valuation_id, stub_id, perturbed_market_name, result_repo, dependency_values):
+    call_result_id = make_call_result_id(contract_valuation_id, stub_id, perturbed_market_name)
     try:
         stub_result = result_repo[call_result_id]
     except KeyError:
@@ -97,6 +97,7 @@ def get_dependency_value(contract_valuation_id, stub_id, result_repo, dependency
         # assert isinstance(stub_result, CallResult), stub_result
         value = stub_result.result_value
         dependency_values[stub_id] = value
+
 
 def generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependencies_repo):
     assert isinstance(call_dependents_repo, CallDependentsRepository)

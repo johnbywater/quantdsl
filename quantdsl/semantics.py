@@ -1015,6 +1015,8 @@ simulated_price_cache = {}
 
 class Market(StochasticObject, DslExpression):
 
+    PERTURBATION_FACTOR = 0.1
+
     def validate(self, args):
         self.assert_args_len(args, required_len=1)
         self.assert_args_arg(args, posn=0, required_type=(six.string_types, String, Name))
@@ -1028,6 +1030,9 @@ class Market(StochasticObject, DslExpression):
         return ''
 
     def evaluate(self, **kwds):
+        # Get the perturbed market name, if set.
+        perturbed_market_name = kwds.get('perturbed_market_name', '') or ''
+
         # Get the effective present time (needed to form the simulated_value_id).
         try:
             present_time = kwds['present_time']
@@ -1055,8 +1060,9 @@ class Market(StochasticObject, DslExpression):
                                                      delivery_time=self.delivery_time)
 
         # Check the cache.
+        simulated_price_cache_key = simulated_price_id + perturbed_market_name
         try:
-            simulated_price_value = simulated_price_cache[simulated_price_id]
+            simulated_price_value = simulated_price_cache[simulated_price_cache_key]
         except KeyError:
             pass
         else:
@@ -1067,6 +1073,9 @@ class Market(StochasticObject, DslExpression):
             simulated_price_value = simulated_value_dict[simulated_price_id]
         except KeyError:
             raise DslError("Can't find simulated price at '%s' for market '%s' using simulated price ID '%s'." % (present_time, self.name, simulated_price_id))
+
+        if self.name == perturbed_market_name:
+            simulated_price_value = simulated_price_value * (1 + Market.PERTURBATION_FACTOR)
 
         # simulated_price_value = numpy_from_sharedmem(simulated_price_value)
 

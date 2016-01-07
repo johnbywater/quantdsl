@@ -153,7 +153,7 @@ double(1 + 1)
                                         'valuation2': Mock(spec=CallResult, result_value=12),
                                         'valuation3': Mock(spec=CallResult, result_value=13),
                                      }[x])
-        values = get_dependency_values('valuation', '1', call_dependencies_repo, call_result_repo)
+        values = get_dependency_values('valuation', '1', '', call_dependencies_repo, call_result_repo)
         self.assertEqual(values, {'2': 12, '3': 13})
 
 

@@ -10,7 +10,9 @@ from six import with_metaclass
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_result import make_call_result_id, CallResult
+from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.services.call_links import regenerate_execution_order
+from quantdsl.semantics import Market
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -52,43 +54,6 @@ class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
 
 class ContractValuationTestCase(ApplicationTestCaseMixin):
 
-    def assert_contract_value(self, specification, expected_value, expected_deltas=None, expected_call_count=None):
-        # Register the specification (creates call dependency graph).
-        contract_specification = self.app.register_contract_specification(specification=specification)
-
-        # Check the call count (the number of nodes of the call dependency graph).
-        call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
-
-        if expected_call_count is not None:
-            self.assertEqual(call_count, expected_call_count)
-
-        # Generate the market simulation.
-        market_simulation = self.setup_market_simulation(contract_specification)
-
-        # Generate the contract valuation.
-        contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
-
-        call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id)
-        patience = max(call_count, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 2000)  # Guesses.
-        while patience > 0:
-            if call_result_id in self.app.call_result_repo:
-                break
-            interval = 0.1
-            sleep(interval)
-            patience -= interval
-        else:
-            self.fail("Timeout whilst waiting for result")
-
-        call_result = self.app.call_result_repo[call_result_id]
-        assert isinstance(call_result, CallResult)
-        self.assertAlmostEqual(call_result.scalar_result_value, expected_value, places=2)
-
-        if expected_deltas is None:
-            return
-
-        # Generate the contract valuation deltas.
-        contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
-
     def setup_market_simulation(self, contract_specification):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
         calibration_params = {
@@ -117,6 +82,54 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         )
         return market_simulation
 
+    def assert_contract_value(self, specification, expected_value, expected_deltas=None, expected_call_count=None):
+        # Register the specification (creates call dependency graph).
+        contract_specification = self.app.register_contract_specification(specification=specification)
+
+        # Check the call count (the number of nodes of the call dependency graph).
+        call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+
+        if expected_call_count is not None:
+            self.assertEqual(call_count, expected_call_count)
+
+        # Generate the market simulation.
+        market_simulation = self.setup_market_simulation(contract_specification)
+
+        # Generate the contract valuation.
+        contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
+
+        call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id)
+
+        main_result = self.get_result(call_count, call_result_id)
+        assert isinstance(main_result, CallResult)
+        self.assertAlmostEqual(main_result.scalar_result_value, expected_value, places=2)
+
+        if expected_deltas is None:
+            return
+
+        assert isinstance(market_simulation, MarketSimulation)
+        for market_name in expected_deltas.keys():
+            # Generate the contract valuation deltas.
+            contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation, market_name)
+            call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id, market_name)
+            call_result = self.get_result(call_count, call_result_id)
+            assert isinstance(call_result, CallResult)
+            contract_delta = (call_result.result_value - main_result.result_value) / Market.PERTURBATION_FACTOR
+            self.assertAlmostEqual(contract_delta.mean(), expected_deltas[market_name], places=2, msg=market_name)
+
+    def get_result(self, call_count, call_result_id):
+        patience = max(call_count, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 2000)  # Guesses.
+        while patience > 0:
+            if call_result_id in self.app.call_result_repo:
+                break
+            interval = 0.1
+            sleep(interval)
+            patience -= interval
+        else:
+            self.fail("Timeout whilst waiting for result")
+        call_result = self.app.call_result_repo[call_result_id]
+        return call_result
+
 
 class ExpressionTests(ContractValuationTestCase):
 
@@ -125,8 +138,8 @@ class ExpressionTests(ContractValuationTestCase):
         self.assert_contract_value("""2 + 4""", 6)
 
     def test_market(self):
-        self.assert_contract_value("Market('#1')", 10)
-        self.assert_contract_value("Market('#2')", 10)
+        self.assert_contract_value("Market('#1')", 10, {'#1': 10, '#2': 0})
+        self.assert_contract_value("Market('#2')", 10, {'#1': 0, '#2': 10})
 
     def test_market_plus(self):
         self.assert_contract_value("Market('#1') + 10", 20)
@@ -164,38 +177,16 @@ class ExpressionTests(ContractValuationTestCase):
         specification = "Fixing(Date('2012-01-01'), Max(Market('#1'), Market('#2')))"
         self.assert_contract_value(specification, 13.0250)
 
+    def test_bermudan(self):
+        specification = """
+Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
+    Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
+"""
+        self.assert_contract_value(specification, 2.6093, expected_deltas={'NBP': 7.2227})
+
     def test_identical_fixings(self):
         specification = "Fixing(Date('2012-01-02'), Market('#1')) - Fixing(Date('2012-01-02'), Market('#1'))"
         self.assert_contract_value(specification, 0)
-
-    def test_brownian_increments(self):
-        specification = """
-Wait(
-    Date('2012-03-15'),
-    Max(
-        Fixing(
-            Date('2012-01-01'),
-            Market('#1')
-        ) /
-        Fixing(
-            Date('2011-01-01'),
-            Market('#1')
-        ),
-        1.0
-    ) -
-    Max(
-        Fixing(
-            Date('2013-01-01'),
-            Market('#1')
-        ) /
-        Fixing(
-            Date('2012-01-01'),
-            Market('#1')
-        ),
-        1.0
-    )
-)"""
-        self.assert_contract_value(specification, 0.005)
 
     def test_uncorrelated_markets(self):
         specification = """
@@ -247,13 +238,6 @@ Max(
     def test_european_high_volatility(self):
         self.assert_contract_value("Wait(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))", 2.4557)
 
-    def test_bermudan(self):
-        specification = """
-Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
-    Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
-"""
-        self.assert_contract_value(specification, 2.6093)
-
     def test_sum_contracts(self):
         specification = """
 Fixing(
@@ -283,6 +267,35 @@ Fixing(
 )
 """
         self.assert_contract_value(specification, 5.2187)
+
+    def test_brownian_increments(self):
+        specification = """
+Wait(
+    Date('2012-03-15'),
+    Max(
+        Fixing(
+            Date('2012-01-01'),
+            Market('#1')
+        ) /
+        Fixing(
+            Date('2011-01-01'),
+            Market('#1')
+        ),
+        1.0
+    ) -
+    Max(
+        Fixing(
+            Date('2013-01-01'),
+            Market('#1')
+        ) /
+        Fixing(
+            Date('2012-01-01'),
+            Market('#1')
+        ),
+        1.0
+    )
+)"""
+        self.assert_contract_value(specification, 0.005, expected_deltas={'#1': 0, '#2': 0})
 
 
 class FunctionTests(ContractValuationTestCase):
@@ -320,7 +333,7 @@ def European(date, strike, underlying):
 
 European(Date('2012-01-01'), 9, Market('NBP'))
 """
-        self.assert_contract_value(specification, 2.4557, expected_call_count=3)
+        self.assert_contract_value(specification, 2.4557, {'NBP': 7.0705}, expected_call_count=3)
 
     def test_generate_valuation_american_option(self):
         american_option_tmpl = """
@@ -343,7 +356,7 @@ American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)
             'ends': '2011-01-04',
             'strike': 9,
             'underlying': '#1'
-        }, 1.1874, expected_call_count=4)
+        }, 1.1874, {'#1': 10.1854}, expected_call_count=4)
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -358,7 +371,7 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.2081, expected_call_count=15)
+        self.assert_contract_value(specification, 30.20756, {'NBP': 30.2076}, expected_call_count=15)
 
 
 class LongerTests(ContractValuationTestCase):
@@ -426,8 +439,8 @@ PowerPlant(Date('2012-01-01'), Date('2013-06-01'), Market('#1'), 30)
 
 
 class ContractValuationTests(
-        ExpressionTests,
-        FunctionTests,
-        LongerTests
+    ExpressionTests,
+    FunctionTests,
+    LongerTests
 ): pass
 
