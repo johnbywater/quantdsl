@@ -3,10 +3,10 @@ import datetime
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id, SimulatedPrice
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.test_application import ApplicationTestCase
+from quantdsl.test_application import TestCase
 
 
-class TestMarketSimulation(ApplicationTestCase):
+class TestMarketSimulation(TestCase):
 
     NUMBER_MARKETS = 2
     NUMBER_DAYS = 5

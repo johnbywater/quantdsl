@@ -11,10 +11,10 @@ from eventsourcing.infrastructure.stored_events.cassandra_stored_events import c
 from quantdsl.application.main import get_quantdsl_app
 from quantdsl.infrastructure.celery.tasks import CeleryCallEvaluationQueueFacade
 from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
-from quantdsl.test_application import ApplicationTestCase, ContractValuationTests
+from quantdsl.test_application import TestCase, ContractValuationTests
 
 
-class TestApplicationWithCassandraAndCelery(ApplicationTestCase, ContractValuationTests):
+class TestApplicationWithCassandraAndCelery(TestCase, ContractValuationTests):
 
     skip_assert_event_handers_empty = True  # Do it in setup/teardown class.
 

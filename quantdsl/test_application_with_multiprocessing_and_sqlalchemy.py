@@ -4,10 +4,10 @@ from tempfile import NamedTemporaryFile
 import os
 
 from quantdsl.application.with_multiprocessing_and_sqlalchemy import QuantDslApplicationWithMultiprocessingAndSQLAlchemy
-from quantdsl.test_application import ApplicationTestCase, ContractValuationTests
+from quantdsl.test_application import TestCase, ContractValuationTests
 
 
-class TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy(ApplicationTestCase, ContractValuationTests):
+class TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy(TestCase, ContractValuationTests):
 
     def setup_application(self):
         tempfile = NamedTemporaryFile()

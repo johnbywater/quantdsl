@@ -1,6 +1,6 @@
-from quantdsl.test_application import ApplicationTestCase, ContractValuationTests
+from quantdsl.test_application import TestCase, ContractValuationTests
 
 
-class TestQuantDslApplicationWithPythonObjectsAndSingleThread(ApplicationTestCase, ContractValuationTests):
+class TestQuantDslApplicationWithPythonObjectsAndSingleThread(TestCase, ContractValuationTests):
     pass
 
