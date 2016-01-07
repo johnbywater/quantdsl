@@ -133,13 +133,14 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
     dependency_graph_id = contract_valuation.dependency_graph_id
 
-    for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
-        call_dependencies = call_dependencies_repo[call_id]
-        # assert isinstance(call_dependencies, CallDependencies)
-        if result_counters is not None:
+    if result_counters is not None:
+        for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
+            call_dependencies = call_dependencies_repo[call_id]
+            # assert isinstance(call_dependencies, CallDependencies)
             count_dependencies = len(call_dependencies.dependencies)
             # Crude attempt to count down using atomic operations, so we get an exception when we can't pop off the last one.
-            result_counters[call_id] = [None] * (count_dependencies - 1)
+            call_result_id = make_call_result_id(contract_valuation_id, call_id, contract_valuation.perturbed_market_name)
+            result_counters[call_result_id] = [None] * (count_dependencies - 1)
 
     call_leafs = call_leafs_repo[dependency_graph_id]
     # assert isinstance(call_leafs, CallLeafs)
@@ -226,11 +227,17 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
         )
 
         # Find next calls.
-        ready_generator = find_dependents_ready_to_be_evaluated(contract_valuation_id=contract_valuation_id, call_id=call_id,
-                                                          call_dependencies_repo=call_dependencies_repo,
-                                                          call_dependents_repo=call_dependents_repo,
-                                                          call_result_repo=call_result_repo,
-                                                          result_counters=result_counters, )
+        ready_generator = find_dependents_ready_to_be_evaluated(
+            contract_valuation_id=contract_valuation_id,
+            call_id=call_id,
+            call_dependencies_repo=call_dependencies_repo,
+            call_dependents_repo=call_dependents_repo,
+            call_result_repo=call_result_repo,
+            result_counters=result_counters,
+            perturbed_market_name=contract_valuation.perturbed_market_name,
+        )
+
+        # Make a list from the generator, if we are locking results.
         if call_result_lock is not None:
             next_call_ids = list(ready_generator)
         else:
@@ -249,7 +256,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
 
 
 def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_dependents_repo, call_dependencies_repo,
-                                          call_result_repo, result_counters):
+                                          call_result_repo, result_counters, perturbed_market_name):
     # assert isinstance(contract_valuation_id, six.string_types), contract_valuation_id
     # assert isinstance(call_id, six.string_types), call_id
     # assert isinstance(call_dependents_repo, CallDependentsRepository)
@@ -270,8 +277,9 @@ def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_d
         ready_dependents = []
         if result_counters is not None:
             for dependent_id in call_dependents.dependents:
+                dependent_result_id = make_call_result_id(contract_valuation_id, dependent_id, perturbed_market_name)
                 try:
-                    result_counters[dependent_id].pop()  # Pop one of the array (atomic decrement).
+                    result_counters[dependent_result_id].pop()  # Pop one off the array (atomic decrement).
                 except (KeyError, IndexError):
                     ready_dependents.append(dependent_id)
             return ready_dependents
@@ -301,13 +309,14 @@ def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_d
                                            call_result_repo,
                                            contract_valuation_id,
                                            dependent_id,
-                                           ready_dependents)
+                                           ready_dependents,
+                                           perturbed_market_name)
             [t.join() for t in dependent_threads]
             return ready_dependents
 
 
 def add_dependent_if_ready(call_dependencies_repo, call_id, call_result_repo, contract_valuation_id,
-                           dependent_id, ready_dependents):
+                           dependent_id, ready_dependents, perturbed_market_name):
 
     # Get the dependencies of this dependent.
     dependent_dependencies = call_dependencies_repo[dependent_id]
@@ -329,7 +338,7 @@ def add_dependent_if_ready(call_dependencies_repo, call_id, call_result_repo, co
             # Look for any unsatisfied dependencies....
             thread = Thread(
                 target=lambda *args: (is_result_missing(*args) and is_unsatisfied.set()),
-                args=(contract_valuation_id, dependent_dependency_id, call_result_repo)
+                args=(contract_valuation_id, dependent_dependency_id, perturbed_market_name, call_result_repo)
             )
             thread.start()
             dependency_threads.append(thread)
@@ -348,15 +357,15 @@ def add_dependent_if_ready(call_dependencies_repo, call_id, call_result_repo, co
                 continue
 
             # Skip if a result is missing.
-            if is_result_missing(contract_valuation_id, dependent_dependency_id, call_result_repo):
+            if is_result_missing(contract_valuation_id, dependent_dependency_id, perturbed_market_name, call_result_repo):
                 break
 
         else:
             ready_dependents.append(dependent_id)
 
 
-def is_result_missing(contract_valuation_id, dependent_dependency_id, call_result_repo):
-    call_result_id = make_call_result_id(contract_valuation_id, dependent_dependency_id)
+def is_result_missing(contract_valuation_id, dependent_dependency_id, perturbed_market_name, call_result_repo):
+    call_result_id = make_call_result_id(contract_valuation_id, dependent_dependency_id, perturbed_market_name)
     return call_result_id not in call_result_repo
 
 
@@ -399,13 +408,6 @@ def compute_call_result(contract_valuation, call, market_simulation, call_depend
 
     # Get all the call results depended on by this call.
     dependency_values = get_dependency_values(contract_valuation.id, call.id, contract_valuation.perturbed_market_name, call_dependencies_repo, call_result_repo)
-
-    for key in dependency_values.keys():
-        call_result_value = dependency_values[key]
-        if drag_with_sharedmem:
-            dependency_values[key] = sharedmem_from_numpy(call_result_value)
-        else:
-            dependency_values[key] = call_result_value
 
     # Compute the call result.
     if compute_pool is None:
@@ -454,7 +456,7 @@ def sharedmem_from_numpy(simulated_price):
 
 
 def evaluate_dsl_expr(dsl_expr, market_names, simulation_id, interest_rate, present_time, simulated_value_dict,
-                      result_array, path_count, perturbed_market_name=None, **dependency_values):
+                      result_array, path_count, perturbed_market_name, **dependency_values):
 
     # assert isinstance(result_array, (SynchronizedArray, type(None)))
 

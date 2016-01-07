@@ -60,9 +60,7 @@ class DistributedDependencyGraphRunner(DependencyGraphRunner):
     def run(self, **kwargs):
         super(DistributedDependencyGraphRunner, self).run(**kwargs)
 
-        simulation_id = kwargs.pop('simulation_id')
-
-        self.app.register_dependency_graph(self.dependency_graph, simulation_id)
+        self.app.register_dependency_graph(self.dependency_graph)
 
         # Enqueue an execution job for each leaf of the dependency graph.
         for call_id in self.dependency_graph.leaf_ids:

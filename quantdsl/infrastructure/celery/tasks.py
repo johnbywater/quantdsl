@@ -1,3 +1,5 @@
+import logging
+
 from eventsourcing.infrastructure.stored_events.cassandra_stored_events import setup_cassandra_connection, \
     get_cassandra_setup_params
 from filelock import FileLock
@@ -14,9 +16,9 @@ class CeleryCallEvaluationQueueFacade(object):
         dependency_graph_id, contract_valuation_id, call_id = item
         try:
             celery_evaluate_call.delay(dependency_graph_id, contract_valuation_id, call_id)
+            # result = celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id)
         except OSError as e:
             raise Exception("Celery call failed (is RabbitMQ running?): %s" % e)
-
 
 quantdsl_app = None
 

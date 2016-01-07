@@ -149,7 +149,7 @@ class QuantDslApplication(EventSourcingApplication):
                                                   self.call_requirement_repo,
                                                   self.call_link_repo)
 
-    def start_contract_valuation(self, dependency_graph_id, market_simulation, perturbed_market_name=None):
+    def start_contract_valuation(self, dependency_graph_id, market_simulation, perturbed_market_name=''):
         assert isinstance(dependency_graph_id, six.string_types), dependency_graph_id
         assert isinstance(market_simulation, MarketSimulation)
         return start_contract_valuation(dependency_graph_id, market_simulation.id, perturbed_market_name)

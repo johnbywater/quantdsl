@@ -9,7 +9,7 @@ from eventsourcing.domain.model.events import assert_event_handlers_empty
 from eventsourcing.infrastructure.stored_events.cassandra_stored_events import create_cassandra_keyspace_and_tables
 
 from quantdsl.application.main import get_quantdsl_app
-from quantdsl.infrastructure.celery.tasks import CeleryCallEvaluationQueueFacade
+from quantdsl.infrastructure.celery.tasks import CeleryCallEvaluationQueueFacade, get_quant_dsl_app_for_celery_worker
 from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
 from quantdsl.test_application import TestCase, ContractValuationTests
 
@@ -25,7 +25,7 @@ class TestApplicationWithCassandraAndCelery(TestCase, ContractValuationTests):
 
         # Set up the application and the workers for the class, not each test, otherwise they drag.
         os.environ['QUANTDSL_BACKEND'] = 'cassandra'
-        cls._app = get_quantdsl_app(call_evaluation_queue=CeleryCallEvaluationQueueFacade())
+        cls._app = get_quant_dsl_app_for_celery_worker()
 
         # Create Cassandra keyspace and tables - they are dropped at the end of this test case.
         create_cassandra_keyspace_and_tables(DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE)
@@ -38,7 +38,7 @@ class TestApplicationWithCassandraAndCelery(TestCase, ContractValuationTests):
         # Invoke a celery worker process as a subprocess - it is terminates at the end of this test case.
         worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.worker',
                       '-P', 'prefork',
-                      '-c', str(cls.NUMBER_WORKERS), '-l', 'info']
+                      '-c', str(1), '-l', 'info']
         cls.worker = Popen(worker_cmd)
 
     @classmethod

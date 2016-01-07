@@ -98,7 +98,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         # Generate the contract valuation.
         contract_valuation = self.app.start_contract_valuation(contract_specification.id, market_simulation)
 
-        call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id)
+        call_result_id = make_call_result_id(contract_valuation.id, contract_specification.id, '')
 
         main_result = self.get_result(call_count, call_result_id)
         assert isinstance(main_result, CallResult)
@@ -118,8 +118,9 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             self.assertAlmostEqual(contract_delta.mean(), expected_deltas[market_name], places=2, msg=market_name)
 
     def get_result(self, call_count, call_result_id):
-        patience = max(call_count, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 2000)  # Guesses.
-        while patience > 0:
+        patience = max(call_count, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 1000)  # Guesses.
+        # while patience > 0:
+        while True:
             if call_result_id in self.app.call_result_repo:
                 break
             interval = 0.1
@@ -438,9 +439,29 @@ PowerPlant(Date('2012-01-01'), Date('2013-06-01'), Market('#1'), 30)
         self.assert_contract_value(specification, 48, expected_call_count=2067)
 
 
+class SpecialTests(ContractValuationTestCase):
+
+    def test_generate_valuation_swing_option(self):
+        specification = """
+def Swing(start_date, end_date, underlying, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Choice(
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, underlying),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
+        )
+    else:
+        return 0
+
+Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
+"""
+        self.assert_contract_value(specification, 30.20756, {'NBP': 30.2076}, expected_call_count=15)
+        # self.assert_contract_value(specification, 30.20756, {}, expected_call_count=15)
+
+
 class ContractValuationTests(
-    ExpressionTests,
-    FunctionTests,
-    LongerTests
+    SpecialTests,
+    # ExpressionTests,
+    # FunctionTests,
+    # LongerTests
 ): pass
 

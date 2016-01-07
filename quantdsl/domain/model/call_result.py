@@ -44,7 +44,7 @@ class CallResult(EventSourcedEntity):
         return result_value
 
 
-def register_call_result(call_id, result_value, contract_valuation_id, dependency_graph_id, perturbed_market_name=''):
+def register_call_result(call_id, result_value, contract_valuation_id, dependency_graph_id, perturbed_market_name):
     call_result_id = make_call_result_id(contract_valuation_id, call_id, perturbed_market_name)
     created_event = CallResult.Created(entity_id=call_result_id,
                                        result_value=result_value,
@@ -59,11 +59,9 @@ def register_call_result(call_id, result_value, contract_valuation_id, dependenc
     return call_result
 
 
-def make_call_result_id(contract_valuation_id, call_id, perturbed_market_name=''):
+def make_call_result_id(contract_valuation_id, call_id, perturbed_market_name):
     assert call_id
     assert contract_valuation_id
-    if perturbed_market_name is None:
-        perturbed_market_name = ''
     return contract_valuation_id + call_id + perturbed_market_name
 
 

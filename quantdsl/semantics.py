@@ -1015,7 +1015,7 @@ simulated_price_cache = {}
 
 class Market(StochasticObject, DslExpression):
 
-    PERTURBATION_FACTOR = 0.1
+    PERTURBATION_FACTOR = 0.0001
 
     def validate(self, args):
         self.assert_args_len(args, required_len=1)

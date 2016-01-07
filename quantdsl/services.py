@@ -3,18 +3,12 @@ import math
 import sys
 import threading
 import time
-from time import sleep
 
 from six import print_
 
-from quantdsl.application.main import get_quantdsl_app
-from quantdsl.domain.model.call_result import make_call_result_id
 from quantdsl.domain.model.dependency_graph import DependencyGraph
-from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
-# from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
-# from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
 from quantdsl.semantics import DslNamespace, DslExpression, Market, DslError, StochasticObject, \
     compile_dsl_module, list_fixing_dates, find_market_names
 
