@@ -20,16 +20,16 @@ class CeleryCallEvaluationQueueFacade(object):
         except OSError as e:
             raise Exception("Celery call failed (is RabbitMQ running?): %s" % e)
 
-quantdsl_app = None
+_quantdsl_app_singleton = None
 
 
 def get_quant_dsl_app_for_celery_worker():
-    global quantdsl_app
-    if quantdsl_app is None:
-        quantdsl_app = get_quantdsl_app(call_evaluation_queue=CeleryCallEvaluationQueueFacade())
+    global _quantdsl_app_singleton
+    if _quantdsl_app_singleton is None:
+        _quantdsl_app_singleton = get_quantdsl_app(call_evaluation_queue=CeleryCallEvaluationQueueFacade())
         # setup_cassandra_connection(*get_cassandra_setup_params(default_keyspace=DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE))
 
-    return quantdsl_app
+    return _quantdsl_app_singleton
 
 
 @celery_app.task

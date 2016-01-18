@@ -19,8 +19,6 @@ class TestDependencyGraphSubscriber(unittest.TestCase):
         call_dependents_repo = MagicMock(spec=CallDependentsRepository)
         call_leafs_repo = MagicMock(spec=CallLeafsRepository)
         call_requirement_repo = MagicMock(spec=CallRequirementRepository)
-
-
         self.dependency_graph_subscriber = DependencyGraphSubscriber(
             contract_specification_repo,
             call_dependencies_repo,

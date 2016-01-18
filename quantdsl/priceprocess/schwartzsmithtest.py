@@ -1,3 +1,4 @@
+import unittest
 from unittest import TestCase
 
 import six
@@ -1369,3 +1370,5 @@ def read_xl_doc():
 
     return alldata
 
+if __name__ == '__main__':
+    unittest.main()

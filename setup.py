@@ -37,7 +37,7 @@ setup(
             'mock',
             'cassandra-driver==2.6.0rc1',
             'sqlalchemy',
-            'eventlet'
+            'gevent',
         ],
         'sqlalchemy': [
             'sqlalchemy',

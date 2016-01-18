@@ -6,7 +6,6 @@ import datetime
 import itertools
 import math
 # from multiprocessing.sharedctypes import SynchronizedArray, Synchronized
-
 import scipy
 from scipy import ndarray
 import scipy.linalg
@@ -1013,9 +1012,11 @@ functionalDslClasses = {
 simulated_price_cache = {}
 
 
+# Todo: Add something to Map a contract function to a sequence of values (range, list comprehension).
+
 class Market(StochasticObject, DslExpression):
 
-    PERTURBATION_FACTOR = 0.0001
+    PERTURBATION_FACTOR = 0.001
 
     def validate(self, args):
         self.assert_args_len(args, required_len=1)
@@ -1181,6 +1182,8 @@ class On(Fixing):
 class Wait(Fixing):
     """
     A fixing with discounting of the resulting value from date arg to present_time.
+
+    Wait(date, expr) == Settlement(date, Fixing(date, expr))
     """
     def evaluate(self, **kwds):
         value = super(Wait, self).evaluate(**kwds)
@@ -1207,6 +1210,7 @@ class Choice(StochasticObject, DslExpression):
         if kwds_hash not in self.results_cache:
             # Run the least-squares monte-carlo routine.
             present_time = kwds['present_time']
+            # Todo: Check this way of getting 'first market name' is the correct way to do it.
             first_market_name = kwds['first_market_name']
             simulated_value_dict = kwds['simulated_value_dict']
             simulation_id = kwds['simulation_id']
@@ -1447,7 +1451,7 @@ class PendingCallQueue(object):
         return pending_call
 
     @abstractmethod
-    def put_pending_call(self):
+    def put_pending_call(self, pending_call):
         pass
 
     @abstractmethod

@@ -9,4 +9,4 @@ eventsourcing
 cassandra-driver==2.6.0rc1
 sqlalchemy
 filelock
-eventlet
+gevent==1.1rc3
