@@ -378,13 +378,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
                                          market_simulation.interest_rate, present_time, simulated_value_dict,
                                          perturbed_market_names, dependency_results)
     else:
-        # We are multi-threading the call evaluation, but the computation can be dispatched to a subprocess
-        # using shared memory to pass the data.
         assert isinstance(compute_pool, Pool)
-        # result_value = evaluate_dsl_expr(dsl_expr, market_simulation, present_time, simulated_value_dict,
-        #                                  None, None, **dependency_results)
-
-        # gevent.sleep(0)
         async_result = compute_pool.apply_async(
             evaluate_dsl_expr,
             args=(dsl_expr, first_market_name, market_simulation.id, market_simulation.interest_rate,
@@ -393,18 +387,6 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
         gevent.sleep(0.0001)
         result_value, perturbed_values = async_result.get()
 
-
-        # result_array = Array('d', scipy.zeros(path_count))
-        # p = Process(
-        #     target=evaluate_dsl_expr,
-        #     args=(call.dsl_source, market_simulation, present_time, simulated_value_dict, result_array, path_count),
-        #     kwargs=dependency_results
-        # )
-        # p.start()
-        # p.join()
-        # # result_value = numpy_from_sharedmem(result_array)
-        # result_value = result_array
-
     # Return the result.
     return result_value, perturbed_values
 
@@ -412,15 +394,12 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 def evaluate_dsl_expr(dsl_expr, first_market_name, simulation_id, interest_rate, present_time, simulated_value_dict,
                       perturbed_market_names, dependency_results):
 
-    # assert isinstance(result_array, (SynchronizedArray, type(None)))
-
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
         'interest_rate': interest_rate,
         'present_time': present_time,
         'first_market_name': first_market_name,
-        # 'perturbed_market_name': '',
     }
 
     result_value = None
@@ -477,15 +456,3 @@ def get_dependency_results(contract_valuation_id, call_id, dependencies_repo, re
         assert isinstance(stub_result, CallResult)
         dependency_results[stub_id] = (stub_result.result_value, stub_result.perturbed_values)
     return dependency_results
-
-
-
-# def sharedmem_from_numpy(simulated_price):
-#     if isinstance(simulated_price, scipy.ndarray):
-#         return Array('d', simulated_price)
-#     elif isinstance(simulated_price, six.integer_types + (float,)):
-#         return Value('d', simulated_price)
-#     elif isinstance(simulated_price, SynchronizedArray):
-#         return simulated_price
-#     else:
-#         raise NotImplementedError(type(simulated_price))
