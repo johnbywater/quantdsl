@@ -1009,9 +1009,6 @@ functionalDslClasses = {
 }
 
 
-simulated_price_cache = {}
-
-
 # Todo: Add something to Map a contract function to a sequence of values (range, list comprehension).
 
 class Market(StochasticObject, DslExpression):
@@ -1060,28 +1057,15 @@ class Market(StochasticObject, DslExpression):
                                                      price_time=present_time,
                                                      delivery_time=self.delivery_time)
 
-        # Check the cache.
-        simulated_price_cache_key = simulated_price_id + perturbed_market_name
-        try:
-            simulated_price_value = simulated_price_cache[simulated_price_cache_key]
-        except KeyError:
-            pass
-        else:
-            return simulated_price_value
-
         # Get the value from the dict of simulated values.
         try:
             simulated_price_value = simulated_value_dict[simulated_price_id]
         except KeyError:
             raise DslError("Can't find simulated price at '%s' for market '%s' using simulated price ID '%s'." % (present_time, self.name, simulated_price_id))
 
+        # If this is a perturbed market, perturb the simulated value.
         if self.name == perturbed_market_name:
             simulated_price_value = simulated_price_value * (1 + Market.PERTURBATION_FACTOR)
-
-        # simulated_price_value = numpy_from_sharedmem(simulated_price_value)
-
-        # Put the value in the cache.
-        simulated_price_cache[simulated_price_id] = simulated_price_value
 
         return simulated_price_value
 
@@ -1203,24 +1187,25 @@ class Choice(StochasticObject, DslExpression):
         # Check the results cache, to see whether this function
         # has already been evaluated with these args.
         # Todo: Check if this cache is actually working.
-        if not hasattr(self, 'results_cache'):
-            self.results_cache = {}
-        cache_key_kwd_items = [(k, hash(tuple(sorted(v))) if isinstance(v, dict) else v) for (k, v) in kwds.items()]
-        kwds_hash = hash(tuple(sorted(cache_key_kwd_items)))
-        if kwds_hash not in self.results_cache:
-            # Run the least-squares monte-carlo routine.
-            present_time = kwds['present_time']
-            # Todo: Check this way of getting 'first market name' is the correct way to do it.
-            first_market_name = kwds['first_market_name']
-            simulated_value_dict = kwds['simulated_value_dict']
-            simulation_id = kwds['simulation_id']
-            initial_state = LongstaffSchwartzState(self, present_time)
-            final_states = [LongstaffSchwartzState(a, present_time) for a in self._args]
-            longstaff_schwartz = LongstaffSchwartz(initial_state, final_states, first_market_name,
-                                                   simulated_value_dict, simulation_id)
-            result = longstaff_schwartz.evaluate(**kwds)
-            self.results_cache[kwds_hash] = result
-        return self.results_cache[kwds_hash]
+        # if not hasattr(self, 'results_cache'):
+        #     self.results_cache = {}
+        # cache_key_kwd_items = [(k, hash(tuple(sorted(v))) if isinstance(v, dict) else v) for (k, v) in kwds.items()]
+        # kwds_hash = hash(tuple(sorted(cache_key_kwd_items)))
+        # if kwds_hash not in self.results_cache:
+        # Run the least-squares monte-carlo routine.
+        present_time = kwds['present_time']
+        # Todo: Check this way of getting 'first market name' is the correct way to do it.
+        first_market_name = kwds['first_market_name']
+        simulated_value_dict = kwds['simulated_value_dict']
+        simulation_id = kwds['simulation_id']
+        initial_state = LongstaffSchwartzState(self, present_time)
+        final_states = [LongstaffSchwartzState(a, present_time) for a in self._args]
+        longstaff_schwartz = LongstaffSchwartz(initial_state, final_states, first_market_name,
+                                               simulated_value_dict, simulation_id)
+        result = longstaff_schwartz.evaluate(**kwds)
+        return result
+        # self.results_cache[kwds_hash] = result
+        # return self.results_cache[kwds_hash]
 
 
 class LongstaffSchwartz(object):

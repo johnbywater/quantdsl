@@ -17,8 +17,8 @@ from quantdsl.domain.model.contract_specification import register_contract_speci
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
-from quantdsl.domain.services.dependency_graphs import generate_execution_order, get_dependency_values, \
-    generate_dependency_graph
+from quantdsl.domain.services.dependency_graphs import generate_execution_order, generate_dependency_graph
+from quantdsl.domain.services.contract_valuations import get_dependency_results
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.domain.services.simulated_prices import simulate_future_prices, generate_simulated_prices, \
@@ -29,6 +29,7 @@ from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import C
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
 from quantdsl.infrastructure.event_sourced_repos.call_leafs_repo import CallLeafsRepo
 from quantdsl.infrastructure.event_sourced_repos.call_requirement_repo import CallRequirementRepo
+from quantdsl.infrastructure.event_sourced_repos.market_dependencies_repo import MarketDependenciesRepo
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -150,11 +151,11 @@ double(1 + 1)
                                          }[x])
         call_result_repo = MagicMock(spec=CallResultRepository,
                                      __getitem__=lambda self, x: {
-                                        'valuation2': Mock(spec=CallResult, result_value=12),
-                                        'valuation3': Mock(spec=CallResult, result_value=13),
+                                        'valuation2': Mock(spec=CallResult, result_value=12, perturbed_values={}),
+                                        'valuation3': Mock(spec=CallResult, result_value=13, perturbed_values={}),
                                      }[x])
-        values = get_dependency_values('valuation', '1', '', call_dependencies_repo, call_result_repo)
-        self.assertEqual(values, {'2': 12, '3': 13})
+        values = get_dependency_results('valuation', '1', call_dependencies_repo, call_result_repo)
+        self.assertEqual(values, {'2': (12, {}), '3': (13, {})})
 
 
 class TestCallLinks(unittest.TestCase):
@@ -172,6 +173,7 @@ class TestCallLinks(unittest.TestCase):
         self.assertEqual(order, [2, 3, 1])
 
 
+# Todo: Fix up this test to check the new behaviour: setting the market dependencies.
 class TestListMarketNamesAndFixingDates(unittest.TestCase):
 
     def test_list_market_names_and_fixing_dates(self):
@@ -188,8 +190,11 @@ class TestListMarketNamesAndFixingDates(unittest.TestCase):
                                        2: Mock(spec=CallLink, call_id=3),
                                        3: Mock(spec=CallLink, call_id=1),
                                    }[x])
+        call_dependencies_repo = MagicMock(spec=CallDependenciesRepo)
+        market_dependencies_repo = MagicMock(spec=MarketDependenciesRepo)
 
-        names, dates = list_market_names_and_fixing_dates(dependency_graph.id, call_requirement_repo, call_link_repo)
+        names, dates = list_market_names_and_fixing_dates(dependency_graph.id, call_requirement_repo, call_link_repo,
+                                                          call_dependencies_repo, market_dependencies_repo)
 
         self.assertEqual(dates, [datetime.date(2011, 1, 1), datetime.date(2012, 2, 2), datetime.date(2013, 3, 3)])
         self.assertEqual(names, ['1', '2', '3'])

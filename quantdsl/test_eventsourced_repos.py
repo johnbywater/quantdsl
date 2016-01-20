@@ -94,11 +94,11 @@ class TestEventSourcedRepos(TestCase):
         contract_valuation_id = create_uuid4()
         call_id = create_uuid4()
 
-        call_result_id = make_call_result_id(contract_valuation_id, call_id, '')
+        call_result_id = make_call_result_id(contract_valuation_id, call_id)
         self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, call_result_id)
 
-        register_call_result(call_id=call_id, contract_valuation_id=contract_valuation_id,
-                             dependency_graph_id=dependency_graph_id, result_value=123, perturbed_market_name='')
+        register_call_result(call_id=call_id, result_value=123, perturbed_values={},
+                             contract_valuation_id=contract_valuation_id, dependency_graph_id=dependency_graph_id)
 
         call_result = self.app.call_result_repo[call_result_id]
         assert isinstance(call_result, CallResult)

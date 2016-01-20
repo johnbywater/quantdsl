@@ -1,6 +1,7 @@
 from quantdsl.domain.model.call_link import CallLinkRepository
 from quantdsl.domain.model.call_requirement import CallRequirementRepository, CallRequirement
 from quantdsl.domain.model.market_calibration import MarketCalibration
+from quantdsl.domain.model.market_dependencies import register_market_dependencies
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import register_simulated_price
 from quantdsl.domain.services.call_links import regenerate_execution_order
@@ -28,11 +29,15 @@ def simulate_future_prices(market_simulation, market_calibration):
         calibration_params=market_calibration.calibration_params)
 
 
-def list_market_names_and_fixing_dates(dependency_graph_id, call_requirement_repo, call_link_repo):
+def list_market_names_and_fixing_dates(dependency_graph_id, call_requirement_repo, call_link_repo,
+                                       call_dependencies_repo, market_dependencies_repo):
     assert isinstance(call_requirement_repo, CallRequirementRepository)
     assert isinstance(call_link_repo, CallLinkRepository)
-    market_names = set()
-    fixing_dates = set()
+    all_market_names = set()
+    all_fixing_dates = set()
+
+    cum_market_names_by_call_id = {}
+
     for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
 
         # Get the stubbed expression.
@@ -48,13 +53,21 @@ def list_market_names_and_fixing_dates(dependency_graph_id, call_requirement_rep
 
         # Find all the fixing times involved in this expression.
         for fixing_date in find_fixing_dates(dsl_expr=dsl_expr):
-            fixing_dates.add(fixing_date)
+            all_fixing_dates.add(fixing_date)
 
         # Find all the market names involved in this expression.
-        for market_name in find_market_names(dsl_expr=dsl_expr):
-            market_names.add(market_name)
+        expr_market_names = list(find_market_names(dsl_expr=dsl_expr))
+        for market_name in expr_market_names:
+            all_market_names.add(market_name)
+
+        # Add the expression's market names to the market names of its dependencies.
+        cum_market_names = set(expr_market_names)
+        for dependency_id in call_dependencies_repo[call_id].dependencies:
+            cum_market_names.update(cum_market_names_by_call_id[dependency_id])
+        cum_market_names_by_call_id[call_id] = cum_market_names
+        register_market_dependencies(call_id, list(cum_market_names))
 
     # Return sorted lists.
-    market_names = sorted(list(market_names))
-    fixing_dates = sorted(list(fixing_dates))
-    return market_names, fixing_dates
+    all_market_names = sorted(list(all_market_names))
+    all_fixing_dates = sorted(list(all_fixing_dates))
+    return all_market_names, all_fixing_dates

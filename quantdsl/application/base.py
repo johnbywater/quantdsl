@@ -24,6 +24,7 @@ from quantdsl.infrastructure.event_sourced_repos.call_result_repo import CallRes
 from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_valuation_repo import ContractValuationRepo
 from quantdsl.infrastructure.event_sourced_repos.market_calibration_repo import MarketCalibrationRepo
+from quantdsl.infrastructure.event_sourced_repos.market_dependencies_repo import MarketDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import MarketSimulationRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
@@ -50,6 +51,7 @@ class QuantDslApplication(EventSourcingApplication):
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
         self.market_calibration_repo = MarketCalibrationRepo(event_store=self.event_store, use_cache=True)
         self.market_simulation_repo = MarketSimulationRepo(event_store=self.event_store, use_cache=True)
+        self.market_dependencies_repo = MarketDependenciesRepo(event_store=self.event_store, use_cache=True)
         self.simulated_price_repo = SimulatedPriceRepo(event_store=self.event_store, use_cache=True)
         self.call_requirement_repo = CallRequirementRepo(event_store=self.event_store, use_cache=True)
         self.call_dependencies_repo = CallDependenciesRepo(event_store=self.event_store, use_cache=True)
@@ -85,6 +87,7 @@ class QuantDslApplication(EventSourcingApplication):
             result_counters=self.result_counters,
             usage_counters=self.usage_counters,
             call_dependents_repo=self.call_dependents_repo,
+            market_dependencies_repo=self.market_dependencies_repo,
         )
 
     def close(self):
@@ -149,12 +152,15 @@ class QuantDslApplication(EventSourcingApplication):
         assert isinstance(contract_specification, ContractSpecification), contract_specification
         return list_market_names_and_fixing_dates(contract_specification.id,
                                                   self.call_requirement_repo,
-                                                  self.call_link_repo)
+                                                  self.call_link_repo,
+                                                  self.call_dependencies_repo,
+                                                  self.market_dependencies_repo,
+                                                  )
 
-    def start_contract_valuation(self, entity_id, dependency_graph_id, market_simulation, perturbed_market_name):
+    def start_contract_valuation(self, entity_id, dependency_graph_id, market_simulation):
         assert isinstance(dependency_graph_id, six.string_types), dependency_graph_id
         assert isinstance(market_simulation, MarketSimulation)
-        return start_contract_valuation(entity_id, dependency_graph_id, market_simulation.id, perturbed_market_name)
+        return start_contract_valuation(entity_id, dependency_graph_id, market_simulation.id)
 
     def loop_on_evaluation_queue(self, call_result_lock, compute_pool=None, result_counters=None, usage_counters=None):
         loop_on_evaluation_queue(
@@ -166,6 +172,7 @@ class QuantDslApplication(EventSourcingApplication):
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
             call_dependents_repo=self.call_dependents_repo,
+            market_dependencies_repo=self.market_dependencies_repo,
             call_result_lock=call_result_lock,
             compute_pool=compute_pool,
             result_counters=result_counters,
@@ -185,5 +192,6 @@ class QuantDslApplication(EventSourcingApplication):
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
             call_dependents_repo=self.call_dependents_repo,
+            market_dependencies_repo=self.market_dependencies_repo,
             call_result_lock=lock,
         )
