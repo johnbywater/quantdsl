@@ -230,7 +230,7 @@ class Date(DslConstant):
                 date_str = value
             try:
                 year, month, day = [int(i) for i in date_str.split('-')]
-                return datetime.date(year, month, day)
+                return datetime.datetime(year, month, day)
                 # return dateutil.parser.parse(date_str).replace()
             except ValueError:
                 raise DslSyntaxError("invalid date string", date_str, node=self.node)
@@ -1018,6 +1018,63 @@ class DatedDslObject(DslObject):
         return self._date
 
 
+class Lift(DslExpression):
+
+    def validate(self, args):
+        self.assert_args_len(args, required_len=2)
+        self.assert_args_arg(args, posn=0, required_type=(String, Name, Add))
+        self.assert_args_arg(args, posn=1, required_type=DslExpression)
+
+    @property
+    def condition(self):
+        return self._args[0]
+
+    @property
+    def expr(self):
+        return self._args[1]
+
+    def identify_perturbation_dependencies(self, dependencies, **kwds):
+        try:
+            present_time = kwds['present_time']
+        except KeyError:
+            raise DslSyntaxError(
+                "'present_time' not found in evaluation kwds" % self.market_name,
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+        perturbation = self.get_perturbation(present_time)
+        dependencies.add(perturbation)
+        super(Lift, self).identify_perturbation_dependencies(dependencies, **kwds)
+
+    def get_perturbation(self, present_time):
+        # For now, just bucket by commodity name and month of delivery.
+        # if ''
+        commodity_name, period = self.condition.evaluate().split()
+        if period.startswith('year'):
+            perturbation = json.dumps((commodity_name, present_time.year, 0, 0))
+        elif period.startswith('mon'):
+            perturbation = json.dumps((commodity_name, present_time.year, present_time.month, 0))
+        elif period.startswith('da'):
+            perturbation = json.dumps((commodity_name, present_time.year, present_time.month, present_time.day))
+        else:
+            raise Exception("Unsupported period: {}".format(period))
+        return perturbation
+
+    def evaluate(self, **kwds):
+        # Get the perturbed market name, if set.
+        active_perturbation = kwds.get('active_perturbation', None)
+
+        present_time = kwds['present_time']
+
+        # If this is a perturbed market, perturb the simulated value.
+        expr_value = self.expr.evaluate(**kwds)
+        if self.get_perturbation(present_time) == active_perturbation:
+            evaluated_value = expr_value * (1 + Market.PERTURBATION_FACTOR)
+        else:
+            evaluated_value = expr_value
+        return evaluated_value
+
+
 functionalDslClasses = {
     'Add': Add,
     'And': And,
@@ -1031,6 +1088,7 @@ functionalDslClasses = {
     'FunctionDef': FunctionDef,
     'If': If,
     'IfExp': IfExp,
+    'Lift': Lift,
     'Max': Max,
     'Mod': Mod,
     'Module': Module,
@@ -1055,9 +1113,6 @@ class AbstractMarket(StochasticObject, DslExpression):
     PERTURBATION_FACTOR = 0.001
 
     def evaluate(self, **kwds):
-        # Get the perturbed market name, if set.
-        active_perturbation = kwds.get('active_perturbation', None)
-
         # Get the effective present time (needed to form the simulated_value_id).
         try:
             present_time = kwds['present_time']
@@ -1087,12 +1142,7 @@ class AbstractMarket(StochasticObject, DslExpression):
         except KeyError:
             raise DslError("Simulated price not found ID: {}".format(simulated_price_id))
 
-        # If this is a perturbed market, perturb the simulated value.
-        if self.get_perturbation(present_time) == active_perturbation:
-            evaluated_value = simulated_price_value * (1 + Market.PERTURBATION_FACTOR)
-        else:
-            evaluated_value = simulated_price_value
-        return evaluated_value
+        return simulated_price_value
 
     @property
     def market_name(self):
@@ -1121,25 +1171,6 @@ class AbstractMarket(StochasticObject, DslExpression):
         requirement = (self.commodity_name, fixing_date, self.delivery_date or present_time)
         requirements.add(requirement)
         super(AbstractMarket, self).identify_price_simulation_requirements(requirements, **kwds)
-
-    def identify_perturbation_dependencies(self, dependencies, **kwds):
-        try:
-            present_time = kwds['present_time']
-        except KeyError:
-            raise DslSyntaxError(
-                "'present_time' not found in evaluation kwds" % self.market_name,
-                ", ".join(kwds.keys()),
-                node=self.node
-            )
-        perturbation = self.get_perturbation(present_time)
-        dependencies.add(perturbation)
-        super(AbstractMarket, self).identify_perturbation_dependencies(dependencies, **kwds)
-
-    def get_perturbation(self, present_time):
-        # For now, just bucket by commodity name and month of delivery.
-        delivery_date = self.delivery_date or present_time
-        perturbation = json.dumps((self.commodity_name, delivery_date.year, delivery_date.month))
-        return perturbation
 
 
 class Market(AbstractMarket):

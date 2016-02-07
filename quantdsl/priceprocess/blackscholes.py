@@ -1,12 +1,15 @@
 from __future__ import division
+
+import datetime
 import math
+
 import scipy
 import scipy.linalg
 from scipy.linalg import LinAlgError
+
 from quantdsl.exceptions import DslError
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.priceprocess.base import get_duration_years
-import datetime
 
 
 class BlackScholesPriceProcess(PriceProcess):
@@ -35,13 +38,12 @@ class BlackScholesPriceProcess(PriceProcess):
         assert isinstance(requirements, list), requirements
         assert isinstance(path_count, int), path_count
 
-        # Get an ordered list of all the commodity names and fixing dates.
-        commodity_names = sorted(set([r[0] for r in requirements]))
+        commodity_names, fixing_dates = self.get_commodity_names_and_fixing_dates(observation_date, requirements)
+
         len_commodity_names = len(commodity_names)
         if len_commodity_names == 0:
             return []
 
-        fixing_dates = sorted(set([observation_date] + [r[1] for r in requirements]))
         len_fixing_dates = len(fixing_dates)
         if len_fixing_dates == 0:
             return []

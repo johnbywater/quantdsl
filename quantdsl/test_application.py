@@ -188,8 +188,8 @@ class ExpressionTests(ContractValuationTestCase):
         self.assert_contract_value("""2 + 4""", 6)
 
     def test_market(self):
-        self.assert_contract_value("Market('#1')", 10, {'["#1", 2011, 1]': 1})
-        self.assert_contract_value("Market('#2')", 10, {'["#2", 2011, 1]': 1})
+        self.assert_contract_value("Lift('#1', Market('#1'))", 10, {'["#1", 2011, 1]': 1})
+        self.assert_contract_value("Lift('#2', Market('#2'))", 10, {'["#2", 2011, 1]': 1})
 
     def test_market_plus(self):
         self.assert_contract_value("Market('#1') + 10", 20)
@@ -229,8 +229,8 @@ class ExpressionTests(ContractValuationTestCase):
 
     def test_bermudan(self):
         specification = """
-Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
-    Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
+Fixing(Date('2011-06-01'), Choice(Lift('NBP', Market('NBP')) - 9,
+    Fixing(Date('2012-01-01'), Choice(Lift('NBP', Market('NBP')) - 9, 0))))
 """
         self.assert_contract_value(specification, 2.6093, expected_deltas={'["NBP", 2011, 6]': 0.2208})
 
@@ -323,21 +323,21 @@ Fixing(
 Max(
     Fixing(
         Date('2012-01-01'),
-        Market('#1')
+        Lift('#1', Market('#1'))
     ) /
     Fixing(
         Date('2011-01-01'),
-        Market('#1')
+        Lift('#1', Market('#1'))
     ),
     1.0
 ) - Max(
     Fixing(
         Date('2013-01-01'),
-        Market('#1')
+        Lift('#1', Market('#1'))
     ) /
     Fixing(
         Date('2012-01-01'),
-        Market('#1')
+        Lift('#1', Market('#1'))
     ),
     1.0
 )
@@ -380,7 +380,7 @@ def Option(date, strike, underlying, alternative):
 def European(date, strike, underlying):
     return Option(date, strike, underlying, 0)
 
-European(Date('2012-01-01'), 9, Market('NBP'))
+European(Date('2012-01-01'), 9, Lift('NBP', Market('NBP')))
 """
         self.assert_contract_value(specification, 2.4557, {'["NBP", 2012, 1]': 0.6743}, expected_call_count=3)
 
@@ -398,7 +398,7 @@ def American(starts, ends, strike, underlying):
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
-American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)s'))
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Lift('%(underlying)s', Market('%(underlying)s')))
 """
         self.assert_contract_value(american_option_tmpl % {
             'starts':'2011-01-02',
@@ -481,7 +481,7 @@ class SpecialTests(ContractValuationTestCase):
     def test_simple_function_with_market(self):
         dsl = """
 def F():
-  Market('NBP') + 2 * Market('TTF')
+  Lift('NBP', Market('NBP')) + 2 * Lift('TTF', Market('TTF'))
 
 F()
 """
@@ -498,7 +498,7 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
+Swing(Date('2011-01-01'), Date('2011-01-05'), Lift('NBP', Market('NBP')), 3)
 """
         self.assert_contract_value(specification, 30.20756, {'["NBP", 2011, 1]': 3.0207}, expected_call_count=15)
         # self.assert_contract_value(specification, 30.20756, {}, expected_call_count=15)
@@ -509,7 +509,7 @@ def SumTwoMarkets(market_name1, market_name2):
     GetMarket(market_name1) + GetMarket(market_name2)
 
 def GetMarket(market_name):
-    Market(market_name)
+    Lift(market_name, Market(market_name))
 
 SumTwoMarkets('NBP', 'TTF')
 """
@@ -538,8 +538,8 @@ def Exercise(f, start_date, end_date, underlying, quantity):
 def Hold(f, start_date, end_date, underlying, quantity):
     return f(start_date + TimeDelta('1d'), end_date, underlying, quantity)
 
-Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#1'), 2) * 1 + \
-Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#2'), 2) * 2
+Swing(Date('2011-1-1'), Date('2011-1-4'), Lift('#1', Market('#1')), 2) * 1 + \
+Swing(Date('2011-1-1'), Date('2011-1-4'), Lift('#2', Market('#2')), 2) * 2
 """
         self.assert_contract_value(specification,
                                    expected_call_count=19,
@@ -615,7 +615,7 @@ def HoldSwing(start, end, step, market, quantity):
 def ExerciseSwing(start, end, step, market, quantity, vol):
     Settlement(start, vol*market) + HoldSwing(start, end, step, market, quantity-vol)
 
-Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Market('NBP'), 1)
+Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Lift('NBP', Market('NBP')), 1)
 """
         self.assert_contract_value(dsl, 10, {'["NBP", 2011, 1]': 1}, expected_call_count=6)
 
@@ -639,7 +639,7 @@ Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
         }, expected_call_count=11)
 
     def test_simple_forward_market(self):
-        specification = """ForwardMarket('NBP', '2011-1-1')"""
+        specification = """Lift('NBP', ForwardMarket('NBP', '2011-1-1'))"""
         self.assert_contract_value(specification, 10.00, {'["NBP", 2011, 1]': 1.0}, expected_call_count=1)
 
     def test_gas_storage_option(self):
@@ -745,7 +745,7 @@ class SingleTests(ContractValuationTestCase):
 def Swing(start_date, end_date, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Settlement(start_date, Fixing(start_date, Choice(
-            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket('NBP', start_date),
+            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + Lift('NBP', ForwardMarket('NBP', start_date)),
             Swing(start_date + TimeDelta('1m'), end_date, quantity)
         )))
     else:
