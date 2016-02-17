@@ -9,3 +9,5 @@ eventsourcing==0.9.4
 sqlalchemy
 filelock
 gevent==1.1rc3
+pytz
+blist
