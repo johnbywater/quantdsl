@@ -25,7 +25,6 @@ install:
  - conda install --yes numpy=$NUMPY scipy=$SCIPY matplotlib pip
  - conda install --yes -c dan_blanchard python-coveralls
  - pip install setuptools
- - pip install https://github.com/johnbywater/eventsourcing/archive/develop.zip
  - pip install -r requirements.txt
 
 script:
