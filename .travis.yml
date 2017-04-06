@@ -1,4 +1,5 @@
 language: python
+
 sudo: false
 
 services:
@@ -9,21 +10,30 @@ python:
   - "2.7"
   - "3.3"
   - "3.4"
-  - "3.5"
-  - "pypy"
 
 env:
   global:
     - CASSANDRA_PROTOCOL_VERSION=2
     - CASSANDRA_HOSTS=127.0.0.1
 
+before_install:
+- travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
+- chmod +x miniconda.sh
+- bash miniconda.sh -b -p $HOME/miniconda
+- export PATH=/home/travis/miniconda/bin:$PATH
+- conda update --yes conda
+# The next couple lines fix a crash with multiprocessing on Travis and are not specific to using Miniconda
+- sudo rm -rf /dev/shm
+- sudo ln -s /run/shm /dev/shm
+
 install:
 - pip install -U pip
+- conda install --yes python=$TRAVIS_PYTHON_VERSION atlas numpy scipy matplotlib nose dateutil pandas statsmodels
 - pip install -r requirements.txt
 - pip install python-coveralls
 
 script:
-- coverage run -m unittest discover quantdsl -v
+- coverage run --source quantdsl -m unittest discover quantdsl
 
 after_success:
-- coveralls
+- coveralls --config_file .coveragerc
