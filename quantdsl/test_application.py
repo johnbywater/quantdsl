@@ -570,10 +570,10 @@ Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Market('NBP'), 1)
 
 
 class ContractValuationTests(
-    # ExperimentalTests,
+    ExperimentalTests,
     SpecialTests,
-    # ExpressionTests,
-    # FunctionTests,
-    # LongerTests
+    ExpressionTests,
+    FunctionTests,
+    LongerTests
 ): pass
 
