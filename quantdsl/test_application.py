@@ -134,7 +134,10 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             contract_delta = (perturbed_value - main_result.result_value) / price_perturbation
 
             # Check the delta.
-            self.assertAlmostEqual(contract_delta.mean(), expected_deltas[market_name], places=2, msg=market_name)
+            actual_value = contract_delta.mean()
+            expected_value = expected_deltas[market_name]
+            error_msg = "{} != {}".format(actual_value, expected_value)
+            self.assertAlmostEqual(actual_value, expected_value, places=2, msg=error_msg)
 
     def scalar(self, contract_value):
         if isinstance(contract_value, scipy.ndarray):
