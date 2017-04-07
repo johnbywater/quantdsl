@@ -3,18 +3,12 @@ language: python
 sudo: false
 
 services:
-  - cassandra
   - rabbitmq
 
 python:
   - "2.7"
   - "3.3"
   - "3.4"
-
-env:
-  global:
-    - CASSANDRA_PROTOCOL_VERSION=2
-    - CASSANDRA_HOSTS=127.0.0.1
 
 before_install:
 - travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
