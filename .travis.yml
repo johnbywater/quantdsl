@@ -22,10 +22,10 @@ before_install:
 - bash miniconda.sh -b -p $HOME/miniconda
 - export PATH=/home/travis/miniconda/bin:$PATH
 - conda update --yes conda
+- conda install --yes atlas numpy scipy matplotlib
 
 install:
 - pip install -U pip
-- conda install --yes numpy scipy matplotlib
 - pip install -r requirements.txt
 - pip install python-coveralls
 
