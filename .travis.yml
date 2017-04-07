@@ -25,7 +25,7 @@ before_install:
 
 install:
 - pip install -U pip
-- conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib
+- conda install --yes numpy scipy matplotlib
 - pip install -r requirements.txt
 - pip install python-coveralls
 
