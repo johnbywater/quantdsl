@@ -1,22 +1,16 @@
-import unittest
 import os
 import sys
+import unittest
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
 
-from cassandra.cqlengine.management import drop_keyspace
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from eventsourcing.infrastructure.stored_events.cassandra_stored_events import create_cassandra_keyspace_and_tables
-
-from quantdsl.application.main import get_quantdsl_app
-from quantdsl.infrastructure.celery.tasks import CeleryCallEvaluationQueueFacade, get_quant_dsl_app_for_celery_worker
-from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
-from quantdsl.test_application import TestCase, ContractValuationTests
+from quantdsl.infrastructure.celery.tasks import get_quant_dsl_app_for_celery_worker
+from quantdsl.test_application import ContractValuationTests, TestCase
 
 
 class TestApplicationWithCeleryAndSQLAlchemy(TestCase, ContractValuationTests):
-
     skip_assert_event_handers_empty = True  # Do it in setup/teardown class.
 
     @classmethod

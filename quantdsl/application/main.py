@@ -1,6 +1,5 @@
 import os
 
-from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
 
 
 def get_quantdsl_app(backend_name='pythonobjects', call_evaluation_queue=None):
@@ -14,6 +13,7 @@ def get_quantdsl_app(backend_name='pythonobjects', call_evaluation_queue=None):
         db_uri = os.environ.get('QUANTDSL_DB_URI', 'sqlite:////tmp/quantdsl-tmp.db')
         quantdsl_app = QuantDslApplicationWithSQLAlchemy(db_uri=db_uri, call_evaluation_queue=call_evaluation_queue)
     elif backend == 'cassandra':
+        from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
         from quantdsl.application.with_cassandra import QuantDslApplicationWithCassandra
         # hosts = [i.strip() for i in os.environ.get('QUANT_DSL_CASSANDRA_HOSTS', 'localhost').split(',')]
         keyspace = os.environ.get('QUANTDSL_CASSANDRA_KEYSPACE', DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE).strip()

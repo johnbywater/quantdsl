@@ -1,12 +1,8 @@
-import logging
 
-from eventsourcing.infrastructure.stored_events.cassandra_stored_events import setup_cassandra_connection, \
-    get_cassandra_setup_params
 from filelock import FileLock
 
 from quantdsl.application.base import QuantDslApplication
 from quantdsl.application.main import get_quantdsl_app
-from quantdsl.application.with_cassandra import DEFAULT_QUANTDSL_CASSANDRA_KEYSPACE
 from quantdsl.infrastructure.celery.app import celery_app
 
 
