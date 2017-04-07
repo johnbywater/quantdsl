@@ -28,6 +28,14 @@ def get_quant_dsl_app_for_celery_worker():
     return _quantdsl_app_singleton
 
 
+def close_quant_dsl_app_for_celery_worker():
+    global _quantdsl_app_singleton
+    if _quantdsl_app_singleton is not None:
+        _quantdsl_app_singleton.close()
+    _quantdsl_app_singleton = None
+
+
+
 @celery_app.task
 def celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id):
 
