@@ -195,11 +195,21 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
             )
 
     # Lock the results.
+    # - avoids race conditions when checking, after a result
+    #   has been written, if all results are now available, whilst
+    #   others are writing results.
+    # - could perhaps do this with optimistic concurrency control, so
+    #   that result events can be collected by dependents
+    #   and then evaluated when all are received - to be robust against
+    #   concurrent operations causing concurrency exceptions, an accumulating
+    #   operation would require to be retried only as many times as there are
+    #   remaining dependents.
     if call_result_lock is not None:
         call_result_lock.acquire()
 
     try:
         # Register this result.
+        # Todo: Retries on concurrency errors.
         register_call_result(
             call_id=call_id,
             result_value=result_value,
