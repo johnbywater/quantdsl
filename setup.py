@@ -35,15 +35,11 @@ setup(
     extras_require={
         'test': [
             'mock',
-            'cassandra-driver==2.6.0rc1',
             'sqlalchemy',
             'gevent',
         ],
         'sqlalchemy': [
             'sqlalchemy',
-        ],
-        'cassandra': [
-            'cassandra-driver==2.6.0rc1',
         ],
     },
 

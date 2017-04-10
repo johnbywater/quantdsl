@@ -4,6 +4,8 @@ import unittest
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
 
+from multiprocessing import cpu_count
+
 from quantdsl.infrastructure.celery.tasks import get_quant_dsl_app_for_celery_worker, \
     close_quant_dsl_app_for_celery_worker
 from quantdsl.test_application import ContractValuationTests, TestCase
@@ -39,16 +41,19 @@ class TestApplicationWithCeleryAndSQLAlchemy(TestCase, ContractValuationTests):
         assert os.path.exists(celery_script_path), celery_script_path
 
         # Invoke a celery worker process as a subprocess.
-        worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.worker',
-                      '-P', 'prefork',
-                      '-c', str(1), '-l', 'info']
-        cls.worker = Popen(worker_cmd)
+        cls.workers = []
+        for i in range(1):
+            worker_cmd = [celery_script_path, 'worker', '-A', 'quantdsl.infrastructure.celery.worker',
+                          '-P', 'prefork',
+                          '-c', str(cpu_count() - 1), '-l', 'info', '-n', 'worker-{}'.format(i)]
+            worker = Popen(worker_cmd)
+            cls.workers.append(worker)
         
     @classmethod
     def tearDownClass(cls):
         # Shutdown the celery worker.
-        worker = getattr(cls, 'worker', None)
-        if worker is not None:
+        workers = getattr(cls, 'workers', [])
+        for worker in workers:
             assert isinstance(worker, Popen)
             if hasattr(worker, '__exit__'):
                 # Python3

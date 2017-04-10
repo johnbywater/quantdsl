@@ -11,7 +11,8 @@ class MarketSimulation(EventSourcedEntity):
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
-    def __init__(self, market_calibration_id, market_names, fixing_dates, observation_date, path_count, interest_rate, **kwargs):
+    def __init__(self, market_calibration_id, market_names, fixing_dates, observation_date, path_count, interest_rate,
+                 **kwargs):
         super(MarketSimulation, self).__init__(**kwargs)
         self._market_calibration_id = market_calibration_id
         self._market_names = market_names

@@ -13,7 +13,7 @@ from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import register_call_result, make_call_result_id, CallResult, \
     CallResultRepository
-from quantdsl.domain.model.contract_specification import make_simulated_price_id
+from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse

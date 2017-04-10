@@ -20,8 +20,8 @@ class BlackScholesPriceProcess(PriceProcess):
             # Compute simulated market prices using the correlated Brownian
             # motions, the actual historical volatility, and the last price.
             for market_name, brownian_motions in all_brownian_motions:
-                last_price = calibration_params['%s-LAST-PRICE' % market_name.upper()]
-                actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name.upper()]
+                last_price = calibration_params['%s-LAST-PRICE' % market_name]
+                actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name]
                 sigma = actual_historical_volatility / 100.0
                 for fixing_date, brownian_rv in brownian_motions:
                     T = get_duration_years(observation_date, fixing_date)
@@ -103,7 +103,7 @@ class BlackScholesPriceProcess(PriceProcess):
             brownian_motions_correlated = brownian_motions_correlated.transpose()
             brownian_motions = brownian_motions_correlated
 
-        # Put random variables into a nested Python dict, keyed by market name and fixing date.
+        # Put random variables into a nested Python dict, keyed by market commodity_name and fixing date.
         all_brownian_motions = []
         for i, market_name in enumerate(market_names):
             market_rvs = []

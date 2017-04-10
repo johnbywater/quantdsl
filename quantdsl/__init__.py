@@ -15,7 +15,7 @@ __version__ = '1.0.0dev'
 # Todo: Improve the multiprocessing code - currently it runs slower that the single threaded, and seems to grind to a halt for stacks > 5000 expressions (IPC bandwidth? rounding errors?).
 # Todo: Improve separation of expression stack/dependency graph from results and notifications, so results from different runs can be reused when calculating greeks.
 # Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
-# Todo: Figure out how best to make alternative set of DSL classes available to workers (module name that is imported, rather than a dict of classes).
+# Todo: Figure out how best to make alternative set of DSL classes available to workers (module commodity_name that is imported, rather than a dict of classes).
 # Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
 # Todo: Optimize network traffic by creating a single message containing all data required to evaluate a stubbed expression.
 # Todo: Decouple the cli from the runner more, make the workers put things directly on the queue, so that the cli just waits for the final result and clocks the intermediate results as they occur in an event stream.

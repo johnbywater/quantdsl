@@ -29,12 +29,13 @@ def register_simulated_price(market_simulation_id, market_name, fixing_date, pri
     return simulated_price
 
 
-def make_simulated_price_id(market_simulation_id, market_name, price_time):
-    # assert isinstance(market_simulation_id, six.string_types), market_simulation_id
-    # assert isinstance(market_name, six.string_types), market_name
-    # assert isinstance(price_time, datetime.date), price_time
-    return market_simulation_id + market_name + str(price_time)
+def make_simulated_price_id(simulation_id, market_name, quoted_on, delivery_date=''):
+    price_id = ("PriceId(simulation_id='{}' market_name='{}' delivery_date='{}' quoted_on='{}')"
+                "".format(simulation_id, market_name, quoted_on, delivery_date))
+    return price_id
 
 
 class SimulatedPriceRepository(EntityRepository):
     pass
+
+
