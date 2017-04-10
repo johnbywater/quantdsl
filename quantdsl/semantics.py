@@ -443,7 +443,8 @@ class Div(BinOp):
         return left / right
 
 
-class Max(BinOp):
+class NonInfixedBinOp(BinOp):
+
     def op(self, a, b):
         # Assume a and b have EITHER type ndarray, OR type int or float.
         # Try to 'balance' the sides.
@@ -454,7 +455,7 @@ class Max(BinOp):
         bIsaNumber = isinstance(b, (int, float))
         if aIsaNumber and bIsaNumber:
             # Neither are vectors.
-            return max(a, b)
+            return self.scalar_op(a, b)
         elif (not aIsaNumber) and (not bIsaNumber):
             # Both are vectors.
             if len(a) != len(b):
@@ -466,8 +467,23 @@ class Max(BinOp):
         elif bIsaNumber and (not aIsaNumber):
             # Todo: Optimise with scipy.zeros() when b equals zero?
             b = scipy.array([b] * len(a))
-        c = scipy.array([a, b])
-        return c.max(axis=0)
+        return self.vector_op(a, b)
+
+
+class Min(NonInfixedBinOp):
+    def vector_op(self, a, b):
+        return scipy.array([a, b]).min(axis=0)
+
+    def scalar_op(self, a, b):
+        return min(a, b)
+
+
+class Max(NonInfixedBinOp):
+    def vector_op(self, a, b):
+        return scipy.array([a, b]).max(axis=0)
+
+    def scalar_op(self, a, b):
+        return max(a, b)
 
 
 # Todo: Pow, Mod, FloorDiv don't have proofs, so shouldn't really be used for combining random variables? Either prevent usage with ndarray inputs, or do the proofs. :-)
@@ -1109,6 +1125,7 @@ functionalDslClasses = {
     'IfExp': IfExp,
     'Lift': Lift,
     'Max': Max,
+    'Min': Min,
     'Mod': Mod,
     'Module': Module,
     'SnapToMonth': SnapToMonth,
@@ -1174,11 +1191,12 @@ class AbstractMarket(StochasticObject, DslExpression):
     @property
     def commodity_name(self):
         name = self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
-        # Disallow '-' in market names (it's used to compose /split perturbation names, which probably should work
-        # differently)
+        # Disallow '-' in market names (it's used to compose / split perturbation names,
+        # which probably should work differently, so that this restriction can be removed.
+        # Todo: Review perturbation names (now hyphen separated, were JSON strings).
         if '-' in name:
-            raise DslSyntaxError("'-' character not allowed in market name: {}"
-                                 "".format(self.market_name), node=self.node)
+            raise DslSyntaxError("hyphen character '-' not allowed in market names (sorry): {}"
+                                 "".format(name), node=self.node)
         return name
 
     def identify_price_simulation_requirements(self, requirements, **kwds):

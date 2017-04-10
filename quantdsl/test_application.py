@@ -76,8 +76,8 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         'NBP-2012-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
         'NBP-2012-01-NBP-2012-02-CORRELATION': 0.4,
         'NBP-2012-02-NBP-2012-03-CORRELATION': 0.4,
-        'SPARK-SPREAD-LAST-PRICE': 1,
-        'SPARK-SPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
+        'SPARKSPREAD-LAST-PRICE': 1,
+        'SPARKSPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
     }
 
     def setup_market_simulation(self, contract_specification):
@@ -461,18 +461,20 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
         Wait(start_date, Choice(
-            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, 0) + ProfitFromRunning(start_date, underlying, time_since_off),
-            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, NextTime(time_since_off)),
+            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, Running()) \
+               + ProfitFromRunning(start_date, underlying, time_since_off),
+            PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, Stopped(time_since_off)),
         ))
     else:
         return 0
 
 @nostub
-def NextTime(time_since_off):
-    if time_since_off == 2:
-        return 2
-    else:
-        return time_since_off + 1
+def Running():
+    return 0
+
+@nostub
+def Stopped(time_since_off):
+    return Min(2, time_since_off + 1)
 
 @nostub
 def ProfitFromRunning(start_date, underlying, time_since_off):
@@ -483,9 +485,9 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-PowerPlant(Date('2012-01-01'), Date('2012-03-01'), Market('#1'), 30)
+PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), 2)
 """
-        self.assert_contract_value(specification, 484.7841, expected_call_count=239)
+        self.assert_contract_value(specification, 11.57, expected_call_count=37)
 
 
 class SpecialTests(ContractValuationTestCase):
