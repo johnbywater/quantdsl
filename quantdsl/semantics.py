@@ -1021,10 +1021,13 @@ class DatedDslObject(DslObject):
 class Lift(DslExpression):
 
     def validate(self, args):
-        self.assert_args_len(args, required_len=3)
+        self.assert_args_len(args, min_len=2)
         self.assert_args_arg(args, posn=0, required_type=(String, Name))
-        self.assert_args_arg(args, posn=1, required_type=String)
-        self.assert_args_arg(args, posn=2, required_type=DslExpression)
+        if len(args) == 2:
+            self.assert_args_arg(args, posn=1, required_type=DslExpression)
+        elif len(args) == 3:
+            self.assert_args_arg(args, posn=1, required_type=String)
+            self.assert_args_arg(args, posn=2, required_type=DslExpression)
 
     @property
     def commodity_name(self):
@@ -1032,11 +1035,11 @@ class Lift(DslExpression):
 
     @property
     def mode(self):
-        return self._args[1]
+        return self._args[1] if len(self._args) == 3 else String('alltime')
 
     @property
     def expr(self):
-        return self._args[2]
+        return self._args[-1]
 
     def identify_perturbation_dependencies(self, dependencies, **kwds):
         perturbation = self.get_perturbation(**kwds)
@@ -1054,12 +1057,18 @@ class Lift(DslExpression):
             )
         commodity_name = self.commodity_name.evaluate(**kwds)
         mode = self.mode.evaluate(**kwds)
-        if mode.startswith('year'):
-            perturbation = json.dumps((commodity_name, present_time.year, 0, 0))
+        if mode.startswith('alltime'):
+            perturbation = commodity_name
+        elif mode.startswith('year'):
+            # perturbation = json.dumps((commodity_name, present_time.year))
+            perturbation = "{}-{}".format(commodity_name, present_time.year)
         elif mode.startswith('mon'):
-            perturbation = json.dumps((commodity_name, present_time.year, present_time.month, 0))
+            # perturbation = json.dumps((commodity_name, present_time.year, present_time.month))
+            perturbation = "{}-{}-{}".format(commodity_name, present_time.year, present_time.month)
         elif mode.startswith('da'):
-            perturbation = json.dumps((commodity_name, present_time.year, present_time.month, present_time.day))
+            # perturbation = json.dumps((commodity_name, present_time.year, present_time.month, present_time.day))
+            perturbation = "{}-{}-{}-{}".format(commodity_name, present_time.year, present_time.month,
+                                                present_time.day)
         else:
             raise Exception("Unsupported mode: {}".format(mode))
         return perturbation
@@ -1156,7 +1165,13 @@ class AbstractMarket(StochasticObject, DslExpression):
 
     @property
     def commodity_name(self):
-        return self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
+        name = self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
+        # Disallow '-' in market names (it's used to compose /split perturbation names, which probably should work
+        # differently)
+        if '-' in name:
+            raise DslSyntaxError("'-' character not allowed in market name: {}"
+                                 "".format(self.market_name), node=self.node)
+        return name
 
     def identify_price_simulation_requirements(self, requirements, **kwds):
         assert isinstance(requirements, set)
