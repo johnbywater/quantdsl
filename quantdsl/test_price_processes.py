@@ -13,7 +13,7 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
 
     def test_simulate_future_prices_no_requirements(self):
         prices = list(self.p.simulate_future_prices(
-            observation_date=datetime.date(2011, 1, 1),
+            observation_date=datetime.datetime(2011, 1, 1),
             requirements=[],
             path_count=2,
             calibration_params={'#1-LAST-PRICE': 10, '#1-ACTUAL-HISTORICAL-VOLATILITY': 50},
@@ -24,10 +24,10 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
     def test_simulate_future_prices_one_market_zero_volatility(self):
         prices = list(self.p.simulate_future_prices(
             requirements=[
-                ('#1', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1)),
-                ('#1', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2)),
+                ('#1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1)),
+                ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2)),
             ],
-            observation_date=datetime.date(2011, 1, 1),
+            observation_date=datetime.datetime(2011, 1, 1),
             path_count=2,
             calibration_params={
                 '#1-LAST-PRICE': 10,
@@ -36,14 +36,14 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
         ))
         prices = [(p[0], p[1], p[2], p[3].mean()) for p in prices]  # For scipy.
         self.assertEqual(prices, [
-            ('#1', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1), scipy.array([ 10.,  10.]).mean()),
-            ('#1', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), scipy.array([ 10.,  10.]).mean()),
+            ('#1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), scipy.array([ 10.,  10.]).mean()),
+            ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), scipy.array([ 10.,  10.]).mean()),
         ])
 
     def test_simulate_future_prices_one_market_high_volatility(self):
         prices = list(self.p.simulate_future_prices(
             requirements=[],
-            observation_date=datetime.date(2011, 1, 1),
+            observation_date=datetime.datetime(2011, 1, 1),
             path_count=1000,
             calibration_params={
                 '#1-LAST-PRICE': 10,
@@ -59,12 +59,12 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
     def test_simulate_future_prices_two_markets_zero_volatility(self):
         prices = list(self.p.simulate_future_prices(
             requirements=[
-                ('#1', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1), scipy.array([ 10.,  10.]).mean()),
-                ('#1', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), scipy.array([ 10.,  10.]).mean()),
-                ('#2', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1), scipy.array([ 20.,  20.]).mean()),
-                ('#2', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), scipy.array([ 20.,  20.]).mean()),
+                ('#1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), scipy.array([ 10.,  10.]).mean()),
+                ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), scipy.array([ 10.,  10.]).mean()),
+                ('#2', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), scipy.array([ 20.,  20.]).mean()),
+                ('#2', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), scipy.array([ 20.,  20.]).mean()),
             ],
-            observation_date=datetime.date(2011, 1, 1),
+            observation_date=datetime.datetime(2011, 1, 1),
             path_count=200000, calibration_params={
                 '#1-LAST-PRICE': 10,
                 '#1-ACTUAL-HISTORICAL-VOLATILITY': 0,
@@ -75,16 +75,16 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
         ))
         prices = [(p[0], p[1], p[2], p[3].mean()) for p in prices]  # For scipy.
         self.assertEqual(prices, [
-            ('#1', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1), scipy.array([ 10.,  10.]).mean()),
-            ('#1', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), scipy.array([ 10.,  10.]).mean()),
-            ('#2', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1), scipy.array([ 20.,  20.]).mean()),
-            ('#2', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), scipy.array([ 20.,  20.]).mean()),
+            ('#1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), scipy.array([ 10.,  10.]).mean()),
+            ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), scipy.array([ 10.,  10.]).mean()),
+            ('#2', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), scipy.array([ 20.,  20.]).mean()),
+            ('#2', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), scipy.array([ 20.,  20.]).mean()),
         ])
 
     def test_simulate_future_prices_two_markets_high_volatility_zero_correlation(self):
         prices = list(self.p.simulate_future_prices(
             requirements=[],
-            observation_date=datetime.date(2011, 1, 1),
+            observation_date=datetime.datetime(2011, 1, 1),
             path_count=1000, calibration_params={
                 '#1-LAST-PRICE': 10,
                 '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
@@ -101,7 +101,7 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
     def test_simulate_future_prices_two_markets_high_volatility_positive_correlation(self):
         prices = list(self.p.simulate_future_prices(
             requirements=[],
-            observation_date=datetime.date(2011, 1, 1),
+            observation_date=datetime.datetime(2011, 1, 1),
             path_count=1000, calibration_params={
                 '#1-LAST-PRICE': 10,
                 '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,

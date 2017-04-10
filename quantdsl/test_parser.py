@@ -157,7 +157,7 @@ else:
         self.assertDslExprTypeValue("Max(1 + 4, 2)", Max, 5)
 
     def test_date(self):
-        self.assertDslExprTypeValue("Date('2014-12-31')", Date, datetime.date(2014, 12, 31))
+        self.assertDslExprTypeValue("Date('2014-12-31')", Date, datetime.datetime(2014, 12, 31))
 
     def test_date_timedelta(self):
         dsl = dsl_compile("TimeDelta('2d')")
@@ -175,19 +175,19 @@ else:
         # Some date arithmetic...
         dsl = dsl_compile("Date('2014-12-31') - TimeDelta('1d')")
         self.assertIsInstance(dsl, Sub)
-        self.assertEqual(dsl.evaluate(), datetime.date(2014, 12, 30))
+        self.assertEqual(dsl.evaluate(), datetime.datetime(2014, 12, 30))
 
         dsl = dsl_compile("Date('2014-12-29') + TimeDelta('1d')")
         self.assertIsInstance(dsl, Add)
-        self.assertEqual(dsl.evaluate(), datetime.date(2014, 12, 30))
+        self.assertEqual(dsl.evaluate(), datetime.datetime(2014, 12, 30))
 
         dsl = dsl_compile("Date('2014-12-29') + TimeDelta('1m')")
         self.assertIsInstance(dsl, Add)
-        self.assertEqual(dsl.evaluate(), datetime.date(2015, 1, 29))
+        self.assertEqual(dsl.evaluate(), datetime.datetime(2015, 1, 29))
 
         dsl = dsl_compile("Date('2014-12-29') + TimeDelta('1y')")
         self.assertIsInstance(dsl, Add)
-        self.assertEqual(dsl.evaluate(), datetime.date(2015, 12, 29))
+        self.assertEqual(dsl.evaluate(), datetime.datetime(2015, 12, 29))
 
         dsl = dsl_compile("2 * TimeDelta('1d')")
         self.assertIsInstance(dsl, Mult)

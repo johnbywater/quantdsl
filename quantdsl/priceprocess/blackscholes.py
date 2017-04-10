@@ -1,12 +1,15 @@
 from __future__ import division
+
+import datetime
 import math
+
 import scipy
 import scipy.linalg
 from scipy.linalg import LinAlgError
+
 from quantdsl.exceptions import DslError
 from quantdsl.priceprocess.base import PriceProcess
 from quantdsl.priceprocess.base import get_duration_years
-import datetime
 
 
 class BlackScholesPriceProcess(PriceProcess):
@@ -22,33 +25,46 @@ class BlackScholesPriceProcess(PriceProcess):
         # Compute simulated market prices using the correlated Brownian
         # motions, the actual historical volatility, and the last price.
         for commodity_name, brownian_motions in all_brownian_motions:
-            last_price = calibration_params['%s-LAST-PRICE' % commodity_name]
-            actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % commodity_name]
+            # Get the 'last price' for this commodity.
+            param_name = '%s-LAST-PRICE' % commodity_name
+            last_price = self.get_calibration_param(param_name, calibration_params)
+
+            # Get the 'actual historical volatility' for this commodity.
+            param_name = '%s-ACTUAL-HISTORICAL-VOLATILITY' % commodity_name
+            actual_historical_volatility = self.get_calibration_param(param_name, calibration_params)
+
             sigma = actual_historical_volatility / 100.0
             for fixing_date, brownian_rv in brownian_motions:
                 T = get_duration_years(observation_date, fixing_date)
                 simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
                 yield commodity_name, fixing_date, fixing_date, simulated_value
 
+    def get_calibration_param(self, param_name, calibration_params):
+        try:
+            actual_historical_volatility = calibration_params[param_name]
+        except KeyError:
+            msg = "Calibration parameter '{}' not found.".format(param_name)
+            raise KeyError(msg)
+        return actual_historical_volatility
+
     def get_brownian_motions(self, observation_date, requirements, path_count, calibration_params):
-        assert isinstance(observation_date, datetime.date), observation_date
+        assert isinstance(observation_date, datetime.datetime), observation_date
         assert isinstance(requirements, list), requirements
         assert isinstance(path_count, int), path_count
 
-        # Get an ordered list of all the commodity names and fixing dates.
-        commodity_names = sorted(set([r[0] for r in requirements]))
+        commodity_names, fixing_dates = self.get_commodity_names_and_fixing_dates(observation_date, requirements)
+
         len_commodity_names = len(commodity_names)
         if len_commodity_names == 0:
             return []
 
-        fixing_dates = sorted(set([observation_date] + [r[1] for r in requirements]))
         len_fixing_dates = len(fixing_dates)
         if len_fixing_dates == 0:
             return []
 
         # Check the observation date equals the first fixing date.
         assert observation_date == fixing_dates[0], "Observation date {} not equal to first fixing date: {}" \
-                                                    "".format(observation_date, fixing_dates)
+                                                    "".format(observation_date, fixing_dates[0])
 
         # Diffuse random variables through each date for each market (uncorrelated increments).
         brownian_motions = scipy.zeros((len_commodity_names, len_fixing_dates, path_count))

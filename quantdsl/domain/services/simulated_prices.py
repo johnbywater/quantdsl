@@ -68,8 +68,6 @@ def identify_simulation_requirements(dependency_graph_id, call_requirement_repo,
         perturbation_dependencies = set()
         dsl_expr.identify_perturbation_dependencies(perturbation_dependencies, present_time=present_time)
 
-        # if perturbation_dependencies:
-        #     raise Exception("Blah")
         # Add the expression's perturbation dependencies to the perturbation dependencies of its call dependencies.
         call_dependencies = call_dependencies_repo[call_id]
         assert isinstance(call_dependencies, CallDependencies), call_dependencies

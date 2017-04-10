@@ -90,10 +90,14 @@ class DslObject(six.with_metaclass(ABCMeta)):
         pass
 
     # Todo: Rework validation, perhaps by considering a declarative form in which to express the requirements.
-    def assert_args_len(self, args, required_len=None, min_len=None):
+    def assert_args_len(self, args, required_len=None, min_len=None, max_len=None):
         if min_len != None and len(args) < min_len:
             error = "%s is broken" % self.__class__.__name__
             descr = "requires at least %s arguments (%s were given)" % (min_len, len(args))
+            raise DslSyntaxError(error, descr, self.node)
+        if max_len != None and len(args) > max_len:
+            error = "%s is broken" % self.__class__.__name__
+            descr = "requires at most %s arguments (%s were given)" % (max_len, len(args))
             raise DslSyntaxError(error, descr, self.node)
         if required_len != None and len(args) != required_len:
             error = "%s is broken" % self.__class__.__name__
@@ -230,7 +234,7 @@ class Date(DslConstant):
                 date_str = value
             try:
                 year, month, day = [int(i) for i in date_str.split('-')]
-                return datetime.date(year, month, day)
+                return datetime.datetime(year, month, day)
                 # return dateutil.parser.parse(date_str).replace()
             except ValueError:
                 raise DslSyntaxError("invalid date string", date_str, node=self.node)
@@ -439,7 +443,8 @@ class Div(BinOp):
         return left / right
 
 
-class Max(BinOp):
+class NonInfixedBinOp(BinOp):
+
     def op(self, a, b):
         # Assume a and b have EITHER type ndarray, OR type int or float.
         # Try to 'balance' the sides.
@@ -450,7 +455,7 @@ class Max(BinOp):
         bIsaNumber = isinstance(b, (int, float))
         if aIsaNumber and bIsaNumber:
             # Neither are vectors.
-            return max(a, b)
+            return self.scalar_op(a, b)
         elif (not aIsaNumber) and (not bIsaNumber):
             # Both are vectors.
             if len(a) != len(b):
@@ -462,8 +467,23 @@ class Max(BinOp):
         elif bIsaNumber and (not aIsaNumber):
             # Todo: Optimise with scipy.zeros() when b equals zero?
             b = scipy.array([b] * len(a))
-        c = scipy.array([a, b])
-        return c.max(axis=0)
+        return self.vector_op(a, b)
+
+
+class Min(NonInfixedBinOp):
+    def vector_op(self, a, b):
+        return scipy.array([a, b]).min(axis=0)
+
+    def scalar_op(self, a, b):
+        return min(a, b)
+
+
+class Max(NonInfixedBinOp):
+    def vector_op(self, a, b):
+        return scipy.array([a, b]).max(axis=0)
+
+    def scalar_op(self, a, b):
+        return max(a, b)
 
 
 # Todo: Pow, Mod, FloorDiv don't have proofs, so shouldn't really be used for combining random variables? Either prevent usage with ndarray inputs, or do the proofs. :-)
@@ -1018,6 +1038,78 @@ class DatedDslObject(DslObject):
         return self._date
 
 
+class Lift(DslExpression):
+
+    def validate(self, args):
+        self.assert_args_len(args, min_len=2, max_len=3)
+        # Name of a commodity to be perturbed.
+        self.assert_args_arg(args, posn=0, required_type=(String, Name))
+        if len(args) == 2:
+            # Expression to be perturbed.
+            self.assert_args_arg(args, posn=1, required_type=DslExpression)
+        elif len(args) == 3:
+            # Periodization of the perturbation.
+            self.assert_args_arg(args, posn=1, required_type=String)
+            # Expression to be perturbed.
+            self.assert_args_arg(args, posn=2, required_type=DslExpression)
+
+    @property
+    def commodity_name(self):
+        return self._args[0]
+
+    @property
+    def mode(self):
+        return self._args[1] if len(self._args) == 3 else String('alltime')
+
+    @property
+    def expr(self):
+        return self._args[-1]
+
+    def identify_perturbation_dependencies(self, dependencies, **kwds):
+        perturbation = self.get_perturbation(**kwds)
+        dependencies.add(perturbation)
+        super(Lift, self).identify_perturbation_dependencies(dependencies, **kwds)
+
+    def get_perturbation(self, **kwds):
+        try:
+            present_time = kwds['present_time']
+        except KeyError:
+            raise DslSyntaxError(
+                "'present_time' not found in evaluation kwds" % self.market_name,
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+        commodity_name = self.commodity_name.evaluate(**kwds)
+        mode = self.mode.evaluate(**kwds)
+        if mode.startswith('alltime'):
+            perturbation = commodity_name
+        elif mode.startswith('year'):
+            # perturbation = json.dumps((commodity_name, present_time.year))
+            perturbation = "{}-{}".format(commodity_name, present_time.year)
+        elif mode.startswith('mon'):
+            # perturbation = json.dumps((commodity_name, present_time.year, present_time.month))
+            perturbation = "{}-{}-{}".format(commodity_name, present_time.year, present_time.month)
+        elif mode.startswith('da'):
+            # perturbation = json.dumps((commodity_name, present_time.year, present_time.month, present_time.day))
+            perturbation = "{}-{}-{}-{}".format(commodity_name, present_time.year, present_time.month,
+                                                present_time.day)
+        else:
+            raise Exception("Unsupported mode: {}".format(mode))
+        return perturbation
+
+    def evaluate(self, **kwds):
+        # Get the perturbed market name, if set.
+        active_perturbation = kwds.get('active_perturbation', None)
+
+        # If this is a perturbed market, perturb the simulated value.
+        expr_value = self.expr.evaluate(**kwds)
+        if self.get_perturbation(**kwds) == active_perturbation:
+            evaluated_value = expr_value * (1 + Market.PERTURBATION_FACTOR)
+        else:
+            evaluated_value = expr_value
+        return evaluated_value
+
+
 functionalDslClasses = {
     'Add': Add,
     'And': And,
@@ -1031,7 +1123,9 @@ functionalDslClasses = {
     'FunctionDef': FunctionDef,
     'If': If,
     'IfExp': IfExp,
+    'Lift': Lift,
     'Max': Max,
+    'Min': Min,
     'Mod': Mod,
     'Module': Module,
     'SnapToMonth': SnapToMonth,
@@ -1055,9 +1149,6 @@ class AbstractMarket(StochasticObject, DslExpression):
     PERTURBATION_FACTOR = 0.001
 
     def evaluate(self, **kwds):
-        # Get the perturbed market name, if set.
-        active_perturbation = kwds.get('active_perturbation', None)
-
         # Get the effective present time (needed to form the simulated_value_id).
         try:
             present_time = kwds['present_time']
@@ -1087,12 +1178,7 @@ class AbstractMarket(StochasticObject, DslExpression):
         except KeyError:
             raise DslError("Simulated price not found ID: {}".format(simulated_price_id))
 
-        # If this is a perturbed market, perturb the simulated value.
-        if self.get_perturbation(present_time) == active_perturbation:
-            evaluated_value = simulated_price_value * (1 + Market.PERTURBATION_FACTOR)
-        else:
-            evaluated_value = simulated_price_value
-        return evaluated_value
+        return simulated_price_value
 
     @property
     def market_name(self):
@@ -1104,7 +1190,14 @@ class AbstractMarket(StochasticObject, DslExpression):
 
     @property
     def commodity_name(self):
-        return self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
+        name = self._args[0].evaluate() if isinstance(self._args[0], String) else self._args[0]
+        # Disallow '-' in market names (it's used to compose / split perturbation names,
+        # which probably should work differently, so that this restriction can be removed.
+        # Todo: Review perturbation names (now hyphen separated, were JSON strings).
+        if '-' in name:
+            raise DslSyntaxError("hyphen character '-' not allowed in market names (sorry): {}"
+                                 "".format(name), node=self.node)
+        return name
 
     def identify_price_simulation_requirements(self, requirements, **kwds):
         assert isinstance(requirements, set)
@@ -1121,25 +1214,6 @@ class AbstractMarket(StochasticObject, DslExpression):
         requirement = (self.commodity_name, fixing_date, self.delivery_date or present_time)
         requirements.add(requirement)
         super(AbstractMarket, self).identify_price_simulation_requirements(requirements, **kwds)
-
-    def identify_perturbation_dependencies(self, dependencies, **kwds):
-        try:
-            present_time = kwds['present_time']
-        except KeyError:
-            raise DslSyntaxError(
-                "'present_time' not found in evaluation kwds" % self.market_name,
-                ", ".join(kwds.keys()),
-                node=self.node
-            )
-        perturbation = self.get_perturbation(present_time)
-        dependencies.add(perturbation)
-        super(AbstractMarket, self).identify_perturbation_dependencies(dependencies, **kwds)
-
-    def get_perturbation(self, present_time):
-        # For now, just bucket by commodity name and month of delivery.
-        delivery_date = self.delivery_date or present_time
-        perturbation = json.dumps((self.commodity_name, delivery_date.year, delivery_date.month))
-        return perturbation
 
 
 class Market(AbstractMarket):

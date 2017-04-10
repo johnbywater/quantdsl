@@ -26,7 +26,7 @@ class TestMarketSimulation(TestCase):
 
         # Create a market simulation for a list of markets and fixing times.
         commodity_names = ['#%d' % (i+1) for i in range(self.NUMBER_MARKETS)]
-        fixing_dates = [datetime.date(2011, 1, 1) + datetime.timedelta(days=i) for i in range(self.NUMBER_DAYS)]
+        fixing_dates = [datetime.datetime(2011, 1, 1) + datetime.timedelta(days=i) for i in range(self.NUMBER_DAYS)]
         observation_date = fixing_dates[0]
         simulation_requirements = []
         for commodity_name in commodity_names:
@@ -49,7 +49,7 @@ class TestMarketSimulation(TestCase):
         self.assertEqual(market_simulation.market_calibration_id, market_calibration.id)
         # self.assertEqual(market_simulation.requirements[0], ['#1', '#2'])
         # self.assertEqual(market_simulation.fixing_dates, [datetime.date(2011, 1, i) for i in range(2, 6)])
-        self.assertEqual(market_simulation.observation_date, datetime.date(2011, 1, 1))
+        self.assertEqual(market_simulation.observation_date, datetime.datetime(2011, 1, 1))
         self.assertEqual(market_simulation.path_count, self.PATH_COUNT)
 
         # Check there are simulated prices for all the requirements.

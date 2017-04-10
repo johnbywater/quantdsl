@@ -2,6 +2,7 @@ import datetime
 import six
 from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
 from eventsourcing.domain.model.events import publish
+from quantdsl.priceprocess.base import datetime_from_date
 
 
 class SimulatedPrice(EventSourcedEntity):
@@ -33,6 +34,8 @@ def make_simulated_price_id(simulation_id, commodity_name, fixing_date, delivery
     assert isinstance(commodity_name, six.string_types), commodity_name
     assert isinstance(fixing_date, (datetime.datetime, datetime.date)), (fixing_date, type(fixing_date))
     assert isinstance(delivery_date, (datetime.datetime, datetime.date)), (delivery_date, type(delivery_date))
+    fixing_date = datetime_from_date(fixing_date)
+    delivery_date = datetime_from_date(delivery_date)
     price_id = ("PriceId(simulation_id='{}' commodity_name='{}' fixing_date='{}', delivery_date='{}')"
                 "".format(simulation_id, commodity_name, fixing_date, delivery_date))
     return price_id

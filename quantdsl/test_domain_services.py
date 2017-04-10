@@ -206,9 +206,9 @@ class TestListMarketNamesAndFixingDates(unittest.TestCase):
                                          requirements)
 
         self.assertEqual(requirements, {
-            ('1', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1)),
-            ('2', datetime.date(2012, 2, 2), datetime.date(2012, 2, 2)),
-            ('3', datetime.date(2013, 3, 3), datetime.date(2013, 3, 3)),
+            ('1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1)),
+            ('2', datetime.datetime(2012, 2, 2), datetime.datetime(2012, 2, 2)),
+            ('3', datetime.datetime(2013, 3, 3), datetime.datetime(2013, 3, 3)),
         })
 
 
@@ -216,9 +216,9 @@ class TestSimulatedPrices(unittest.TestCase):
 
     @patch('quantdsl.domain.services.simulated_prices.register_simulated_price')
     @patch('quantdsl.domain.services.simulated_prices.simulate_future_prices', return_value=[
-        ('#1', datetime.date(2011, 1, 1), datetime.date(2011, 1, 1), 10),
-        ('#1', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), 10),
-        ('#1', datetime.date(2011, 1, 2), datetime.date(2011, 1, 2), 10),
+        ('#1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), 10),
+        ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), 10),
+        ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), 10),
     ])
     def test_generate_simulated_prices(self, simulate_future_prices, register_simuated_price):
         market_calibration = Mock(spec=MarketCalibration)
