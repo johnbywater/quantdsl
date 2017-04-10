@@ -25,8 +25,8 @@
 #         self.results_repo = self.manager.dict()
 #         self.calls_dict = self.manager.dict()
 #         self.calls_dict.update(self.dependency_graph.call_requirements)
-#         self.dependencies = self.manager.dict()
-#         self.dependencies.update(self.dependency_graph.dependencies)
+#         self.requirements = self.manager.dict()
+#         self.requirements.update(self.dependency_graph.requirements)
 #         self.dependents = self.manager.dict()
 #         self.dependents.update(self.dependency_graph.dependents)
 #         self.errors = []
@@ -76,7 +76,7 @@
 #                     assert isinstance(call_requirement, StubbedCall)
 #                     dsl_source, effective_present_time = call_requirement
 #                     evaluation_kwds = self.get_evaluation_kwds(dsl_source, effective_present_time)
-#                     dependency_values = get_dependency_values(call_requirement_id, self.dependencies, self.results_repo)
+#                     dependency_values = get_dependency_values(call_requirement_id, self.requirements, self.results_repo)
 #
 #                     call_spec = CallSpecification(
 #                         id=call_requirement_id,
@@ -115,7 +115,7 @@
 #                 else:
 #                     (call_requirement_id, result_value) = result
 #                     handle_result(call_requirement_id, result_value, self.results_repo, self.dependents,
-#                                   self.dependencies, self.execution_queue)
+#                                   self.requirements, self.execution_queue)
 #
 #                 if call_requirement_id == self.dependency_graph.root_stub_id:
 #                     break

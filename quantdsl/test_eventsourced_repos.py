@@ -111,11 +111,12 @@ class TestEventSourcedRepos(TestCase):
         simulation_id = create_uuid4()
         self.assertRaises(KeyError, self.app.simulated_price_repo.__getitem__, simulation_id)
 
-        price = register_simulated_price(simulation_id, '#1', price_time, price_value)
+        price = register_simulated_price(simulation_id, '#1', price_time, price_time, price_value)
 
         assert isinstance(price, SimulatedPrice), price
         assert price.id
-        price = self.app.simulated_price_repo[make_simulated_price_id(simulation_id, '#1', price_time)]
+        simulated_price_id = make_simulated_price_id(simulation_id, '#1', price_time, price_time)
+        price = self.app.simulated_price_repo[simulated_price_id]
         assert isinstance(price, SimulatedPrice)
         import numpy
         numpy.testing.assert_equal(price.value, price_value)

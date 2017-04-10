@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import six
 
 from eventsourcing.application.base import EventSourcingApplication
@@ -12,7 +14,7 @@ from quantdsl.domain.model.dependency_graph import register_dependency_graph
 from quantdsl.domain.model.market_calibration import register_market_calibration, compute_market_calibration_params
 from quantdsl.domain.model.market_simulation import register_market_simulation, MarketSimulation
 from quantdsl.domain.services.contract_valuations import loop_on_evaluation_queue, evaluate_call_and_queue_next_calls
-from quantdsl.domain.services.simulated_prices import list_market_names_and_fixing_dates
+from quantdsl.domain.services.simulated_prices import identify_simulation_requirements
 from quantdsl.infrastructure.dependency_graph_subscriber import DependencyGraphSubscriber
 from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
@@ -24,8 +26,10 @@ from quantdsl.infrastructure.event_sourced_repos.call_result_repo import CallRes
 from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
 from quantdsl.infrastructure.event_sourced_repos.contract_valuation_repo import ContractValuationRepo
 from quantdsl.infrastructure.event_sourced_repos.market_calibration_repo import MarketCalibrationRepo
-from quantdsl.infrastructure.event_sourced_repos.market_dependencies_repo import MarketDependenciesRepo
+from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import MarketSimulationRepo
+from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
+    SimulatedPriceRequirementsRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 
@@ -45,13 +49,15 @@ class QuantDslApplication(EventSourcingApplication):
 
     Evaluate contract given call dependency graph and market simulation.
     """
+
     def __init__(self, call_evaluation_queue=None, result_counters=None, usage_counters=None, *args, **kwargs):
         super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
         self.market_calibration_repo = MarketCalibrationRepo(event_store=self.event_store, use_cache=True)
         self.market_simulation_repo = MarketSimulationRepo(event_store=self.event_store, use_cache=True)
-        self.market_dependencies_repo = MarketDependenciesRepo(event_store=self.event_store, use_cache=True)
+        self.perturbation_dependencies_repo = PerturbationDependenciesRepo(event_store=self.event_store, use_cache=True)
+        self.simulated_price_requirements_repo = SimulatedPriceRequirementsRepo(event_store=self.event_store, use_cache=True)
         self.simulated_price_repo = SimulatedPriceRepo(event_store=self.event_store, use_cache=True)
         self.call_requirement_repo = CallRequirementRepo(event_store=self.event_store, use_cache=True)
         self.call_dependencies_repo = CallDependenciesRepo(event_store=self.event_store, use_cache=True)
@@ -65,7 +71,7 @@ class QuantDslApplication(EventSourcingApplication):
 
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
-            market_simulation_repo=self.market_simulation_repo
+            market_simulation_repo=self.market_simulation_repo,
         )
         self.dependency_graph_subscriber = DependencyGraphSubscriber(
             contract_specification_repo=self.contract_specification_repo,
@@ -87,8 +93,13 @@ class QuantDslApplication(EventSourcingApplication):
             result_counters=self.result_counters,
             usage_counters=self.usage_counters,
             call_dependents_repo=self.call_dependents_repo,
-            market_dependencies_repo=self.market_dependencies_repo,
+            perturbation_dependencies_repo=self.perturbation_dependencies_repo,
+            simulated_price_requirements_repo=self.simulated_price_requirements_repo,
         )
+
+    @abstractmethod
+    def create_stored_event_repo(self, **kwargs):
+        raise NotImplementedError()
 
     def close(self):
         self.evaluation_subscriber.close()
@@ -115,16 +126,14 @@ class QuantDslApplication(EventSourcingApplication):
         Calibration params result from fitting a model of market dynamics to historical data.
         """
         assert isinstance(price_process_name, six.string_types)
-        assert isinstance(calibration_params, dict)
+        assert isinstance(calibration_params, (dict, list))
         return register_market_calibration(price_process_name, calibration_params)
 
-    def register_market_simulation(self, market_calibration_id, market_names, fixing_dates, observation_date,
-                                   path_count, interest_rate):
+    def register_market_simulation(self, market_calibration_id, observation_date, requirements, path_count, interest_rate):
         """
         A market simulation has simulated prices at specified times across a set of markets.
         """
-        return register_market_simulation(market_calibration_id, market_names, fixing_dates, observation_date,
-                                          path_count, interest_rate)
+        return register_market_simulation(market_calibration_id, observation_date, requirements, path_count, interest_rate)
 
     def register_dependency_graph(self, contract_specification_id):
         return register_dependency_graph(contract_specification_id)
@@ -148,14 +157,16 @@ class QuantDslApplication(EventSourcingApplication):
     def register_call_link(self, link_id, call_id):
         return register_call_link(link_id, call_id)
 
-    def list_market_names_and_fixing_dates(self, contract_specification):
+    def identify_simulation_requirements(self, contract_specification, observation_date, requirements):
         assert isinstance(contract_specification, ContractSpecification), contract_specification
-        return list_market_names_and_fixing_dates(contract_specification.id,
-                                                  self.call_requirement_repo,
-                                                  self.call_link_repo,
-                                                  self.call_dependencies_repo,
-                                                  self.market_dependencies_repo,
-                                                  )
+        assert isinstance(requirements, set)
+        return identify_simulation_requirements(contract_specification.id,
+                                                self.call_requirement_repo,
+                                                self.call_link_repo,
+                                                self.call_dependencies_repo,
+                                                self.perturbation_dependencies_repo,
+                                                observation_date,
+                                                requirements)
 
     def start_contract_valuation(self, entity_id, dependency_graph_id, market_simulation):
         assert isinstance(dependency_graph_id, six.string_types), dependency_graph_id
@@ -172,7 +183,8 @@ class QuantDslApplication(EventSourcingApplication):
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
             call_dependents_repo=self.call_dependents_repo,
-            market_dependencies_repo=self.market_dependencies_repo,
+            perturbation_dependencies_repo=self.perturbation_dependencies_repo,
+            simulated_price_requirements_repo=self.simulated_price_requirements_repo,
             call_result_lock=call_result_lock,
             compute_pool=compute_pool,
             result_counters=result_counters,
@@ -192,6 +204,7 @@ class QuantDslApplication(EventSourcingApplication):
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
             call_dependents_repo=self.call_dependents_repo,
-            market_dependencies_repo=self.market_dependencies_repo,
+            perturbation_dependencies_repo=self.perturbation_dependencies_repo,
+            simulated_price_requirements_repo=self.simulated_price_requirements_repo,
             call_result_lock=lock,
         )

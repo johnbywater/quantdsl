@@ -48,10 +48,39 @@ np.seterr(over='raise')
 
 class SchwartzSmithFromFuturesAndImpliedVols(PriceProcess):
 
-    def simulate_future_prices(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
-        raise NotImplementedError()
+    def simulate_future_prices(self, observation_date, requirements, path_count, calibration_params):
 
+        fixing_dates = set()
+        for requirement in requirements:
+            fixing_dates.add(requirement[1])
 
+        fixing_dates = sorted(list(fixing_dates))
+
+        allMarketNames = []
+        allOptimizedParams = []
+        allSeasonalParams = []
+        allRhos = []
+        # Restructure calibration params.
+        for params in calibration_params:
+            allMarketNames.append(params['name'])
+            allOptimizedParams.append(params['schwartzsmith'])
+            allSeasonalParams.append(np.array(params['seasonal']))
+            allRhos.append(params['rhos'])
+
+        allRhos = np.array(allRhos)
+        all_simulated_prices = simulate_prices(observation_date, fixing_dates, allOptimizedParams,
+                                         allSeasonalParams, allRhos, path_count=path_count)
+
+        for i in range(len(all_simulated_prices)):
+            spath, mpath, estdfwd, stdpath = all_simulated_prices[i]
+
+            market_name = allMarketNames[i]
+            simulated_prices = spath.T
+            for j in range(len(fixing_dates)):
+                simulated_price = simulated_prices[j]
+
+                fixing_date = fixing_dates[j]
+                yield market_name, fixing_date, fixing_date, simulated_price
 
 # Replacement spread sheet.
 
@@ -242,6 +271,7 @@ def calc_schwartz(months, maturities, forwards, impvols, seasonal_params, schwar
 
 
 def calc_maturities(months, observation_date):
+    # raise Exception(months, observation_date)
     convertMonthsToMaturities = np.vectorize(lambda month: round((month - observation_date).days / 365, 2))
     return convertMonthsToMaturities(months)
 

@@ -10,7 +10,7 @@ from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.semantics import DslNamespace, DslExpression, Market, DslError, StochasticObject, \
-    compile_dsl_module, list_fixing_dates, find_market_names
+    compile_dsl_module, list_fixing_dates, find_delivery_points
 
 ## Application services.
 
@@ -132,7 +132,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
                 # Extract market names from the expression.
                 # Todo: Avoid doing this on the dependency graph, when all the Market elements must be in the original.
-                market_names = find_market_names(dsl_expr)
+                market_names = find_delivery_points(dsl_expr)
 
                 # Extract fixing dates from the expression.
                 # Todo: Perhaps collect the fixing dates?

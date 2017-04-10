@@ -47,7 +47,7 @@ class TestMultiprocessing(unittest.TestCase):
 
     def test_pickle_numpy(self):
         a = scipy.ones(200000)
-        pool = Pool()
+        pool = Pool(processes=1)
         results = pool.map(echo, [a] * 1000)
         for result in results:
             assert result.all() == scipy.ones(10000).all(), result

@@ -1,19 +1,21 @@
+from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_link import CallLinkRepository
 from quantdsl.domain.model.call_requirement import CallRequirementRepository, CallRequirement
 from quantdsl.domain.model.market_calibration import MarketCalibration
-from quantdsl.domain.model.market_dependencies import register_market_dependencies
+from quantdsl.domain.model.perturbation_dependencies import register_perturbation_dependencies
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import register_simulated_price
+from quantdsl.domain.model.simulated_price_requirements import register_simulated_price_requirements
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.priceprocess.base import PriceProcess
-from quantdsl.semantics import find_fixing_dates, find_market_names
+from quantdsl.semantics import DslObject
 
 
 def generate_simulated_prices(market_simulation, market_calibration):
-    for market_name, fixing_date, price_value in simulate_future_prices(market_simulation, market_calibration):
-        register_simulated_price(market_simulation.id, market_name, fixing_date, price_value)
+    for commodity_name, fixing_date, delivery_date, price_value in simulate_future_prices(market_simulation, market_calibration):
+        register_simulated_price(market_simulation.id, commodity_name, fixing_date, delivery_date, price_value)
 
 
 def simulate_future_prices(market_simulation, market_calibration):
@@ -22,21 +24,18 @@ def simulate_future_prices(market_simulation, market_calibration):
     price_process = get_price_process(market_calibration.price_process_name)
     assert isinstance(price_process, PriceProcess), price_process
     return price_process.simulate_future_prices(
-        market_names=market_simulation.market_names,
-        fixing_dates=market_simulation.fixing_dates,
         observation_date=market_simulation.observation_date,
+        requirements=market_simulation.requirements,
         path_count=market_simulation.path_count,
         calibration_params=market_calibration.calibration_params)
 
 
-def list_market_names_and_fixing_dates(dependency_graph_id, call_requirement_repo, call_link_repo,
-                                       call_dependencies_repo, market_dependencies_repo):
+def identify_simulation_requirements(dependency_graph_id, call_requirement_repo, call_link_repo,
+                                     call_dependencies_repo, market_dependencies_repo, observation_date, requirements):
     assert isinstance(call_requirement_repo, CallRequirementRepository)
     assert isinstance(call_link_repo, CallLinkRepository)
-    all_market_names = set()
-    all_fixing_dates = set()
 
-    cum_market_names_by_call_id = {}
+    all_perturbation_dependencies = {}
 
     for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
 
@@ -50,24 +49,36 @@ def list_market_names_and_fixing_dates(dependency_graph_id, call_requirement_rep
             dsl_module = dsl_parse(call_requirement.dsl_source)
             dsl_expr = dsl_module.body[0]
             call_requirement._dsl_expr = dsl_expr
+        assert isinstance(dsl_expr, DslObject), dsl_expr
 
-        # Find all the fixing times involved in this expression.
-        for fixing_date in find_fixing_dates(dsl_expr=dsl_expr):
-            all_fixing_dates.add(fixing_date)
+        # Todo: Consolidate 'date' attributes to be a single element (rather than a possibly long sum expression).
 
-        # Find all the market names involved in this expression.
-        expr_market_names = list(find_market_names(dsl_expr=dsl_expr))
-        for market_name in expr_market_names:
-            all_market_names.add(market_name)
+        # Identify this call's requirements for simulated prices.
+        simulation_requirements = set()
+        present_time = call_requirement.effective_present_time or observation_date
+        dsl_expr.identify_price_simulation_requirements(simulation_requirements, present_time=present_time)
 
-        # Add the expression's market names to the market names of its dependencies.
-        cum_market_names = set(expr_market_names)
-        for dependency_id in call_dependencies_repo[call_id].dependencies:
-            cum_market_names.update(cum_market_names_by_call_id[dependency_id])
-        cum_market_names_by_call_id[call_id] = cum_market_names
-        register_market_dependencies(call_id, list(cum_market_names))
+        # Register the simulation requirements for each call (needed during evaluation).
+        register_simulated_price_requirements(call_id, list(simulation_requirements))
 
-    # Return sorted lists.
-    all_market_names = sorted(list(all_market_names))
-    all_fixing_dates = sorted(list(all_fixing_dates))
-    return all_market_names, all_fixing_dates
+        # Update the simulation requirements (needed for the market simulation).
+        requirements.update(simulation_requirements)
+
+        # Identify this call's perturbation dependencies.
+        perturbation_dependencies = set()
+        dsl_expr.identify_perturbation_dependencies(perturbation_dependencies, present_time=present_time)
+
+        # if perturbation_dependencies:
+        #     raise Exception("Blah")
+        # Add the expression's perturbation dependencies to the perturbation dependencies of its call dependencies.
+        call_dependencies = call_dependencies_repo[call_id]
+        assert isinstance(call_dependencies, CallDependencies), call_dependencies
+        for dependency_id in call_dependencies.dependencies:
+            dependency_perturbation_dependencies = all_perturbation_dependencies[dependency_id]
+            perturbation_dependencies.update(dependency_perturbation_dependencies)
+        # Register the perturbation dependencies in the repo (needed when evaluating the call).
+        register_perturbation_dependencies(call_id, list(perturbation_dependencies))
+
+        # Save the pertubation dependencies for this call, so they are available for the dependent calls.
+        all_perturbation_dependencies[call_id] = perturbation_dependencies
+

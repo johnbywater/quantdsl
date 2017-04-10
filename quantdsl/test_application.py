@@ -1,4 +1,5 @@
 import datetime
+import json
 import unittest
 
 from abc import ABCMeta
@@ -13,6 +14,7 @@ from quantdsl.domain.model.call_result import make_call_result_id, CallResult
 from quantdsl.domain.model.contract_valuation import create_contract_valuation_id
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
+from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.semantics import Market
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
@@ -56,28 +58,37 @@ class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
 
 class ContractValuationTestCase(ApplicationTestCaseMixin):
 
+    price_process_name = DEFAULT_PRICE_PROCESS_NAME
+    calibration_params = {
+        '#1-LAST-PRICE': 10,
+        '#2-LAST-PRICE': 10,
+        '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
+        '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
+        '#1-#2-CORRELATION': 0.0,
+        'NBP-LAST-PRICE': 10,
+        'TTF-LAST-PRICE': 11,
+        'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+        'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
+        'NBP-TTF-CORRELATION': 0.4,
+        'NBP-2011-01-LAST-PRICE': 10,
+        'NBP-2011-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
+        'NBP-2012-01-LAST-PRICE': 10,
+        'NBP-2012-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
+        'NBP-2012-01-NBP-2012-02-CORRELATION': 0.4,
+        'NBP-2012-02-NBP-2012-03-CORRELATION': 0.4,
+        'SPARK-SPREAD-LAST-PRICE': 1,
+        'SPARK-SPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
+    }
+
     def setup_market_simulation(self, contract_specification):
-        price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        calibration_params = {
-            '#1-LAST-PRICE': 10,
-            '#2-LAST-PRICE': 10,
-            '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            '#1-#2-CORRELATION': 0.0,
-            'NBP-LAST-PRICE': 10,
-            'TTF-LAST-PRICE': 11,
-            'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
-            'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
-            'NBP-TTF-CORRELATION': 0.4,
-        }
-        market_calibration =  self.app.register_market_calibration(price_process_name, calibration_params)
-        market_names, fixing_dates = self.app.list_market_names_and_fixing_dates(contract_specification)
+        market_calibration = self.app.register_market_calibration(self.price_process_name, self.calibration_params)
+        simulation_requirements = set()
         observation_date = datetime.date(2011, 1, 1)
+        self.app.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements)
         path_count = self.PATH_COUNT
         market_simulation = self.app.register_market_simulation(
             market_calibration_id=market_calibration.id,
-            market_names=market_names,
-            fixing_dates=fixing_dates,
+            requirements=list(simulation_requirements),
             observation_date=observation_date,
             path_count=path_count,
             interest_rate='2.5',
@@ -123,20 +134,28 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
 
         # Generate the contract valuation deltas.
         assert isinstance(market_simulation, MarketSimulation)
-        for market_name in expected_deltas.keys():
+        for perturbation in expected_deltas.keys():
 
             # Compute the delta.
-            perturbed_value = main_result.perturbed_values[market_name].mean()
+            if perturbation not in main_result.perturbed_values:
+                self.fail("There isn't a perturbed value for '{}': {}"
+                          "".format(perturbation, tuple(main_result.perturbed_values.keys())))
+
+            perturbed_value = main_result.perturbed_values[perturbation].mean()
             market_calibration = self.app.market_calibration_repo[market_simulation.market_calibration_id]
             assert isinstance(market_calibration, MarketCalibration)
-            last_price = market_calibration.calibration_params['%s-LAST-PRICE' % market_name]
-            price_perturbation = Market.PERTURBATION_FACTOR * last_price
-            contract_delta = (perturbed_value - main_result.result_value) / price_perturbation
+            commodity_name = json.loads(perturbation)[0]
+            simulated_price_id = make_simulated_price_id(market_simulation.id, commodity_name, market_simulation.observation_date, market_simulation.observation_date)
+            simulated_price = self.app.simulated_price_repo[simulated_price_id]
+
+            dy = perturbed_value - main_result.result_value
+            dx = Market.PERTURBATION_FACTOR * simulated_price.value
+            contract_delta = dy / dx
 
             # Check the delta.
             actual_value = contract_delta.mean()
-            expected_value = expected_deltas[market_name]
-            error_msg = "{} != {}".format(actual_value, expected_value)
+            expected_value = expected_deltas[perturbation]
+            error_msg = "{}: {} != {}".format(perturbation, actual_value, expected_value)
             self.assertAlmostEqual(actual_value, expected_value, places=2, msg=error_msg)
 
     def scalar(self, contract_value):
@@ -169,8 +188,8 @@ class ExpressionTests(ContractValuationTestCase):
         self.assert_contract_value("""2 + 4""", 6)
 
     def test_market(self):
-        self.assert_contract_value("Market('#1')", 10, {'#1': 1})
-        self.assert_contract_value("Market('#2')", 10, {'#2': 1})
+        self.assert_contract_value("Market('#1')", 10, {'["#1", 2011, 1]': 1})
+        self.assert_contract_value("Market('#2')", 10, {'["#2", 2011, 1]': 1})
 
     def test_market_plus(self):
         self.assert_contract_value("Market('#1') + 10", 20)
@@ -213,7 +232,7 @@ class ExpressionTests(ContractValuationTestCase):
 Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
     Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
 """
-        self.assert_contract_value(specification, 2.6093, expected_deltas={'NBP': 0.7123})
+        self.assert_contract_value(specification, 2.6093, expected_deltas={'["NBP", 2011, 6]': 0.2208})
 
     def test_identical_fixings(self):
         specification = "Fixing(Date('2012-01-02'), Market('#1')) - Fixing(Date('2012-01-02'), Market('#1'))"
@@ -301,32 +320,30 @@ Fixing(
 
     def test_brownian_increments(self):
         specification = """
-Wait(
-    Date('2012-03-15'),
-    Max(
-        Fixing(
-            Date('2012-01-01'),
-            Market('#1')
-        ) /
-        Fixing(
-            Date('2011-01-01'),
-            Market('#1')
-        ),
-        1.0
-    ) -
-    Max(
-        Fixing(
-            Date('2013-01-01'),
-            Market('#1')
-        ) /
-        Fixing(
-            Date('2012-01-01'),
-            Market('#1')
-        ),
-        1.0
-    )
-)"""
-        self.assert_contract_value(specification, 0.005, expected_deltas={'#1': 0})
+Max(
+    Fixing(
+        Date('2012-01-01'),
+        Market('#1')
+    ) /
+    Fixing(
+        Date('2011-01-01'),
+        Market('#1')
+    ),
+    1.0
+) - Max(
+    Fixing(
+        Date('2013-01-01'),
+        Market('#1')
+    ) /
+    Fixing(
+        Date('2012-01-01'),
+        Market('#1')
+    ),
+    1.0
+)
+"""
+        # Todo: Check this - i.e. should it be 0.000?
+        self.assert_contract_value(specification, -0.005, expected_deltas={'["#1", 2013, 1]': -0.0630})
 
 
 class FunctionTests(ContractValuationTestCase):
@@ -365,7 +382,7 @@ def European(date, strike, underlying):
 
 European(Date('2012-01-01'), 9, Market('NBP'))
 """
-        self.assert_contract_value(specification, 2.4557, {'NBP': 0.6743}, expected_call_count=3)
+        self.assert_contract_value(specification, 2.4557, {'["NBP", 2012, 1]': 0.6743}, expected_call_count=3)
 
     def test_generate_valuation_american_option(self):
         american_option_tmpl = """
@@ -388,7 +405,7 @@ American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)
             'ends': '2011-01-04',
             'strike': 9,
             'underlying': '#1'
-        }, 1.1874, {'#1': 1.0185}, expected_call_count=4)
+        }, 1.1874, {'["#1", 2011, 1]': 1.0185}, expected_call_count=4)
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -403,7 +420,7 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.20756, {'NBP': 30.2076}, expected_call_count=15)
+        self.assert_contract_value(specification, 30.20756, {'NBP': 3.02076}, expected_call_count=15)
 
 
 class LongerTests(ContractValuationTestCase):
@@ -423,29 +440,14 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 """
         self.assert_contract_value(specification, 30.2081, expected_call_count=15)
 
-    def _test_value_swing_option_with_forward_markets(self):
-        specification = """
-def Swing(start_date, end_date, quantity):
-    if (quantity != 0) and (start_date < end_date):
-        return Choice(
-            Swing(start_date + TimeDelta('1d'), end_date, quantity-1) + Fixing(start_date, ForwardMarket('NBP', start_date + TimeDelta('1d'))),
-            Swing(start_date + TimeDelta('1d'), end_date, quantity)
-        )
-    else:
-        return 0
-
-Swing(Date('2011-01-01'), Date('2011-1-4'), 30)
-"""
-        self.assert_contract_value(specification, 20.00, expected_call_count=11)
-
-    def _test_generate_valuation_power_plant_option(self):
+    def test_generate_valuation_power_plant_option(self):
         specification = """
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
-        Choice(
+        Wait(start_date, Choice(
             PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, 0) + ProfitFromRunning(start_date, underlying, time_since_off),
             PowerPlant(start_date + TimeDelta('1d'), end_date, underlying, NextTime(time_since_off)),
-        )
+        ))
     else:
         return 0
 
@@ -465,16 +467,16 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-PowerPlant(Date('2012-01-01'), Date('2013-06-01'), Market('#1'), 30)
+PowerPlant(Date('2012-01-01'), Date('2012-03-01'), Market('#1'), 30)
 """
-        self.assert_contract_value(specification, 48, expected_call_count=2067)
+        self.assert_contract_value(specification, 484.7841, expected_call_count=239)
 
 
 class SpecialTests(ContractValuationTestCase):
 
     def test_simple_expression_with_market(self):
         dsl = "Market('NBP') + 2 * Market('TTF')"
-        self.assert_contract_value(dsl, 32, {'NBP': 1, 'TTF': 2}, expected_call_count=1)
+        self.assert_contract_value(dsl, 32, {('NBP', 2011, 1): 1, ('TTF', 2011, 1): 2}, expected_call_count=1)
 
     def test_simple_function_with_market(self):
         dsl = """
@@ -483,7 +485,7 @@ def F():
 
 F()
 """
-        self.assert_contract_value(dsl, 32, {'NBP': 1, 'TTF': 2}, expected_call_count=2)
+        self.assert_contract_value(dsl, 32, {'["NBP", 2011, 1]': 1, '["TTF", 2011, 1]': 2}, expected_call_count=2)
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -498,7 +500,7 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.20756, {'NBP': 3.0207}, expected_call_count=15)
+        self.assert_contract_value(specification, 30.20756, {'["NBP", 2011, 1]': 3.0207}, expected_call_count=15)
         # self.assert_contract_value(specification, 30.20756, {}, expected_call_count=15)
 
     def test_reuse_unperturbed_call_results(self):
@@ -513,7 +515,7 @@ SumTwoMarkets('NBP', 'TTF')
 """
         self.assert_contract_value(specification,
                                    expected_value=21,
-                                   expected_deltas={'NBP': 1, 'TTF': 1},
+                                   expected_deltas={'["NBP", 2011, 1]': 1, '["TTF", 2011, 1]': 1},
                                    expected_call_count=4,
                                    )
 
@@ -542,10 +544,57 @@ Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#2'), 2) * 2
         self.assert_contract_value(specification,
                                    expected_call_count=19,
                                    expected_value=60.4826,
-                                   expected_deltas={'#1': 2.0168, '#2': 4.0313},
+                                   expected_deltas={'["#1", 2011, 1]': 2.0168, '["#2", 2011, 1]': 4.0313},
                                    )
 
+
 class ExperimentalTests(ContractValuationTestCase):
+
+    def test_value_swing_option_with_fixing_on_market(self):
+        specification = """
+def Swing(start_date, end_date, underlying, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Choice(
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, Market(underlying)),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
+        )
+    else:
+        return 0
+
+Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
+"""
+        self.assert_contract_value(specification, 30.2075, expected_call_count=15)
+
+    def test_value_swing_option_without_fixings_or_settlements(self):
+        specification = """
+def Swing(start_date, end_date, underlying, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Choice(
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Market(underlying),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
+        )
+    else:
+        return 0
+
+Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
+"""
+        self.assert_contract_value(specification, 30.0000, expected_call_count=15)
+
+
+    def test_value_swing_option_with_settlements_and_fixings_on_choice(self):
+        specification = """
+def Swing(start_date, end_date, underlying, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Wait(start_date, Choice(
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Market(underlying),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
+        ))
+    else:
+        return 0
+
+Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
+"""
+        self.assert_contract_value(specification, 30.2399, expected_call_count=15)
 
     def test_simple_expression_with_market(self):
         dsl = """
@@ -568,11 +617,151 @@ def ExerciseSwing(start, end, step, market, quantity, vol):
 
 Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Market('NBP'), 1)
 """
+        self.assert_contract_value(dsl, 10, {'["NBP", 2011, 1]': 1}, expected_call_count=6)
 
-        self.assert_contract_value(dsl, 10, {'NBP': 1}, expected_call_count=6)
+    def test_value_swing_option_with_forward_markets(self):
+        specification = """
+def Swing(start_date, end_date, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Settlement(start_date, Fixing(start_date, Choice(
+            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket('NBP', start_date),
+            Swing(start_date + TimeDelta('1m'), end_date, quantity)
+        )))
+    else:
+        return 0
+
+Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
+"""
+        self.assert_contract_value(specification, 29.9575, {
+            ('NBP', 2011, 2): 1.0,
+            ('NBP', 2011, 3): 1.0,
+            ('NBP', 2011, 4): 1.0,
+        }, expected_call_count=11)
+
+    def test_simple_forward_market(self):
+        specification = """ForwardMarket('NBP', '2011-1-1')"""
+        self.assert_contract_value(specification, 10.00, {'["NBP", 2011, 1]': 1.0}, expected_call_count=1)
+
+    def test_gas_storage_option(self):
+        specification_tmpl = """
+def GasStorage(start, end, commodity_name, quantity, limit, step):
+    if ((start < end) and (limit > 0)):
+        if quantity <= 0:
+            Wait(start, Choice(
+                Continue(start, end, commodity_name, quantity, limit, step),
+                Inject(start, end, commodity_name, quantity, limit, step, 1),
+            ))
+        elif quantity < limit:
+            Wait(start, Choice(
+                Continue(start, end, commodity_name, quantity, limit, step),
+                Inject(start, end, commodity_name, quantity, limit, step, -1),
+            ))
+        else:
+            Wait(start, Choice(
+                Continue(start, end, commodity_name, quantity, limit, step),
+                Inject(start, end, commodity_name, quantity, limit, step, 1),
+                Inject(start, end, commodity_name, quantity, limit, step, -1),
+            ))
+    else:
+        0
+
+@nostub
+def Continue(start, end, commodity_name, quantity, limit, step):
+    GasStorage(start + step, end, commodity_name, quantity, limit, step)
+
+@nostub
+def Inject(start, end, commodity_name, quantity, limit, step, vol):
+    Continue(start, end, commodity_name, quantity + vol, limit, step) - \
+    Settlement(start, vol * ForwardMarket(commodity_name, start))
+
+GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quantity)s, %(limit)s, TimeDelta('1m'))
+"""
+        # No capacity.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-3-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 0
+        }
+        self.assert_contract_value(specification, 0.00, {}, expected_call_count=2)
+
+        # Capacity, zero inventory.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-3-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 10
+        }
+        self.assert_contract_value(specification, 0.00, {}, expected_call_count=6)
+
+        # Capacity, zero inventory, option in the future.
+        specification = specification_tmpl % {
+            'start_date': '2013-1-1',
+            'end_date': '2013-3-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 10
+        }
+        self.assert_contract_value(specification, 0.0270, {}, expected_call_count=6)
+
+        # Capacity, and inventory to discharge.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-3-1',
+            'commodity': 'NBP',
+            'quantity': 2,
+            'limit': 2
+        }
+        self.assert_contract_value(specification, 19.9857, {}, expected_call_count=10)
+
+        # Capacity, and inventory to discharge in future.
+        specification = specification_tmpl % {
+            'start_date': '2021-1-1',
+            'end_date': '2021-3-1',
+            'commodity': 'NBP',
+            'quantity': 2,
+            'limit': 2
+        }
+        self.assert_contract_value(specification, 15.3496, {}, expected_call_count=10)
+
+
+        # Capacity, zero inventory, in future.
+        specification = specification_tmpl % {
+            'start_date': '2021-1-1',
+            'end_date': '2021-3-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 2
+        }
+        self.assert_contract_value(specification, 0.0123, {}, expected_call_count=6)
+
+
+class SingleTests(ContractValuationTestCase):
+
+    def test_value_swing_option_with_forward_markets(self):
+        specification = """
+def Swing(start_date, end_date, quantity):
+    if (quantity != 0) and (start_date < end_date):
+        return Settlement(start_date, Fixing(start_date, Choice(
+            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket('NBP', start_date),
+            Swing(start_date + TimeDelta('1m'), end_date, quantity)
+        )))
+    else:
+        return 0
+
+Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
+"""
+        self.assert_contract_value(specification, 29.9575, {
+            '["NBP", 2011, 1]': 0.9939,
+            '["NBP", 2011, 3]': 1.0,
+            # ('NBP', 2011, 4): 1.0,
+        }, expected_call_count=11)
 
 
 class ContractValuationTests(
+    SingleTests,
     ExperimentalTests,
     SpecialTests,
     ExpressionTests,
