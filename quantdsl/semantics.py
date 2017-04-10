@@ -90,10 +90,14 @@ class DslObject(six.with_metaclass(ABCMeta)):
         pass
 
     # Todo: Rework validation, perhaps by considering a declarative form in which to express the requirements.
-    def assert_args_len(self, args, required_len=None, min_len=None):
+    def assert_args_len(self, args, required_len=None, min_len=None, max_len=None):
         if min_len != None and len(args) < min_len:
             error = "%s is broken" % self.__class__.__name__
             descr = "requires at least %s arguments (%s were given)" % (min_len, len(args))
+            raise DslSyntaxError(error, descr, self.node)
+        if max_len != None and len(args) > max_len:
+            error = "%s is broken" % self.__class__.__name__
+            descr = "requires at most %s arguments (%s were given)" % (max_len, len(args))
             raise DslSyntaxError(error, descr, self.node)
         if required_len != None and len(args) != required_len:
             error = "%s is broken" % self.__class__.__name__
@@ -1021,12 +1025,16 @@ class DatedDslObject(DslObject):
 class Lift(DslExpression):
 
     def validate(self, args):
-        self.assert_args_len(args, min_len=2)
+        self.assert_args_len(args, min_len=2, max_len=3)
+        # Name of a commodity to be perturbed.
         self.assert_args_arg(args, posn=0, required_type=(String, Name))
         if len(args) == 2:
+            # Expression to be perturbed.
             self.assert_args_arg(args, posn=1, required_type=DslExpression)
         elif len(args) == 3:
+            # Periodization of the perturbation.
             self.assert_args_arg(args, posn=1, required_type=String)
+            # Expression to be perturbed.
             self.assert_args_arg(args, posn=2, required_type=DslExpression)
 
     @property
