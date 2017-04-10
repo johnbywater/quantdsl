@@ -58,25 +58,26 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
 
     def setup_market_simulation(self, contract_specification):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
-        calibration_params = \
-{
-    '#1-LAST-PRICE': 10,
-    '#2-LAST-PRICE': 10,
-    '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
-    '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
-    '#1-#2-CORRELATION': 0.0,
-    'NBP-LAST-PRICE': 10,
-    'TTF-LAST-PRICE': 11,
-    'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
-    'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
-    'NBP-TTF-CORRELATION': 0.4,
-    'NBP-2011-01-LAST-PRICE': 10,
-    'NBP-2011-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
-    'NBP-2012-01-LAST-PRICE': 10,
-    'NBP-2012-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
-    'NBP-2012-01-NBP-2012-02-CORRELATION': 0.4,
-    'NBP-2012-02-NBP-2012-03-CORRELATION': 0.4,
-}
+        calibration_params = {
+            '#1-LAST-PRICE': 10,
+            '#2-LAST-PRICE': 10,
+            '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            '#1-#2-CORRELATION': 0.0,
+            'NBP-LAST-PRICE': 10,
+            'TTF-LAST-PRICE': 11,
+            'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
+            'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
+            'NBP-TTF-CORRELATION': 0.4,
+            'NBP-2011-01-LAST-PRICE': 10,
+            'NBP-2011-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
+            'NBP-2012-01-LAST-PRICE': 10,
+            'NBP-2012-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
+            'NBP-2012-01-NBP-2012-02-CORRELATION': 0.4,
+            'NBP-2012-02-NBP-2012-03-CORRELATION': 0.4,
+            'SPARK-SPREAD-LAST-PRICE': 1,
+            'SPARK-SPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
+        }
         market_calibration = self.app.register_market_calibration(price_process_name, calibration_params)
         market_names, fixing_dates = self.app.list_market_names_and_fixing_dates(contract_specification)
         observation_date = datetime.date(2011, 1, 1)
@@ -434,7 +435,7 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 """
         self.assert_contract_value(specification, 30.2081, expected_call_count=15)
 
-    def _test_generate_valuation_power_plant_option(self):
+    def test_generate_valuation_power_plant_option(self):
         specification = """
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
@@ -461,9 +462,9 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-PowerPlant(Date('2012-01-01'), Date('2013-06-01'), Market('#1'), 30)
+PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARK-SPREAD'), 2)
 """
-        self.assert_contract_value(specification, 48, expected_call_count=2067)
+        self.assert_contract_value(specification, 9.22, expected_call_count=37)
 
 
 class SpecialTests(ContractValuationTestCase):
@@ -543,7 +544,7 @@ Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#2'), 2) * 2
 
 class ExperimentalTests(ContractValuationTestCase):
 
-    def _test_simple_expression_with_market(self):
+    def test_simple_expression_with_market(self):
         dsl = """
 def Swing(start, end, step, market, quantity):
     if (quantity != 0) and (start <= end):
