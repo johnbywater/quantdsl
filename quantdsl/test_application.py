@@ -139,7 +139,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             # Compute the delta.
             if perturbation not in main_result.perturbed_values:
                 self.fail("There isn't a perturbed value for '{}': {}"
-                          "".format(perturbation, tuple(main_result.perturbed_values.keys())))
+                          "".format(perturbation, list(main_result.perturbed_values.keys())))
 
             perturbed_value = main_result.perturbed_values[perturbation].mean()
             market_calibration = self.app.market_calibration_repo[market_simulation.market_calibration_id]
