@@ -21,17 +21,20 @@ class SimulatedPrice(EventSourcedEntity):
         return self._value
 
 
-def register_simulated_price(market_simulation_id, market_name, fixing_date, price_value):
-    simulated_price_id = make_simulated_price_id(market_simulation_id, market_name, fixing_date)
+def register_simulated_price(market_simulation_id, market_name, fixing_date, delivery_date, price_value):
+    simulated_price_id = make_simulated_price_id(market_simulation_id, market_name, fixing_date, delivery_date)
     created_event = SimulatedPrice.Created(entity_id=simulated_price_id, value=price_value)
     simulated_price = SimulatedPrice.mutator(event=created_event)
     publish(created_event)
     return simulated_price
 
 
-def make_simulated_price_id(simulation_id, market_name, quoted_on, delivery_date=''):
-    price_id = ("PriceId(simulation_id='{}' market_name='{}' delivery_date='{}' quoted_on='{}')"
-                "".format(simulation_id, market_name, quoted_on, delivery_date))
+def make_simulated_price_id(simulation_id, commodity_name, fixing_date, delivery_date):
+    assert isinstance(commodity_name, six.string_types), commodity_name
+    assert isinstance(fixing_date, (datetime.datetime, datetime.date)), (fixing_date, type(fixing_date))
+    assert isinstance(delivery_date, (datetime.datetime, datetime.date)), (delivery_date, type(delivery_date))
+    price_id = ("PriceId(simulation_id='{}' commodity_name='{}' fixing_date='{}', delivery_date='{}')"
+                "".format(simulation_id, commodity_name, fixing_date, delivery_date))
     return price_id
 
 

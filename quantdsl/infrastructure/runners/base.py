@@ -37,12 +37,10 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
         from quantdsl.domain.services.parser import dsl_parse
         stubbed_module = dsl_parse(dsl_source)
         assert isinstance(stubbed_module, Module)
-        # market_names = find_market_names(stubbed_module)
         fixing_dates = list_fixing_dates(stubbed_module)
         if effective_present_time is not None:
             fixing_dates.append(effective_present_time)
 
-        # return evaluation_kwds
         # Rebuild the data structure (there was a problem, but I can't remember what it was.
         # Todo: Try without this block, perhaps the problem doesn't exist anymore.
         if 'all_market_prices' in evaluation_kwds:

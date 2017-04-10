@@ -15,7 +15,9 @@ from quantdsl.domain.model.contract_valuation import ContractValuationRepository
 from quantdsl.domain.model.market_simulation import MarketSimulationRepository, MarketSimulation
 from quantdsl.domain.model.simulated_price import SimulatedPriceRepository
 from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
-from quantdsl.infrastructure.event_sourced_repos.market_dependencies_repo import MarketDependenciesRepo
+from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
+from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
+    SimulatedPriceRequirementsRepo
 
 
 class TestEvaluationSubscriber(unittest.TestCase):
@@ -29,7 +31,8 @@ class TestEvaluationSubscriber(unittest.TestCase):
         call_leafs_repo = MagicMock(spec=CallLeafsRepository)
         call_leafs_repo.__getitem__.return_value = Mock(spec=CallLeafs)
         call_dependents_repo = MagicMock(spec=CallDependentsRepository)
-        market_dependencies_repo = MagicMock(spec=MarketDependenciesRepo)
+        perturbation_dependencies_repo = MagicMock(spec=PerturbationDependenciesRepo)
+        simulated_price_requirements_repo = MagicMock(spec=SimulatedPriceRequirementsRepo)
 
         self.evaluation_subscriber = EvaluationSubscriber(
             contract_valuation_repo=contract_valuation_repo,
@@ -44,7 +47,8 @@ class TestEvaluationSubscriber(unittest.TestCase):
             result_counters=None,
             usage_counters=None,
             call_dependents_repo=call_dependents_repo,
-            market_dependencies_repo=market_dependencies_repo
+            perturbation_dependencies_repo=perturbation_dependencies_repo,
+            simulated_price_requirements_repo=simulated_price_requirements_repo
         )
 
     def tearDown(self):

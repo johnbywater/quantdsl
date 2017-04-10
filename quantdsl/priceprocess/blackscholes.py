@@ -11,47 +11,52 @@ import datetime
 
 class BlackScholesPriceProcess(PriceProcess):
 
-    def simulate_future_prices(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
-        # Compute correlated Brownian motions for each market and fixing date.
-        if market_names:
-            all_brownian_motions = self.get_brownian_motions(market_names, fixing_dates, observation_date, path_count,
-                                                             calibration_params)
+    def simulate_future_prices(self, observation_date, requirements, path_count, calibration_params):
+        # Compute correlated Brownian motions for each market.
 
-            # Compute simulated market prices using the correlated Brownian
-            # motions, the actual historical volatility, and the last price.
-            for market_name, brownian_motions in all_brownian_motions:
-                last_price = calibration_params['%s-LAST-PRICE' % market_name]
-                actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % market_name]
-                sigma = actual_historical_volatility / 100.0
-                for fixing_date, brownian_rv in brownian_motions:
-                    T = get_duration_years(observation_date, fixing_date)
-                    simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
-                    yield market_name, fixing_date, simulated_value
+        if not requirements:
+            return
 
-    def get_brownian_motions(self, market_names, fixing_dates, observation_date, path_count, calibration_params):
-        assert isinstance(market_names, list), market_names
-        assert isinstance(fixing_dates, list), fixing_dates
+        all_brownian_motions = self.get_brownian_motions(observation_date, requirements, path_count, calibration_params)
+
+        # Compute simulated market prices using the correlated Brownian
+        # motions, the actual historical volatility, and the last price.
+        for commodity_name, brownian_motions in all_brownian_motions:
+            last_price = calibration_params['%s-LAST-PRICE' % commodity_name]
+            actual_historical_volatility = calibration_params['%s-ACTUAL-HISTORICAL-VOLATILITY' % commodity_name]
+            sigma = actual_historical_volatility / 100.0
+            for fixing_date, brownian_rv in brownian_motions:
+                T = get_duration_years(observation_date, fixing_date)
+                simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
+                yield commodity_name, fixing_date, fixing_date, simulated_value
+
+    def get_brownian_motions(self, observation_date, requirements, path_count, calibration_params):
         assert isinstance(observation_date, datetime.date), observation_date
+        assert isinstance(requirements, list), requirements
         assert isinstance(path_count, int), path_count
 
-        # Get an ordered list of all the dates.
-        fixing_dates = set(fixing_dates)
-        fixing_dates.add(observation_date)
-        all_dates = sorted(fixing_dates)
-
-        len_market_names = len(market_names)
-        len_all_dates = len(all_dates)
-
-        if len_market_names == 0:
+        # Get an ordered list of all the commodity names and fixing dates.
+        commodity_names = sorted(set([r[0] for r in requirements]))
+        len_commodity_names = len(commodity_names)
+        if len_commodity_names == 0:
             return []
 
+        fixing_dates = sorted(set([observation_date] + [r[1] for r in requirements]))
+        len_fixing_dates = len(fixing_dates)
+        if len_fixing_dates == 0:
+            return []
+
+        # Check the observation date equals the first fixing date.
+        assert observation_date == fixing_dates[0], "Observation date {} not equal to first fixing date: {}" \
+                                                    "".format(observation_date, fixing_dates)
+
         # Diffuse random variables through each date for each market (uncorrelated increments).
-        brownian_motions = scipy.zeros((len_market_names, len_all_dates, path_count))
-        for i in range(len_market_names):
-            _start_date = all_dates[0]
+        brownian_motions = scipy.zeros((len_commodity_names, len_fixing_dates, path_count))
+        for i in range(len_commodity_names):
+            _start_date = fixing_dates[0]
             start_rv = brownian_motions[i][0]
-            for j in range(len_all_dates - 1):
-                fixing_date = all_dates[j + 1]
+            for j in range(len_fixing_dates - 1):
+                fixing_date = fixing_dates[j + 1]
                 draws = scipy.random.standard_normal(path_count)
                 T = get_duration_years(_start_date, fixing_date)
                 if T < 0:
@@ -64,14 +69,14 @@ class BlackScholesPriceProcess(PriceProcess):
                 _start_date = fixing_date
                 start_rv = end_rv
 
-        if len_market_names > 1:
-            correlation_matrix = scipy.zeros((len_market_names, len_market_names))
-            for i in range(len_market_names):
-                for j in range(len_market_names):
+        if len_commodity_names > 1:
+            correlation_matrix = scipy.zeros((len_commodity_names, len_commodity_names))
+            for i in range(len_commodity_names):
+                for j in range(len_commodity_names):
 
                     # Get the correlation between market i and market j...
-                    name_i = market_names[i]
-                    name_j = market_names[j]
+                    name_i = commodity_names[i]
+                    name_j = commodity_names[j]
                     if name_i == name_j:
                         # - they are identical
                         correlation = 1
@@ -105,12 +110,12 @@ class BlackScholesPriceProcess(PriceProcess):
 
         # Put random variables into a nested Python dict, keyed by market commodity_name and fixing date.
         all_brownian_motions = []
-        for i, market_name in enumerate(market_names):
+        for i, commodity_name in enumerate(commodity_names):
             market_rvs = []
-            for j, fixing_date in enumerate(all_dates):
+            for j, fixing_date in enumerate(fixing_dates):
                 rv = brownian_motions[i][j]
                 market_rvs.append((fixing_date, rv))
-            all_brownian_motions.append((market_name, market_rvs))
+            all_brownian_motions.append((commodity_name, market_rvs))
 
         return all_brownian_motions
 

@@ -4,7 +4,7 @@ from mock import patch
 from mock import MagicMock
 import unittest
 
-from quantdsl.domain.model.market_calibration import MarketCalibrationRepository, MarketCalibration
+from quantdsl.domain.model.market_calibration import MarketCalibrationRepository
 from quantdsl.domain.model.market_simulation import MarketSimulation, MarketSimulationRepository
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 
@@ -15,7 +15,6 @@ class TestSimulationSubscriber(unittest.TestCase):
         assert_event_handlers_empty()
         market_simulation_repo = MagicMock(spec=MarketSimulationRepository)
         market_calibration_repo = MagicMock(spec=MarketCalibrationRepository)
-
         self.simulation_subscriber = SimulationSubscriber(market_calibration_repo, market_simulation_repo)
 
     def tearDown(self):

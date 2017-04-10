@@ -3,13 +3,12 @@ import unittest
 
 import mock
 import scipy
+from dateutil.relativedelta import relativedelta
 from pytz import utc
 
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.exceptions import DslSyntaxError
-# from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
-# from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
 from quantdsl.semantics import Module, compile_dsl_module, Number, UnarySub, String, Name, Add, Sub, Mult, Div, \
     FloorDiv, Pow, Mod, Compare, IfExp, If, Max, Date, TimeDelta, On, FunctionDef, FunctionCall, Fixing
 from quantdsl.services import dsl_compile, dsl_eval
@@ -159,9 +158,20 @@ else:
 
     def test_date(self):
         self.assertDslExprTypeValue("Date('2014-12-31')", Date, datetime.date(2014, 12, 31))
-        self.assertDslExprTypeValue("TimeDelta('1d')", TimeDelta, datetime.timedelta(1))
 
     def test_date_timedelta(self):
+        dsl = dsl_compile("TimeDelta('2d')")
+        self.assertIsInstance(dsl, TimeDelta)
+        self.assertEqual(dsl.evaluate(), relativedelta(days=2))
+
+        dsl = dsl_compile("TimeDelta('2m')")
+        self.assertIsInstance(dsl, TimeDelta)
+        self.assertEqual(dsl.evaluate(), relativedelta(months=2))
+
+        dsl = dsl_compile("TimeDelta('2y')")
+        self.assertIsInstance(dsl, TimeDelta)
+        self.assertEqual(dsl.evaluate(), relativedelta(years=2))
+
         # Some date arithmetic...
         dsl = dsl_compile("Date('2014-12-31') - TimeDelta('1d')")
         self.assertIsInstance(dsl, Sub)
@@ -171,9 +181,25 @@ else:
         self.assertIsInstance(dsl, Add)
         self.assertEqual(dsl.evaluate(), datetime.date(2014, 12, 30))
 
+        dsl = dsl_compile("Date('2014-12-29') + TimeDelta('1m')")
+        self.assertIsInstance(dsl, Add)
+        self.assertEqual(dsl.evaluate(), datetime.date(2015, 1, 29))
+
+        dsl = dsl_compile("Date('2014-12-29') + TimeDelta('1y')")
+        self.assertIsInstance(dsl, Add)
+        self.assertEqual(dsl.evaluate(), datetime.date(2015, 12, 29))
+
         dsl = dsl_compile("2 * TimeDelta('1d')")
         self.assertIsInstance(dsl, Mult)
-        self.assertEqual(dsl.evaluate(), datetime.timedelta(2))
+        self.assertEqual(dsl.evaluate(), relativedelta(days=2))
+
+        dsl = dsl_compile("2 * TimeDelta('1m')")
+        self.assertIsInstance(dsl, Mult)
+        self.assertEqual(dsl.evaluate(), relativedelta(months=2))
+
+        dsl = dsl_compile("2 * TimeDelta('1y')")
+        self.assertIsInstance(dsl, Mult)
+        self.assertEqual(dsl.evaluate(), relativedelta(years=2))
 
     def test_date_comparisons(self):
         self.assertDslExprTypeValue("Date('2014-12-30') < Date('2014-12-31')", Compare, True)
@@ -580,7 +606,7 @@ Swing(Date('2011-01-01'), Date('2011-01-03'), 10, 50)
                     [(datetime.datetime(2011, 1, 1, tzinfo=utc) + datetime.timedelta(1) * i, scipy.array([10]*2000))
                         for i in range(0, 10)])  # NB Need enough days to cover the date range in the dsl_source.
             },
-            'first_market_name': '#1'
+            'first_commodity_name': '#1'
         }
 
         # Evaluate the dependency graph.
