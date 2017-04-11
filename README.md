@@ -11,6 +11,7 @@ Use pip to install the [latest distribution](https://pypi.python.org/pypi/quantd
 the Python Package Index.
 
 ```
+pip install --upgrade pip
 pip install quantdsl
 ```
 

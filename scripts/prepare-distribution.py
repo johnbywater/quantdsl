@@ -18,32 +18,30 @@ def build_and_test(cwd):
     tmpcwd27 = os.path.join(cwd, 'tmpve2.7')
     tmpcwd34 = os.path.join(cwd, 'tmpve3.4')
 
-    # Build distribution.
-    subprocess.check_call([sys.executable, 'setup.py', 'sdist'], cwd=cwd)
-    is_uploaded_testpypi = False
+    # Build and upload to Test PyPI.
+    subprocess.check_call([sys.executable, 'setup.py', 'sdist', 'upload', '-r', 'pypitest'], cwd=cwd)
 
     for (tmpcwd, python_executable) in [(tmpcwd27, 'python2.7'), (tmpcwd34, 'python3.4')]:
 
         # Rebuild virtualenvs.
         rebuild_virtualenv(cwd, tmpcwd, python_executable)
 
+        # Upgrade pip.
+        subprocess.check_call(['bin/pip', 'install', '--upgrade', 'pip'], cwd=tmpcwd)
+
         # Install from dist folder.
-        subprocess.check_call(['bin/pip', 'install', '-r', '../requirements.txt'], cwd=tmpcwd)
-        subprocess.check_call(['bin/pip', 'install', '-U', '../dist/quantdsl-%s.tar.gz' % get_version()], cwd=tmpcwd)
+        subprocess.check_call(['bin/pip', 'install', '..[test]'], cwd=tmpcwd)
 
         # Check installed tests all pass.
         test_installation(tmpcwd)
-
-        # Build and upload to Test PyPI.
-        if not is_uploaded_testpypi:
-            subprocess.check_call([sys.executable, 'setup.py', 'sdist', 'upload', '-r', 'pypitest'], cwd=cwd)
-            is_uploaded_testpypi = True
 
         # Rebuild virtualenvs.
         rebuild_virtualenv(cwd, tmpcwd, python_executable)
 
         # Install from Test PyPI.
-        subprocess.check_call(['bin/pip', 'install', '-U', 'quantdsl[test]=='+get_version(),
+        subprocess.check_call(['bin/pip', 'install', '--upgrade', 'pip'], cwd=tmpcwd)
+
+        subprocess.check_call(['bin/pip', 'install', 'quantdsl[test]=='+get_version(),
                                '--index-url', 'https://testpypi.python.org/simple',
                                '--extra-index-url', 'https://pypi.python.org/simple'
                                ],
