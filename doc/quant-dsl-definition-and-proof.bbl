@@ -1,0 +1,26 @@
+\begin{thebibliography}{1}
+
+\bibitem{Longstaff}
+Francis~A. Longstaff and Eduardo~S. Schwartz.
+\newblock Valuing american options by simulation: A simple least-squares
+  approach.
+\newblock {\em Review of Financial Studies}, pages 113--147, 2001.
+
+\bibitem{Quant}
+Appropriate~Software Foundation.
+\newblock Quant.
+\newblock {\em Python Package Index}, (http://pypi.python.org/pypi/quant),
+  2011.
+
+\bibitem{SciPy}
+The~SciPy Community.
+\newblock Scipy.
+\newblock {\em SciPy Website}, (http://www.scipy.org), 2011.
+
+\bibitem{DomainModel}
+Appropriate~Software Foundation.
+\newblock Domain model.
+\newblock {\em Python Package Index},
+  (http://pypi.python.org/pypi/domainmodel), 2011.
+
+\end{thebibliography}

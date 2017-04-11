@@ -11,16 +11,33 @@ class ContractValuation(EventSourcedEntity):
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
-    def __init__(self, dependency_graph_id, **kwargs):
+    def __init__(self, market_simulation_id, dependency_graph_id, **kwargs):
         super(ContractValuation, self).__init__(**kwargs)
+        self._market_simulation_id = market_simulation_id
         self._dependency_graph_id = dependency_graph_id
 
+    @property
+    def market_simulation_id(self):
+        return self._market_simulation_id
 
-def register_contract_valuation(dependency_graph_id):
-    created_event = ContractValuation.Created(entity_id=create_uuid4(), dependency_graph_id=dependency_graph_id)
-    contract_specification = ContractValuation.mutator(event=created_event)
-    publish(created_event)
-    return contract_specification
+    @property
+    def dependency_graph_id(self):
+        return self._dependency_graph_id
+
+
+def start_contract_valuation(entity_id, dependency_graph_id, market_simulation_id):
+    contract_valuation_created = ContractValuation.Created(
+        entity_id=entity_id,
+        market_simulation_id=market_simulation_id,
+        dependency_graph_id=dependency_graph_id,
+    )
+    contract_valuation = ContractValuation.mutator(event=contract_valuation_created)
+    publish(contract_valuation_created)
+    return contract_valuation
+
+
+def create_contract_valuation_id():
+    return create_uuid4()
 
 
 class ContractValuationRepository(EntityRepository):

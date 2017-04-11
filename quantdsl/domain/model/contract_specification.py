@@ -27,8 +27,8 @@ def register_contract_specification(specification):
     return contract_specification
 
 
-def make_simulated_price_id(simulation_id, market_name, price_time):
-    return simulation_id + market_name + str(price_time)
+# Todo: Rename market_name to commodity_name?
+
 
 class ContractSpecificationRepository(EntityRepository):
     pass

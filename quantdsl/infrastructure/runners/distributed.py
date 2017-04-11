@@ -1,4 +1,4 @@
-from quantdsl.application.base import BaseQuantDslApplication
+from quantdsl.application.base import QuantDslApplication
 from quantdsl.infrastructure.celery.tasks import celery_evaluate_call
 from quantdsl.infrastructure.runners.base import DependencyGraphRunner
 
@@ -54,15 +54,13 @@ class DistributedDependencyGraphRunner(DependencyGraphRunner):
 
     def __init__(self, dependency_graph, app):
         super(DistributedDependencyGraphRunner, self).__init__(dependency_graph)
-        assert isinstance(app, BaseQuantDslApplication)
+        assert isinstance(app, QuantDslApplication)
         self.app = app
 
     def run(self, **kwargs):
         super(DistributedDependencyGraphRunner, self).run(**kwargs)
 
-        simulation_id = kwargs.pop('simulation_id')
-
-        self.app.register_dependency_graph(self.dependency_graph, simulation_id)
+        self.app.register_dependency_graph(self.dependency_graph)
 
         # Enqueue an execution job for each leaf of the dependency graph.
         for call_id in self.dependency_graph.leaf_ids:

@@ -12,13 +12,13 @@ class DslParser(object):
         """
         self.dsl_classes = {}
         if dsl_classes:
-            assert isinstance(dsl_classes, dict)
+            # assert isinstance(dsl_classes, dict)
             self.dsl_classes.update(dsl_classes)
 
         if not isinstance(dsl_source, six.string_types):
             raise DslSyntaxError("Can't dsl_parse non-string object", dsl_source)
 
-        assert isinstance(dsl_source, six.string_types)
+        # assert isinstance(dsl_source, six.string_types)
         try:
             # Parse as Python source code, into a Python abstract syntax tree.
             ast_module = ast.parse(dsl_source, filename=filename, mode='exec')
@@ -34,7 +34,7 @@ class DslParser(object):
 
         Returns the result of calling the identified "visit" method.
         """
-        assert isinstance(node, ast.AST)
+        # assert isinstance(node, ast.AST)
 
         # Construct the "visit" method name.
         dsl_element_name = node.__class__.__name__
@@ -57,7 +57,7 @@ class DslParser(object):
 
         Returns a DSL Module, with a list of DSL expressions as the body.
         """
-        assert isinstance(node, ast.Module)
+        # assert isinstance(node, ast.Module)
         body = [self.visitAstNode(n) for n in node.body]
         return self.dsl_classes['Module'](body, node=node)
 
@@ -67,7 +67,7 @@ class DslParser(object):
 
         Returns the result of visiting the expression held by the return statement.
         """
-        assert isinstance(node, ast.Return)
+        # assert isinstance(node, ast.Return)
         return self.visitAstNode(node.value)
 
     def visitExpr(self, node):
@@ -76,7 +76,7 @@ class DslParser(object):
 
         Returns the result of visiting the contents of the expression node.
         """
-        assert isinstance(node, ast.Expr)
+        # assert isinstance(node, ast.Expr)
         if isinstance(node.value, ast.AST):
             return self.visitAstNode(node.value)
         else:
@@ -88,7 +88,7 @@ class DslParser(object):
 
         Returns a DSL Number object, with the number value.
         """
-        assert isinstance(node, ast.Num)
+        # assert isinstance(node, ast.Num)
         return self.dsl_classes['Number'](node.n, node=node)
 
     def visitStr(self, node):
@@ -97,7 +97,7 @@ class DslParser(object):
 
         Returns a DSL String object, with the string value.
         """
-        assert isinstance(node, ast.Str)
+        # assert isinstance(node, ast.Str)
         return self.dsl_classes['String'](node.s, node=node)
 
     def visitUnaryOp(self, node):
@@ -106,7 +106,7 @@ class DslParser(object):
 
         Returns a specific DSL UnaryOp object (e.g UnarySub), along with the operand.
         """
-        assert isinstance(node, ast.UnaryOp)
+        # assert isinstance(node, ast.UnaryOp)
         args = [self.visitAstNode(node.operand)]
         if isinstance(node.op, ast.USub):
             dsl_class = self.dsl_classes['UnarySub']
@@ -120,7 +120,7 @@ class DslParser(object):
 
         Returns a specific DSL BinOp object (e.g Add), along with the left and right operands.
         """
-        assert isinstance(node, ast.BinOp)
+        # assert isinstance(node, ast.BinOp)
         type_map = {
             ast.Add: self.dsl_classes['Add'],
             ast.Sub: self.dsl_classes['Sub'],
@@ -143,7 +143,7 @@ class DslParser(object):
 
         Returns a specific DSL BoolOp object (e.g And), along with the left and right operands.
         """
-        assert isinstance(node, ast.BoolOp)
+        # assert isinstance(node, ast.BoolOp)
         type_map = {
             ast.And: self.dsl_classes['And'],
             ast.Or: self.dsl_classes['Or'],
@@ -184,7 +184,7 @@ class DslParser(object):
 
         # Check the called node is an ast.Name.
         called_node = node.func
-        assert isinstance(called_node, ast.Name)
+        # assert isinstance(called_node, ast.Name)
         called_node_name = called_node.id
 
         # Construct a DSL object for this call.

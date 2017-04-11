@@ -2,3 +2,5 @@
 source = quantdsl
 omit =
     */python?.?/*
+    */test_?.py
+    */tests/*

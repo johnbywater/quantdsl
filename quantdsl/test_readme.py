@@ -1,42 +1,48 @@
 import os
-import unittest
-from subprocess import Popen, PIPE
 import sys
+from os.path import join, dirname
+from subprocess import Popen, PIPE
+from unittest.case import TestCase
+
+import quantdsl
 
 
-class TestUsage(unittest.TestCase):
+class TestReadmeFile(TestCase):
 
-    def _test_code_snippets_in_readme_file(self):
+    def test_code_snippets_in_readme_file(self):
         # Extract lines of Python code from the README.md file.
-        code_lines = []
-        is_code = False
         readme_filename = 'README.md'
-        readme_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), readme_filename)
+        readme_path = join(dirname(dirname(quantdsl.__file__)), readme_filename)
+
+        if not os.path.exists(readme_path):
+            self.skipTest("Skipped test because usage instructions in README file are "
+                          "not available for testing once this package is installed")
+
         temp_filename = '.README.py'
         temp_path = os.path.join(os.path.dirname(readme_path), temp_filename)
+        lines = []
         count_code_lines = 0
-        for line in open(readme_path):
-            if line.startswith('>>>'):
-                break
-            if is_code and line.startswith('```'):
-                is_code = False
-                code_lines.append('')
-            elif is_code:
-                code_lines.append(line.strip('\n'))
-                count_code_lines += 1
-            elif line.startswith('```python'):
-                is_code = True
-                code_lines.append('')
-            else:
-                code_lines.append('')
-
-        code = "\n".join(code_lines) + '\n'
+        is_code = False
+        with open(readme_path) as file:
+            for line in file:
+                if is_code and line.startswith('```'):
+                    is_code = False
+                    line = ''
+                elif is_code:
+                    line = line.strip('\n')
+                    count_code_lines += 1
+                elif line.startswith('```python'):
+                    is_code = True
+                    line = ''
+                else:
+                    line = ''
+                lines.append(line)
 
         self.assertTrue(count_code_lines)
 
         # Write the code into a temp file.
         with open(temp_path, 'w+') as readme_py:
-            readme_py.writelines(code)
+            readme_py.writelines("\n".join(lines) + '\n')
 
         # Run the code and catch errors.
         p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE)

@@ -1,10 +1,10 @@
 import datetime
 
-import numpy
+import scipy
 import six
 from eventsourcing.infrastructure.event_store import EventStore
 from eventsourcing.infrastructure.persistence_subscriber import PersistenceSubscriber
-from eventsourcing.infrastructure.stored_events.base import InMemoryStoredEventRepository
+from eventsourcing.infrastructure.stored_events.python_objects_stored_events import PythonObjectsStoredEventRepository
 from mock import Mock, MagicMock, patch
 import unittest
 
@@ -13,21 +13,23 @@ from quantdsl.domain.model.call_dependents import CallDependentsRepository, Call
 from quantdsl.domain.model.call_link import CallLinkRepository, CallLink
 from quantdsl.domain.model.call_requirement import CallRequirementRepository, CallRequirement
 from quantdsl.domain.model.call_result import CallResultRepository, CallResult
-from quantdsl.domain.model.contract_specification import ContractSpecification, register_contract_specification
+from quantdsl.domain.model.contract_specification import register_contract_specification
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
-from quantdsl.domain.services.dependency_graphs import generate_execution_order, get_dependency_values, \
-    generate_dependency_graph
-from quantdsl.domain.services.fixing_dates import regenerate_execution_order, list_fixing_dates
-from quantdsl.domain.services.market_names import list_market_names
+from quantdsl.domain.services.dependency_graphs import generate_execution_order, generate_dependency_graph
+from quantdsl.domain.services.contract_valuations import get_dependency_results
+from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.price_processes import get_price_process
-from quantdsl.domain.services.simulated_prices import simulate_future_prices, generate_simulated_prices
+from quantdsl.domain.services.simulated_prices import simulate_future_prices, generate_simulated_prices, \
+    identify_simulation_requirements
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.exceptions import DslError
 from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import CallDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
-from quantdsl.infrastructure.event_sourced_repos.contract_specification_repo import ContractSpecificationRepo
+from quantdsl.infrastructure.event_sourced_repos.call_leafs_repo import CallLeafsRepo
+from quantdsl.infrastructure.event_sourced_repos.call_requirement_repo import CallRequirementRepo
+from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -42,10 +44,12 @@ class TestUUIDs(unittest.TestCase):
 class TestDependencyGraph(unittest.TestCase):
 
     def setUp(self):
-        self.es = EventStore(stored_event_repo=InMemoryStoredEventRepository())
+        self.es = EventStore(stored_event_repo=PythonObjectsStoredEventRepository())
         self.ps = PersistenceSubscriber(self.es)
         self.call_dependencies_repo = CallDependenciesRepo(self.es)
         self.call_dependents_repo = CallDependentsRepo(self.es)
+        self.call_leafs_repo = CallLeafsRepo(self.es)
+        self.call_requirement_repo = CallRequirementRepo(self.es)
 
     def tearDown(self):
         self.ps.close()
@@ -61,7 +65,9 @@ double(1 + 1)
         generate_dependency_graph(
             contract_specification=contract_specification,
             call_dependencies_repo=self.call_dependencies_repo,
-            call_dependents_repo=self.call_dependents_repo
+            call_dependents_repo=self.call_dependents_repo,
+            call_leafs_repo=self.call_leafs_repo,
+            call_requirement_repo=self.call_requirement_repo,
         )
 
         root_dependencies = self.call_dependencies_repo[contract_specification.id]
@@ -92,8 +98,8 @@ double(1 + 1)
 #         dependency_graph = self.app.generate_dependency_graph(contract_specification=contract_specification)
 #
 #         call_dependencies = self.app.call_dependencies_repo[dependency_graph.id]
-#         self.assertEqual(len(call_dependencies.dependencies), 1)
-#         dependency_id = call_dependencies.dependencies[0]
+#         self.assertEqual(len(call_dependencies.requirements), 1)
+#         dependency_id = call_dependencies.requirements[0]
 #         dependents = self.app.call_dependents_repo[dependency_id].dependents
 #         self.assertEqual(len(dependents), 1)
 #         self.assertIn(dependency_graph.id, dependents)
@@ -141,18 +147,18 @@ double(1 + 1)
     def test_get_dependency_values(self):
         call_dependencies_repo = MagicMock(spec=CallDependenciesRepository,
                                          __getitem__=lambda self, x: {
-                                             1: CallDependencies(dependencies=[2, 3], entity_id=123, entity_version=0, timestamp=1),
+                                             '1': CallDependencies(dependencies=['2', '3'], entity_id=123, entity_version=0, timestamp=1),
                                          }[x])
         call_result_repo = MagicMock(spec=CallResultRepository,
                                      __getitem__=lambda self, x: {
-                                        2: Mock(spec=CallResult, result_value=12),
-                                        3: Mock(spec=CallResult, result_value=13),
+                                        'valuation2': Mock(spec=CallResult, result_value=12, perturbed_values={}),
+                                        'valuation3': Mock(spec=CallResult, result_value=13, perturbed_values={}),
                                      }[x])
-        values = get_dependency_values(1, call_dependencies_repo, call_result_repo)
-        self.assertEqual(values, {2: 12, 3: 13})
+        values = get_dependency_results('valuation', '1', call_dependencies_repo, call_result_repo)
+        self.assertEqual(values, {'2': (12, {}), '3': (13, {})})
 
 
-class TestFixingTimes(unittest.TestCase):
+class TestCallLinks(unittest.TestCase):
 
     def test_regenerate_execution_order(self):
         dependency_graph = Mock(spec=DependencyGraph, id=1)
@@ -166,13 +172,17 @@ class TestFixingTimes(unittest.TestCase):
         order = list(order)
         self.assertEqual(order, [2, 3, 1])
 
-    def test_list_fixing_dates(self):
+
+# Todo: Fix up this test to check the new behaviour: setting the market requirements.
+class TestListMarketNamesAndFixingDates(unittest.TestCase):
+
+    def test_list_market_names_and_fixing_dates(self):
         dependency_graph = Mock(spec=DependencyGraph, id=1)
         call_requirement_repo = MagicMock(spec=CallRequirementRepository,
                                    __getitem__=lambda self, x: {
-                                       1: Mock(spec=CallRequirement, dsl_source="Fixing('2011-01-01', 1)"),
-                                       2: Mock(spec=CallRequirement, dsl_source="Fixing('2012-02-02', 1)"),
-                                       3: Mock(spec=CallRequirement, dsl_source="Fixing('2013-03-03', 1)"),
+                                       1: Mock(spec=CallRequirement, dsl_source="Fixing('2011-01-01', Market('1'))", effective_present_time=datetime.datetime(2011, 1, 1), _dsl_expr=None),
+                                       2: Mock(spec=CallRequirement, dsl_source="Fixing('2012-02-02', Market('2'))", effective_present_time=datetime.datetime(2011, 2, 2), _dsl_expr=None),
+                                       3: Mock(spec=CallRequirement, dsl_source="Fixing('2013-03-03', Market('3'))", effective_present_time=datetime.datetime(2011, 3, 3), _dsl_expr=None),
                                    }[x])
         call_link_repo = MagicMock(spec=CallLinkRepository,
                                    __getitem__=lambda self, x: {
@@ -180,37 +190,47 @@ class TestFixingTimes(unittest.TestCase):
                                        2: Mock(spec=CallLink, call_id=3),
                                        3: Mock(spec=CallLink, call_id=1),
                                    }[x])
-        dates = list_fixing_dates(dependency_graph.id, call_requirement_repo, call_link_repo)
-        self.assertEqual(dates, [datetime.date(2011, 1, 1), datetime.date(2012, 2, 2), datetime.date(2013, 3, 3)])
+        call_dependencies_repo = MagicMock(spec=CallDependenciesRepo,
+                                   __getitem__=lambda self, x: {
+                                       1: Mock(spec=CallDependencies, dependencies=[]),
+                                       2: Mock(spec=CallDependencies, dependencies=[]),
+                                       3: Mock(spec=CallDependencies, dependencies=[]),
+                                   }[x])
+        market_dependencies_repo = MagicMock(spec=PerturbationDependenciesRepo)
 
+        observation_date = datetime.datetime(2011, 1, 1)
 
-class TestMarketNames(unittest.TestCase):
+        requirements = set()
+        identify_simulation_requirements(dependency_graph.id, call_requirement_repo, call_link_repo,
+                                         call_dependencies_repo, market_dependencies_repo, observation_date,
+                                         requirements)
 
-    def test_list_market_names(self):
-        contract_specification = Mock(spec=ContractSpecification, specification="Market('#1') + Market('#2')")
-        names = list_market_names(contract_specification=contract_specification)
-        self.assertEqual(names, ['#1', '#2'])
+        self.assertEqual(requirements, {
+            ('1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1)),
+            ('2', datetime.datetime(2012, 2, 2), datetime.datetime(2012, 2, 2)),
+            ('3', datetime.datetime(2013, 3, 3), datetime.datetime(2013, 3, 3)),
+        })
 
 
 class TestSimulatedPrices(unittest.TestCase):
 
     @patch('quantdsl.domain.services.simulated_prices.register_simulated_price')
     @patch('quantdsl.domain.services.simulated_prices.simulate_future_prices', return_value=[
-        ('#1', datetime.date(2011, 1, 1), 10),
-        ('#1', datetime.date(2011, 1, 2), 10),
-        ('#1', datetime.date(2011, 1, 2), 10),
+        ('#1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1), 10),
+        ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), 10),
+        ('#1', datetime.datetime(2011, 1, 2), datetime.datetime(2011, 1, 2), 10),
     ])
     def test_generate_simulated_prices(self, simulate_future_prices, register_simuated_price):
         market_calibration = Mock(spec=MarketCalibration)
         market_simulation = Mock(spec=MarketSimulation)
-        generate_simulated_prices(market_calibration=market_calibration, market_simulation=market_simulation)
+        generate_simulated_prices(market_simulation=market_simulation, market_calibration=market_calibration)
         self.assertEqual(register_simuated_price.call_count, len(simulate_future_prices.return_value))
 
     @patch('quantdsl.domain.services.simulated_prices.get_price_process', new=lambda name: Mock(
         spec=BlackScholesPriceProcess,
-        simulate_future_prices=lambda market_names, fixing_dates, observation_date, path_count, calibration_params: [
-            ('#1', datetime.date(2011, 1, 1), numpy.array([ 10.])),
-            ('#1', datetime.date(2011, 1, 2), numpy.array([ 10.])),
+        simulate_future_prices=lambda observation_date, requirements, path_count, calibration_params: [
+            ('#1', datetime.date(2011, 1, 1), scipy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 2), scipy.array([ 10.])),
         ]
     ))
     def test_simulate_future_prices(self):
@@ -218,8 +238,8 @@ class TestSimulatedPrices(unittest.TestCase):
         mc = Mock(spec=MarketCalibration)
         prices = simulate_future_prices(market_simulation=ms, market_calibration=mc)
         self.assertEqual(list(prices), [
-            ('#1', datetime.date(2011, 1, 1), numpy.array([ 10.])),
-            ('#1', datetime.date(2011, 1, 2), numpy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 1), scipy.array([ 10.])),
+            ('#1', datetime.date(2011, 1, 2), scipy.array([ 10.])),
         ])
 
 

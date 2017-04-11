@@ -3,7 +3,7 @@ import numpy as np
 import os
 try:
     import matplotlib.pylab as plt
-    print "Imported matplotlib.pylab"
+    print("Imported matplotlib.pylab")
 except ImportError:
     pass
 
@@ -77,11 +77,11 @@ def main():
     # - measurement errors. Cov[v(t)]=V
     observation_noise_covariance = np.diagflat(s)
     # - state vector m(t)=E[xt;et]
-    initial_state_estimate = np.array([[0.119], [2.857]])
+    initial_state_estimate = np.array([[0.019], [2.957]])
     # - covariance matrix C(t)=cov[xt,et]
     initial_estimate_covariance = np.array([[0.1, 0.1], [0.1, 0.1]])
 
-    predicted_observation_history, innovation_history, state_estimate_history, predicted_state_estimate_history, estimate_covariance_history, predicted_estimate_covariance_history, innovation_covariance_history, log_likelihood_history = kalman_filter(
+    state_estimate_history = kalman_filter(
         observations,
         observation_model,
         time_variable_constant_A,
@@ -96,8 +96,8 @@ def main():
     if plt:
         plot(state_estimate_history)
     else:
-        print "Not showing plot..."
-    print "Done"
+        print("Not showing plot...")
+    print("Done")
 
 
 def kalman_filter(observations, observation_model, time_variable_constant_A, state_transition_model, control_input, initial_state_estimate, initial_estimate_covariance, observation_noise_covariance, process_noise_covariance):
@@ -149,21 +149,20 @@ def kalman_filter(observations, observation_model, time_variable_constant_A, sta
 
         log_likelihood_history[i] = - (num_maturity_dates / 2) * np.log(2.* np.pi) - 0.5 * np.log(det_innovation_covariance) - np.dot(np.dot(0.5 * innovation.T, inverse_innovation_covariance), innovation)
 
-    return [predicted_observation_history, innovation_history, state_estimate_history, predicted_state_estimate_history, estimate_covariance_history, predicted_estimate_covariance_history, innovation_covariance_history, log_likelihood_history]
+    return state_estimate_history
 
 
 def plot(state_estimate_history):
+    spot_data_path = 'spotcrudeoil.txt'
+    spot_data = np.loadtxt(spot_data_path)
     estimated_spot = np.exp(state_estimate_history.sum(axis=1))
-    print estimated_spot
     longrun_mean = np.exp(state_estimate_history[:, 1])
-    print "Showing plot..."
-    plt.plot(estimated_spot, '-r')
-    plt.plot(longrun_mean, '-b')
-    plt.plot()
-    spotDataPath = 'spotcrudeoil.txt'
-    spotData = np.loadtxt(spotDataPath)
-    plt.plot(spotData, '-k')
-    # plt.legend('Estimated Price', 'Equilibrium Price', 'Observed Price')
+    # print(estimated_spot)
+    print("Showing plot...")
+    plt.plot(spot_data, '-k', label='Observed Price')
+    # plt.plot(longrun_mean, '-b', label='Equilibrium Price')
+    plt.plot(estimated_spot, '-r', label='Estimated Price')
+    # plt.legend([plot_estimated_spot, plot_longrun_mean, plot_spot_data], ['Estimated Price', 'Equilibrium Price', 'Observed Price'])
     #plt.title('Schwartz-Smith Optimization Results')
     plt.show()
 

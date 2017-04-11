@@ -9,10 +9,8 @@ from six import print_
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
-from quantdsl.infrastructure.runners.multiprocess import MultiProcessingDependencyGraphRunner
-from quantdsl.infrastructure.runners.singlethread import SingleThreadedDependencyGraphRunner
-from quantdsl.semantics import DslNamespace, DslExpression, Market, Fixing, DslError, Module, StochasticObject, \
-    compile_dsl_module
+from quantdsl.semantics import DslNamespace, DslExpression, Market, DslError, StochasticObject, \
+    compile_dsl_module, list_fixing_dates, find_delivery_points
 
 ## Application services.
 
@@ -37,7 +35,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
     if evaluation_kwds is None:
         evaluation_kwds = DslNamespace()
-    assert isinstance(evaluation_kwds, dict)
+    # assert isinstance(evaluation_kwds, dict)
     evaluation_kwds.update(extra_evaluation_kwds)
 
     if is_show_source:
@@ -134,7 +132,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
                 # Extract market names from the expression.
                 # Todo: Avoid doing this on the dependency graph, when all the Market elements must be in the original.
-                market_names = find_market_names(dsl_expr)
+                market_names = find_delivery_points(dsl_expr)
 
                 # Extract fixing dates from the expression.
                 # Todo: Perhaps collect the fixing dates?
@@ -273,29 +271,6 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         return value
 
 
-def list_fixing_dates(dsl_expr):
-    # Find all unique fixing dates.
-    return sorted(list(find_fixing_dates(dsl_expr)))
-
-
-def find_fixing_dates(dsl_expr):
-    for dsl_fixing in dsl_expr.find_instances(dsl_type=Fixing):
-        assert isinstance(dsl_fixing, Fixing)
-        if dsl_fixing.date is not None:
-            yield dsl_fixing.date
-
-
-def find_market_names(dsl_expr):
-    # Find all unique market names.
-    all_market_names = set()
-    for dsl_market in dsl_expr.find_instances(dsl_type=Market):
-        assert isinstance(dsl_market, Market)
-        market_name = dsl_market.name
-        if market_name not in all_market_names:  # Deduplicate.
-            all_market_names.add(market_name)
-            yield dsl_market.name
-
-
 def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None, **extraCompileKwds):
     """
     Returns a DSL expression, created according to the given DSL source module.
@@ -312,13 +287,13 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
     """
     if compile_kwds is None:
         compile_kwds = DslNamespace()
-    assert isinstance(compile_kwds, dict)
+    # assert isinstance(compile_kwds, dict)
     compile_kwds.update(extraCompileKwds)
 
     # Parse the source into a DSL module object.
     dsl_module = dsl_parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
 
-    assert isinstance(dsl_module, Module)
+    # assert isinstance(dsl_module, Module)
 
     # Compile the module into either a dependency graph
     # if 'is_parallel' is True, otherwise a single primitive expression.

@@ -5,11 +5,13 @@ import sys
 import argh
 import multiprocessing as mp
 import json
-import quantdsl
+
+from eventsourcing.utils.time import UTC
+
 from quantdsl.exceptions import DslError
 from quantdsl.services import dsl_eval, DEFAULT_PRICE_PROCESS_NAME, DEFAULT_PATH_COUNT
 
-now = datetime.datetime.now(tz=quantdsl.utc)
+now = datetime.datetime.now(tz=UTC)
 defaultObservationTime = int("%04d%02d%02d" % (now.year, now.month, now.day))
 
 
@@ -54,18 +56,18 @@ def main(source, observation_date=defaultObservationTime, calibration=None, num_
 
     # Todo: Make this work with Python 3.
 
-    print "DSL source from: %s" % source_url
-    print
+    print("DSL source from: %s" % source_url)
+    print()
     dsl_source = get_resource(source_url)
 
     if calibration_url:
-        print "Calibration from: %s" % calibration_url
-        print
+        print("Calibration from: %s" % calibration_url)
+        print()
         market_calibration_json = get_resource(calibration_url)
         try:
             market_calibration = json.loads(market_calibration_json)
-        except Exception, e:
-            msg = "Unable to load JSON from %s: %s: %s" % (calibration_url, e, market_calibration_json)
+        except Exception:
+            msg = "Unable to load JSON from %s: %s" % (calibration_url, market_calibration_json)
             raise ValueError(msg)
     else:
         market_calibration = {}
@@ -74,7 +76,7 @@ def main(source, observation_date=defaultObservationTime, calibration=None, num_
         int(''.join(str(observation_date)[0:4])),
         int(''.join(str(observation_date)[4:6])),
         int(''.join(str(observation_date)[6:8]))
-    ).replace(tzinfo=quantdsl.semantics.utc)
+    ).replace(tzinfo=UTC)
 
     try:
         result = dsl_eval(
@@ -91,17 +93,17 @@ def main(source, observation_date=defaultObservationTime, calibration=None, num_
             is_show_source=show_source,
             price_process_name=price_process,
         )
-    except DslError, e:
-        print "Failed to dsl_eval DSL source:"
-        print dsl_source
-        print
-        print "Error:", e
-        print
+    except DslError as e:
+        print("Failed to dsl_eval DSL source:")
+        print(dsl_source)
+        print()
+        print("Error:", e)
+        print()
     else:
         if is_verbose:
             sys.stdout.write("Result: ")
             sys.stdout.flush()
-        print json.dumps(result, indent=4, sort_keys=True)
+        print(json.dumps(result, indent=4, sort_keys=True))
 
 if __name__ == '__main__':
     argh.dispatch_command(main)

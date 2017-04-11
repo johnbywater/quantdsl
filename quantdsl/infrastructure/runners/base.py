@@ -5,7 +5,7 @@ import six
 from quantdsl.domain.model.call_specification import CallSpecification
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.exceptions import DslSyntaxError, DslSystemError
-from quantdsl.semantics import Module, DslNamespace, DslExpression, compile_dsl_module
+from quantdsl.semantics import Module, DslNamespace, DslExpression, compile_dsl_module, list_fixing_dates
 
 
 class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
@@ -37,12 +37,10 @@ class DependencyGraphRunner(six.with_metaclass(ABCMeta)):
         from quantdsl.domain.services.parser import dsl_parse
         stubbed_module = dsl_parse(dsl_source)
         assert isinstance(stubbed_module, Module)
-        # market_names = find_market_names(stubbed_module)
         fixing_dates = list_fixing_dates(stubbed_module)
         if effective_present_time is not None:
             fixing_dates.append(effective_present_time)
 
-        # return evaluation_kwds
         # Rebuild the data structure (there was a problem, but I can't remember what it was.
         # Todo: Try without this block, perhaps the problem doesn't exist anymore.
         if 'all_market_prices' in evaluation_kwds:
@@ -100,7 +98,7 @@ def handle_result(call_requirement_id, result_value, results, dependents, depend
     # Set the results.
     results[call_requirement_id] = result_value
 
-    # Check if subscribers are ready to be executed.
+    # Check if dependents are ready to be executed.
     for dependent_id in dependents[call_requirement_id]:
         if dependent_id in results:
             continue

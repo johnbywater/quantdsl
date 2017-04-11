@@ -19,11 +19,31 @@ setup(
     name='quantdsl',
     version=__version__,
     packages=find_packages(),
-    # just use auto-include and specify special items in MANIFEST.in
     zip_safe=False,
-    install_requires=open('requirements.txt').read().split('\n'),
+    install_requires=[
+        'argh',
+        'celery',
+        'mock==1.0.1',
+        'scipy',
+        'python-dateutil==2.2',
+        'requests',
+        'six==1.7.3',
+        'filelock',
+        'eventsourcing==0.9.4',
+        'pytz',
+        'blist',
+    ],
+    extras_require={
+        'test': [
+            'sqlalchemy',
+            'gevent',
+        ],
+        'sqlalchemy': [
+            'sqlalchemy',
+        ],
+    },
+
     scripts=[
-        os.path.join('scripts', 'quant-dsl.py'),
     ],
     author='John Bywater',
     author_email='john.bywater@appropriatesoftware.net',

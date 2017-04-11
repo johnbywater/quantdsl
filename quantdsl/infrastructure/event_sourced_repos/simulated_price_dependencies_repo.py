@@ -1,0 +1,8 @@
+from eventsourcing.infrastructure.event_sourced_repo import EventSourcedRepository
+
+from quantdsl.domain.model.simulated_price_requirements import SimulatedPriceRequirements, SimulatedPriceRequirementsRepository
+
+
+class SimulatedPriceRequirementsRepo(SimulatedPriceRequirementsRepository, EventSourcedRepository):
+
+    domain_class = SimulatedPriceRequirements

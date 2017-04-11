@@ -1,0 +1,8 @@
+from eventsourcing.infrastructure.event_sourced_repo import EventSourcedRepository
+
+from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies, PerturbationDependenciesRepository
+
+
+class PerturbationDependenciesRepo(PerturbationDependenciesRepository, EventSourcedRepository):
+
+    domain_class = PerturbationDependencies

@@ -1,10 +1,10 @@
 import datetime
-from eventsourcing.domain.model.events import publish
+from eventsourcing.domain.model.events import publish, assert_event_handlers_empty
 from mock import patch
 from mock import MagicMock
 import unittest
 
-from quantdsl.domain.model.market_calibration import MarketCalibrationRepository, MarketCalibration
+from quantdsl.domain.model.market_calibration import MarketCalibrationRepository
 from quantdsl.domain.model.market_simulation import MarketSimulation, MarketSimulationRepository
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 
@@ -12,13 +12,14 @@ from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 class TestSimulationSubscriber(unittest.TestCase):
 
     def setUp(self):
+        assert_event_handlers_empty()
         market_simulation_repo = MagicMock(spec=MarketSimulationRepository)
         market_calibration_repo = MagicMock(spec=MarketCalibrationRepository)
-
         self.simulation_subscriber = SimulationSubscriber(market_calibration_repo, market_simulation_repo)
 
     def tearDown(self):
         self.simulation_subscriber.close()
+        assert_event_handlers_empty()
 
     @patch('quantdsl.infrastructure.simulation_subscriber.generate_simulated_prices')
     def test_simulation_subscriber(self, generate_simulated_prices):

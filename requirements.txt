@@ -1,9 +1,13 @@
 argh
 celery
 mock==1.0.1
-numpy
+scipy
 python-dateutil==2.2
 requests
-scipy
 six==1.7.3
-eventsourcing
+eventsourcing==0.9.4
+sqlalchemy
+filelock
+gevent==1.1rc3
+pytz
+blist

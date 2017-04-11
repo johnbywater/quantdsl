@@ -2,29 +2,29 @@ language: python
 
 sudo: false
 
-matrix:
-  include:
-    - python: 2.7
-      env: NUMPY=1.9 SCIPY=0.15
-    - python: 3.4
-      env: NUMPY=1.9 SCIPY=0.15
+services:
+  - rabbitmq
+
+python:
+  - "2.7"
+  - "3.3"
+  - "3.4"
 
 before_install:
-# - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
- - travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
- - chmod +x miniconda.sh
- - bash miniconda.sh -b -p $HOME/miniconda
- - export PATH=/home/travis/miniconda/bin:$PATH
- - conda update --yes conda
+- travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
+- chmod +x miniconda.sh
+- bash miniconda.sh -b -p $HOME/miniconda
+- export PATH=/home/travis/miniconda/bin:$PATH
+- conda update --yes conda
+- conda install --yes atlas numpy scipy matplotlib
 
 install:
- - conda install --yes numpy=$NUMPY scipy=$SCIPY matplotlib pip
- - conda install --yes -c dan_blanchard python-coveralls
- - pip install setuptools
- - pip install .
+- pip install -U pip
+- pip install .[test]
+- pip install python-coveralls
 
 script:
- - coverage run --source quantdsl -m unittest discover quantdsl
+- coverage run -m unittest discover quantdsl -v
 
 after_success:
-  - coveralls --config_file .coveragerc
+- coveralls
