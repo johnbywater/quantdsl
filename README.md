@@ -75,11 +75,10 @@ snippets in this section have been tested. Please feel free to experiment by mak
 If you are using a Python virtualenv, please check that your virtualenv is activated before installing the library
 and running your program.
 
-Let's jump in at the deep-end with a simple model of a power plant.
+Let's jump in at the deep-end with a simple model of a gas-fired power station.
 
 ```python
 quantdsl_module = """
-
 PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Running())
 
 def PowerStation(start_date, end_date, gas, power, time_since_off):
@@ -143,7 +142,10 @@ calibration_params = {
     'GAS-POWER-CORRELATION': 0.4,
 }
 
-market_calibration = app.register_market_calibration(price_process_name, calibration_params)
+market_calibration = app.register_market_calibration(
+    price_process_name,
+    calibration_params
+)
 ```
 
 Make a simulation from the calibration.
@@ -151,9 +153,12 @@ Make a simulation from the calibration.
 ```python
 import datetime
 
-market_simulation = app.simulate(dependency_graph, market_calibration,
-                                 path_count=20000,
-                                 observation_date=datetime.datetime(2011, 1, 1))
+market_simulation = app.simulate(
+    dependency_graph,
+    market_calibration,
+    path_count=20000,
+    observation_date=datetime.datetime(2011, 1, 1)
+)
 ```
 
 Make an evaluation using the simulation.
