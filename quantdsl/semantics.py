@@ -672,7 +672,7 @@ class FunctionDef(DslObject):
         if not is_destacking and call_cache_key in self.call_cache:
             return self.call_cache[call_cache_key]
 
-        if pending_call_stack and not is_destacking and not 'nostub' in self.decorator_names:
+        if pending_call_stack and not is_destacking and not 'inline' in self.decorator_names:
             # Just stack the call expression and return a stub.
 
             # Create a new stub - the stub ID is the name of the return value of the function call..
@@ -994,9 +994,9 @@ class Module(DslObject):
         return self._args[0]
 
 
-def nostub(*args):
+def inline(*args):
     """
-    Dummy 'nostub' Quant DSL decorator - we just want the name in the namespace.
+    Dummy 'inline' Quant DSL decorator - we just want the name in the namespace.
     """
     import mock
     return mock.Mock
