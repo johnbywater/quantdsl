@@ -457,6 +457,8 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
+PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), 2)
+
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
         Wait(start_date, Choice(
@@ -484,7 +486,6 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), 2)
 """
         self.assert_contract_value(specification, 11.57, expected_call_count=37)
 
