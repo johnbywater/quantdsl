@@ -27,9 +27,11 @@ def build_and_test(cwd):
         # Rebuild virtualenvs.
         rebuild_virtualenv(cwd, tmpcwd, python_executable)
 
+        # Upgrade pip.
+        subprocess.check_call(['bin/pip', 'install', '--upgrade', 'pip'], cwd=tmpcwd)
+
         # Install from dist folder.
-        subprocess.check_call(['bin/pip', 'install', '-r', '../requirements.txt'], cwd=tmpcwd)
-        subprocess.check_call(['bin/pip', 'install', '-U', '../dist/quantdsl-%s.tar.gz' % get_version()], cwd=tmpcwd)
+        subprocess.check_call(['bin/pip', 'install', '.[test]'], cwd=tmpcwd)
 
         # Check installed tests all pass.
         test_installation(tmpcwd)
@@ -43,7 +45,7 @@ def build_and_test(cwd):
         rebuild_virtualenv(cwd, tmpcwd, python_executable)
 
         # Install from Test PyPI.
-        subprocess.check_call(['bin/pip', 'install', '-U', 'quantdsl[test]=='+get_version(),
+        subprocess.check_call(['bin/pip', 'install', 'quantdsl[test]=='+get_version(),
                                '--index-url', 'https://testpypi.python.org/simple',
                                '--extra-index-url', 'https://pypi.python.org/simple'
                                ],

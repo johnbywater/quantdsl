@@ -23,18 +23,18 @@ setup(
     install_requires=[
         'argh',
         'celery',
-        'numpy',
+        'mock==1.0.1',
         'scipy',
-        'python-dateutil',
+        'python-dateutil==2.2',
         'requests',
-        'six',
-        'eventsourcing',
+        'six==1.7.3',
+        'filelock',
+        'eventsourcing==0.9.4',
         'pytz',
         'blist',
     ],
     extras_require={
         'test': [
-            'mock',
             'sqlalchemy',
             'gevent',
         ],
@@ -44,7 +44,6 @@ setup(
     },
 
     scripts=[
-        os.path.join('scripts', 'quant-dsl.py'),
     ],
     author='John Bywater',
     author_email='john.bywater@appropriatesoftware.net',

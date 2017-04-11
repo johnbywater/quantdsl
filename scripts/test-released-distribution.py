@@ -22,6 +22,7 @@ def test_released_distribution(cwd):
         rebuild_virtualenv(cwd, tmpcwd, python_executable)
 
         # Install from PyPI.
+        subprocess.check_call(['bin/pip', 'install', '-U', 'pip'], cwd=tmpcwd)
         subprocess.check_call(['bin/pip', 'install', '--no-cache-dir', '-U', 'quantdsl[test]'], cwd=tmpcwd)
 
         # Check installed tests all pass.
