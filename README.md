@@ -79,39 +79,43 @@ Let's jump in at the deep-end with a simple model of a gas-fired power station.
 
 ```python
 quantdsl_module = """
-PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Running())
+PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Stopped(1))
 
-def PowerStation(start_date, end_date, gas, power, time_since_off):
-    if (start_date < end_date):
-        Wait(start_date, Choice(
-            Add(
-                PowerStation(start_date + TimeDelta('1d'), end_date, gas, power, Running()),
-                ProfitFromRunning(start_date, gas, power, time_since_off)
-            ),
-            PowerStation(start_date + TimeDelta('1d'), end_date, gas, power, Stopped(time_since_off)),
-        ))
+def PowerStation(start, end, gas, power, duration_off):
+    if (start < end):
+        Wait(start,
+            Choice(
+                ProfitFromRunning(gas, power, duration_off) + PowerStation(
+                    Tomorrow(start), end, gas, power, Running()
+                ),
+                PowerStation(
+                    Tomorrow(start), end, gas, power, Stopped(duration_off)
+                )
+            )
+        )
     else:
         return 0
+
+@inline
+def ProfitFromRunning(gas, power, duration_off):
+    if duration_off > 1:
+        return 0.75 * power - gas
+    elif duration_off == 1:
+        return 0.90 * power - gas
+    else:
+        return 1.00 * power - gas
 
 @inline
 def Running():
     return 0
 
 @inline
-def Stopped(time_since_off):
-    return Min(2, time_since_off + 1)
+def Stopped(duration_off):
+    return duration_off + 1
 
 @inline
-def ProfitFromRunning(start_date, gas, power, time_since_off):
-    # Cold, lowest efficiency.
-    if time_since_off > 1:
-        return Fixing(start_date, 0.75 * power - gas)
-    # Warm, low efficiency.
-    elif time_since_off == 1:
-        return Fixing(start_date, 0.90 * power - gas)
-    # Hot, max efficiency.
-    else:
-        return Fixing(start_date, 1.00 * power - gas)
+def Tomorrow(today):
+    return today + TimeDelta('1d')
 """
 ```
 
@@ -171,5 +175,5 @@ Inspect the estimated value.
 
 ```python
 estimated_value = evaluation.result_value.mean()
-assert 19 < estimated_value < 20, estimated_value
+assert 17 < estimated_value < 18, estimated_value
 ```
