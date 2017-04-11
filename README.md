@@ -94,15 +94,15 @@ def PowerStation(start_date, end_date, gas, power, time_since_off):
     else:
         return 0
 
-@nostub
+@inline
 def Running():
     return 0
 
-@nostub
+@inline
 def Stopped(time_since_off):
     return Min(2, time_since_off + 1)
 
-@nostub
+@inline
 def ProfitFromRunning(start_date, gas, power, time_since_off):
     # Cold, lowest efficiency.
     if time_since_off > 1:

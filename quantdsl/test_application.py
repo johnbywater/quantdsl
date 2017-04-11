@@ -409,7 +409,7 @@ def American(starts, ends, strike, underlying):
     else:
         Option(starts, strike, underlying, 0)
 
-@nostub
+@inline
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
@@ -469,15 +469,15 @@ def PowerPlant(start_date, end_date, underlying, time_since_off):
     else:
         return 0
 
-@nostub
+@inline
 def Running():
     return 0
 
-@nostub
+@inline
 def Stopped(time_since_off):
     return Min(2, time_since_off + 1)
 
-@nostub
+@inline
 def ProfitFromRunning(start_date, underlying, time_since_off):
     if time_since_off == 0:
         return Fixing(start_date, underlying)
@@ -548,11 +548,11 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-@nostub
+@inline
 def Exercise(f, start_date, end_date, underlying, quantity):
     return Hold(f, start_date, end_date, underlying, quantity - 1) + Fixing(start_date, underlying)
 
-@nostub
+@inline
 def Hold(f, start_date, end_date, underlying, quantity):
     return f(start_date + TimeDelta('1d'), end_date, underlying, quantity)
 
@@ -625,11 +625,11 @@ def Swing(start, end, step, market, quantity):
     else:
         0
 
-@nostub
+@inline
 def HoldSwing(start, end, step, market, quantity):
     On(start, Swing(start+step, end, step, market, quantity))
 
-@nostub
+@inline
 def ExerciseSwing(start, end, step, market, quantity, vol):
     Settlement(start, vol*market) + HoldSwing(start, end, step, market, quantity-vol)
 
@@ -683,11 +683,11 @@ def GasStorage(start, end, commodity_name, quantity, limit, step):
     else:
         0
 
-@nostub
+@inline
 def Continue(start, end, commodity_name, quantity, limit, step):
     GasStorage(start + step, end, commodity_name, quantity, limit, step)
 
-@nostub
+@inline
 def Inject(start, end, commodity_name, quantity, limit, step, vol):
     Continue(start, end, commodity_name, quantity + vol, limit, step) - \
     Settlement(start, vol * ForwardMarket(commodity_name, start))

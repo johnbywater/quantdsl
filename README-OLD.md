@@ -17,7 +17,7 @@ Stable releases of `quantdsl` are available to [download from the Python Package
 Introduction
 ------------
 
-Here is an American call option expressed in *Quant DSL*. There are two user defined functions (*"American"* and *"Option"*), and an expression which declares that the owner of the option may at any time during April 2015 buy one unit of "NBP" at a strike price of 9 units of currency. (The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *nostub* are elements of *Quant DSL*.)
+Here is an American call option expressed in *Quant DSL*. There are two user defined functions (*"American"* and *"Option"*), and an expression which declares that the owner of the option may at any time during April 2015 buy one unit of "NBP" at a strike price of 9 units of currency. (The terms *Wait*, *Choice*, *Market*, *Date*, *TimeDelta* and *inline* are elements of *Quant DSL*.)
 
 
 ```
@@ -29,7 +29,7 @@ def American(starts, ends, strike, underlying):
     else:
         Option(starts, strike, underlying, 0)
 
-@nostub
+@inline
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
@@ -498,11 +498,11 @@ assert str(dsl_expr) == '((2 + 1) + 2) + (2 + 1)'
 
 #### Function Decorators
 
-At the moment, `quantdsl` supports a function decorator called `nostub`. If a user defined function is decorated with `nostub`, its call requirements will not become separate parts of the dependency graph but will be inlined within the results of other function calls. This is an attempt to avoid maximal proliferation of dependency graph nodes.
+At the moment, `quantdsl` supports a function decorator called `inline`. If a user defined function is decorated with `inline`, its call requirements will not become separate parts of the dependency graph but will be inlined within the results of other function calls. This is an attempt to avoid maximal proliferation of dependency graph nodes.
 
 ```python
 dsl_source = """
-@nostub
+@inline
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 """
