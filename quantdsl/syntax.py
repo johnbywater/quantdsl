@@ -1,4 +1,6 @@
 import ast
+import importlib
+
 import six
 
 from quantdsl.exceptions import DslSyntaxError
@@ -6,15 +8,15 @@ from quantdsl.exceptions import DslSyntaxError
 
 class DslParser(object):
 
-    def parse(self, dsl_source, filename='<unknown>', dsl_classes=None):
+    def __init__(self, dsl_classes=None):
+        if dsl_classes is None:
+            dsl_classes = {}
+        self.dsl_classes = dsl_classes
+
+    def parse(self, dsl_source, filename='<unknown>'):
         """
         Creates a DSL Module object from a DSL source text.
         """
-        self.dsl_classes = {}
-        if dsl_classes:
-            # assert isinstance(dsl_classes, dict)
-            self.dsl_classes.update(dsl_classes)
-
         if not isinstance(dsl_source, six.string_types):
             raise DslSyntaxError("Can't dsl_parse non-string object", dsl_source)
 
@@ -23,7 +25,7 @@ class DslParser(object):
             # Parse as Python source code, into a Python abstract syntax tree.
             ast_module = ast.parse(dsl_source, filename=filename, mode='exec')
         except SyntaxError as e:
-            raise DslSyntaxError("DSL source code is not valid Python code", e)
+            raise DslSyntaxError("DSL source code is not valid Python code: {}".format(dsl_source), e)
 
         # Generate Quant DSL from Python AST.
         return self.visitAstNode(ast_module)
@@ -58,8 +60,69 @@ class DslParser(object):
         Returns a DSL Module, with a list of DSL expressions as the body.
         """
         # assert isinstance(node, ast.Module)
-        body = [self.visitAstNode(n) for n in node.body]
+        body = []
+
+        def inline(body):
+            flat = []
+            assert isinstance(body, list), body
+            for obj in body:
+                if isinstance(obj, list):
+                    for _obj in inline(obj):
+                        flat.append(_obj)
+                else:
+                    flat.append(obj)
+            return flat
+
+        for n in node.body:
+            dsl_object = self.visitAstNode(n)
+
+            if isinstance(dsl_object, list):
+                for _dsl_object in inline(dsl_object):
+                    body.append(_dsl_object)
+            else:
+                body.append(dsl_object)
+
         return self.dsl_classes['Module'](body, node=node)
+
+    def visitImport(self, node):
+        """
+        Visitor method for ast.Import nodes.
+
+        Returns the result of visiting the expression held by the return statement.
+        """
+        assert isinstance(node, ast.Import)
+        nodes = []
+        for imported in node.names:
+            name = imported.name
+            # spec = importlib.util.find_spec()
+            module = importlib.import_module(name)
+            source = open(module.__file__).read()
+            dsl_node = self.parse(source, filename=module.__file__)
+            assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
+            for node in dsl_node.body:
+                nodes.append(node)
+
+        return nodes
+
+    def visitImportFrom(self, node):
+        """
+        Visitor method for ast.Import nodes.
+
+        Returns the result of visiting the expression held by the return statement.
+        """
+        assert isinstance(node, ast.ImportFrom)
+        nodes = []
+        if node.module == 'quantdsl.semantics':
+            return nodes
+        imported_names = [a.name for a in node.names]
+        module = importlib.import_module(node.module)
+        source = open(module.__file__).read()
+        dsl_node = self.parse(source, filename=module.__file__)
+        assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
+        for dsl_obj in dsl_node.body:
+            # if dsl_obj.name in imported_names:
+            nodes.append(dsl_obj)
+        return nodes
 
     def visitReturn(self, node):
         """

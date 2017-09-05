@@ -95,11 +95,12 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         return market_simulation
 
     def assert_contract_value(self, specification, expected_value, expected_deltas=None, expected_call_count=None):
+
         # Register the specification (creates call dependency graph).
         contract_specification = self.app.register_contract_specification(specification=specification)
 
         # Check the call count (the number of nodes of the call dependency graph).
-        call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+        call_count = self.calc_call_count(contract_specification.id)
 
         if expected_call_count is not None:
             self.assertEqual(call_count, expected_call_count)
@@ -156,6 +157,9 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             expected_value = expected_deltas[perturbation]
             error_msg = "{}: {} != {}".format(perturbation, actual_value, expected_value)
             self.assertAlmostEqual(actual_value, expected_value, places=2, msg=error_msg)
+
+    def calc_call_count(self, contract_specification_id):
+        return self.app.calc_call_count(contract_specification_id)
 
     def scalar(self, contract_value):
         if isinstance(contract_value, scipy.ndarray):
@@ -743,7 +747,6 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'limit': 2
         }
         self.assert_contract_value(specification, 15.3496, {}, expected_call_count=10)
-
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {

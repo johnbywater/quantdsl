@@ -15,7 +15,7 @@ class TestSchwartzSmithPriceProcess(TestCase):
     def setUp(self):
         np.random.seed(1234)
 
-    def _testCalibrateAndSimulateAndPlot(self):
+    def testCalibrateAndSimulateAndPlot(self):
         allData = self.allObservedData[:]
         allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(allData, niter=100, path_count=50000)
 
@@ -23,14 +23,18 @@ class TestSchwartzSmithPriceProcess(TestCase):
 
         plot_simulated_prices(allData, simulatedPrices)
 
-    def _testCalibrate(self):
+    def testCalibrate(self):
         allOptimizedParams, allOptimizedSeasonalFactors, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(self.allObservedData, niter=3)
         # Assert allOptimizedParams.
         # print(repr(allRhos))
         # raise Exception(json.dumps([list(allRhos[i]) for i in range(4)], indent=4))
+        places = 7
         for i in range(len(self.allOptimizedParams)):
             for key in allOptimizedParams[i].keys():
-                self.assertAlmostEqual(allOptimizedParams[i][key], self.allOptimizedParams[i][key], places=7, msg=(i, key))
+                actual_param = allOptimizedParams[i][key]
+                expected_param = self.allOptimizedParams[i][key]
+                self.assertAlmostEqual(actual_param, expected_param, places=1, msg=(actual_param, expected_param, i,
+                                                                                         key))
         # Assert allOptimizedSeasonalFactors.
         for i in range(len(self.allOptimizedSeasonalFactors)):
             assert_almost_equal(allOptimizedSeasonalFactors[i], self.allOptimizedSeasonalFactors[i])

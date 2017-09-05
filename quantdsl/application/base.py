@@ -13,6 +13,7 @@ from quantdsl.domain.model.contract_valuation import create_contract_valuation_i
 from quantdsl.domain.model.dependency_graph import register_dependency_graph
 from quantdsl.domain.model.market_calibration import compute_market_calibration_params, register_market_calibration
 from quantdsl.domain.model.market_simulation import MarketSimulation, register_market_simulation
+from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.contract_valuations import evaluate_call_and_queue_next_calls, loop_on_evaluation_queue
 from quantdsl.domain.services.simulated_prices import identify_simulation_requirements
 from quantdsl.infrastructure.dependency_graph_subscriber import DependencyGraphSubscriber
@@ -235,3 +236,6 @@ class QuantDslApplication(EventSourcingApplication):
         call_result_id = make_call_result_id(contract_valuation_id, contract_specification.id)
         self.start_contract_valuation(contract_valuation_id, contract_specification.id, market_simulation)
         return self.call_result_repo[call_result_id]
+
+    def calc_call_count(self, contract_specification_id):
+        return len(list(regenerate_execution_order(contract_specification_id, self.call_link_repo)))
