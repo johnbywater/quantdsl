@@ -149,7 +149,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             simulated_price = self.app.simulated_price_repo[simulated_price_id]
 
             dy = perturbed_value - main_result.result_value
-            dx = Market.PERTURBATION_FACTOR * simulated_price.value
+            dx = market_simulation.perturbation_factor * simulated_price.value
             contract_delta = dy / dx
 
             # Check the delta.

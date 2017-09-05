@@ -8,6 +8,7 @@ from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import register_call_result, make_call_result_id, CallResult, \
     CallResultRepository
+from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
@@ -360,7 +361,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     """
     # assert isinstance(contract_valuation, ContractValuation), contract_valuation
     assert isinstance(call_requirement, CallRequirement), call_requirement
-    # assert isinstance(market_simulation, MarketSimulation), market_simulation
+    assert isinstance(market_simulation, MarketSimulation), market_simulation
     # assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
     # assert isinstance(call_result_repo, CallResultRepository)
     # assert isinstance(simulated_price_dict, SimulatedPriceRepository)
@@ -420,14 +421,16 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     if compute_pool is None:
         result_value, perturbed_values = evaluate_dsl_expr(dsl_expr, first_commodity_name, market_simulation.id,
                                                            market_simulation.interest_rate, present_time, simulated_value_dict,
-                                                           perturbation_dependencies.dependencies, dependency_results, market_simulation.path_count)
+                                                           perturbation_dependencies.dependencies, 
+                                                           dependency_results, market_simulation.path_count,
+                                                           market_simulation.perturbation_factor)
     else:
         assert isinstance(compute_pool, Pool)
         async_result = compute_pool.apply_async(
             evaluate_dsl_expr,
             args=(dsl_expr, first_commodity_name, market_simulation.id, market_simulation.interest_rate,
                   present_time, simulated_value_dict, perturbation_dependencies.dependencies, dependency_results,
-                  market_simulation.path_count),
+                  market_simulation.path_count, market_simulation.perturbation_factor),
         )
         gevent.sleep(0.0001)
         result_value, perturbed_values = async_result.get()
@@ -437,12 +440,13 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
-                      perturbation_dependencies, dependency_results, path_count):
+                      perturbation_dependencies, dependency_results, path_count, perturbation_factor):
 
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
         'interest_rate': interest_rate,
+        'perturbation_factor': perturbation_factor,
         'present_time': present_time,
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,

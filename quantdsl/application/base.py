@@ -134,12 +134,12 @@ class QuantDslApplication(EventSourcingApplication):
         return register_market_calibration(price_process_name, calibration_params)
 
     def register_market_simulation(self, market_calibration_id, observation_date, requirements, path_count,
-                                   interest_rate):
+                                   interest_rate, perturbation_factor=0.001):
         """
         A market simulation has simulated prices at specified times across a set of markets.
         """
         return register_market_simulation(market_calibration_id, observation_date, requirements, path_count,
-                                          interest_rate)
+                                          interest_rate, perturbation_factor)
 
     def register_dependency_graph(self, contract_specification_id):
         return register_dependency_graph(contract_specification_id)
@@ -219,7 +219,7 @@ class QuantDslApplication(EventSourcingApplication):
         return self.register_contract_specification(specification=specification)
 
     def simulate(self, contract_specification, market_calibration, observation_date, path_count=20000,
-                 interest_rate='2.5'):
+                 interest_rate='2.5', perturbation_factor=0.001):
         simulation_requirements = set()
         self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements)
         market_simulation = self.register_market_simulation(
@@ -228,6 +228,7 @@ class QuantDslApplication(EventSourcingApplication):
             observation_date=observation_date,
             path_count=path_count,
             interest_rate=interest_rate,
+            perturbation_factor=perturbation_factor,
         )
         return market_simulation
 

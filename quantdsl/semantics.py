@@ -1100,11 +1100,12 @@ class Lift(DslExpression):
     def evaluate(self, **kwds):
         # Get the perturbed market name, if set.
         active_perturbation = kwds.get('active_perturbation', None)
+        perturbation_factor = kwds['perturbation_factor']
 
         # If this is a perturbed market, perturb the simulated value.
         expr_value = self.expr.evaluate(**kwds)
         if self.get_perturbation(**kwds) == active_perturbation:
-            evaluated_value = expr_value * (1 + Market.PERTURBATION_FACTOR)
+            evaluated_value = expr_value * (1 + perturbation_factor)
         else:
             evaluated_value = expr_value
         return evaluated_value
@@ -1146,7 +1147,6 @@ functionalDslClasses = {
 # Todo: Add something to Map a contract function to a sequence of values (range, list comprehension).
 
 class AbstractMarket(StochasticObject, DslExpression):
-    PERTURBATION_FACTOR = 0.01
 
     def evaluate(self, **kwds):
         # Get the effective present time (needed to form the simulated_value_id).

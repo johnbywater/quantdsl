@@ -77,6 +77,6 @@ def identify_simulation_requirements(dependency_graph_id, call_requirement_repo,
         # Register the perturbation dependencies in the repo (needed when evaluating the call).
         register_perturbation_dependencies(call_id, list(perturbation_dependencies))
 
-        # Save the pertubation dependencies for this call, so they are available for the dependent calls.
+        # Save the perturbation dependencies for this call, so they are available for the dependent calls.
         all_perturbation_dependencies[call_id] = perturbation_dependencies
 
