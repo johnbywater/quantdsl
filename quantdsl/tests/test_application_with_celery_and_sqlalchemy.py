@@ -8,7 +8,7 @@ from multiprocessing import cpu_count
 
 from quantdsl.infrastructure.celery.tasks import get_quant_dsl_app_for_celery_worker, \
     close_quant_dsl_app_for_celery_worker
-from quantdsl.test_application import ContractValuationTests, TestCase
+from quantdsl.tests.test_application import ContractValuationTests, TestCase
 
 
 class TestApplicationWithCeleryAndSQLAlchemy(TestCase, ContractValuationTests):

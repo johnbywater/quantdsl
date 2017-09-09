@@ -97,7 +97,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
     def assert_contract_value(self, specification, expected_value, expected_deltas=None, expected_call_count=None):
 
         # Register the specification (creates call dependency graph).
-        contract_specification = self.app.register_contract_specification(specification=specification)
+        contract_specification = self.app.register_contract_specification(source_code=specification)
 
         # Check the call count (the number of nodes of the call dependency graph).
         call_count = self.calc_call_count(contract_specification.id)

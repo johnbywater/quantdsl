@@ -1,10 +1,10 @@
-from quantdsl.test_application import ContractValuationTestCase, TestCase
+from quantdsl.tests.test_application import ContractValuationTestCase, TestCase
 
 
 class ExpressionTests(ContractValuationTestCase, TestCase):
     def test_generate_valuation_addition(self):
         specification_tmpl = """
-from quantdsl.tests.src.storage1 import GasStorage, Date
+from quantdsl.lib.storage1 import GasStorage, Date
 
 GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quantity)s, %(limit)s, TimeDelta('1m'))
 """

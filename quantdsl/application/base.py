@@ -119,11 +119,11 @@ class QuantDslApplication(EventSourcingApplication):
         """
         return compute_market_calibration_params(price_process_name, historical_data)
 
-    def register_contract_specification(self, specification):
+    def register_contract_specification(self, source_code):
         """
-        The contract specification is a Quant DSL module.
+        Registers a new contract specification, from given Quant DSL source code.
         """
-        return register_contract_specification(specification=specification)
+        return register_contract_specification(source_code=source_code)
 
     def register_market_calibration(self, price_process_name, calibration_params):
         """
@@ -215,8 +215,8 @@ class QuantDslApplication(EventSourcingApplication):
             call_result_lock=lock,
         )
 
-    def compile(self, specification):
-        return self.register_contract_specification(specification=specification)
+    def compile(self, source_code):
+        return self.register_contract_specification(source_code=source_code)
 
     def simulate(self, contract_specification, market_calibration, observation_date, path_count=20000,
                  interest_rate='2.5', perturbation_factor=0.001):
@@ -239,4 +239,5 @@ class QuantDslApplication(EventSourcingApplication):
         return self.call_result_repo[call_result_id]
 
     def calc_call_count(self, contract_specification_id):
+        # Todo: Return the call count from the compilation method?
         return len(list(regenerate_execution_order(contract_specification_id, self.call_link_repo)))

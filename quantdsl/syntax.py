@@ -96,8 +96,9 @@ class DslParser(object):
             name = imported.name
             # spec = importlib.util.find_spec()
             module = importlib.import_module(name)
-            source = open(module.__file__).read()
-            dsl_node = self.parse(source, filename=module.__file__)
+            path = module.__file__.strip('c')
+            source = open(path).read()  # .py not .pyc
+            dsl_node = self.parse(source, filename=path)
             assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
             for node in dsl_node.body:
                 nodes.append(node)
@@ -116,8 +117,9 @@ class DslParser(object):
             return nodes
         imported_names = [a.name for a in node.names]
         module = importlib.import_module(node.module)
-        source = open(module.__file__).read()
-        dsl_node = self.parse(source, filename=module.__file__)
+        path = module.__file__.strip('c')
+        source = open(path).read()
+        dsl_node = self.parse(source, filename=path)
         assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
         for dsl_obj in dsl_node.body:
             # if dsl_obj.name in imported_names:

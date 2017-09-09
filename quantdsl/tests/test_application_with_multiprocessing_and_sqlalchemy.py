@@ -4,7 +4,7 @@ from tempfile import NamedTemporaryFile
 import os
 
 from quantdsl.application.with_multiprocessing_and_sqlalchemy import QuantDslApplicationWithMultiprocessingAndSQLAlchemy
-from quantdsl.test_application import TestCase, ContractValuationTests
+from quantdsl.tests.test_application import TestCase, ContractValuationTests
 
 
 class TestQuantDslApplicationWithMultiprocessingAndSQLAlchemy(TestCase, ContractValuationTests):

@@ -29,6 +29,7 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             simulated_price_repo=simulated_price_repo,
             call_requirement_repo=call_requirement_repo,
             call_dependencies_repo=call_dependencies_repo,
+            call_dependents_repo=call_dependents_repo,
             call_link_repo=call_link_repo,
             call_result_repo=call_result_repo,
             perturbation_dependencies_repo=perturbation_dependencies_repo,
@@ -51,7 +52,8 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
 
 
 def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, market_simulation_repo,
-                                simulated_price_repo, call_requirement_repo, call_dependencies_repo, call_link_repo,
+                                simulated_price_repo, call_requirement_repo, call_dependencies_repo,
+                                call_dependents_repo, call_link_repo,
                                 call_result_repo, perturbation_dependencies_repo, simulated_price_dependencies_repo):
     """
     Computes value of contract by following the series execution order of its call dependency graph
@@ -101,6 +103,21 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             contract_valuation_id=contract_valuation_id,
             dependency_graph_id=dependency_graph_id,
         )
+
+        # # Check for results that should be deleted.
+        # # - dependency results should be deleted if there is a result for each dependent of the dependency
+        # call_dependencies = call_dependencies_repo[call_id]
+        # assert isinstance(call_dependencies, CallDependencies)
+        # call_dependents = call_dependents_repo[call_id]
+        # assert isinstance(call_dependents, CallDependents), (type(call_dependents), CallDependents)
+        #
+        # for dependency_id in call_dependencies.dependencies:
+        #     for dependent_id in call_dependents.dependents[dependency_id]:
+        #         if dependent_id != call_id and dependent_id not in call_result_repo:
+        #             # Need to keep it.
+        #             break
+        #     else:
+        #         del (call_result_repo[dependency_id])
 
 
 def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo, call_leafs_repo, call_link_repo,
@@ -455,7 +472,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
     result_value = None
     perturbed_values = {}
 
-    for perturbation in [None] + perturbation_dependencies:
+    for perturbation in [None] + perturbation_dependencies + ['-' + p for p in perturbation_dependencies]:
 
         evaluation_kwds['active_perturbation'] = perturbation
 

@@ -1049,7 +1049,7 @@ class Lift(DslExpression):
             self.assert_args_arg(args, posn=1, required_type=DslExpression)
         elif len(args) == 3:
             # Periodization of the perturbation.
-            self.assert_args_arg(args, posn=1, required_type=String)
+            self.assert_args_arg(args, posn=1, required_type=(String, Name))
             # Expression to be perturbed.
             self.assert_args_arg(args, posn=2, required_type=DslExpression)
 
@@ -1104,8 +1104,9 @@ class Lift(DslExpression):
 
         # If this is a perturbed market, perturb the simulated value.
         expr_value = self.expr.evaluate(**kwds)
-        if self.get_perturbation(**kwds) == active_perturbation:
-            evaluated_value = expr_value * (1 + perturbation_factor)
+        if active_perturbation and self.get_perturbation(**kwds) == active_perturbation.lstrip('-'):
+            sign = -1 if active_perturbation.startswith('-') else 1
+            evaluated_value = expr_value * (1 + sign * perturbation_factor)
         else:
             evaluated_value = expr_value
         return evaluated_value

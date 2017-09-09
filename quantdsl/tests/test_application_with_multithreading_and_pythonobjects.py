@@ -1,6 +1,6 @@
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
-from quantdsl.test_application import TestCase, ContractValuationTests
+from quantdsl.tests.test_application import TestCase, ContractValuationTests
 
 
 class TestApplicationWithPythonObjectsAndMultithreading(TestCase, ContractValuationTests):

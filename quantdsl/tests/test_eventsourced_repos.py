@@ -13,7 +13,7 @@ from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import register_simulated_price, SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.test_application import TestCase
+from quantdsl.tests.test_application import TestCase
 
 
 class TestEventSourcedRepos(TestCase):
@@ -38,7 +38,7 @@ class TestEventSourcedRepos(TestCase):
         self.assertIsInstance(contract_spec.id, six.string_types)
         contract_spec = self.app.contract_specification_repo[contract_spec.id]
         assert isinstance(contract_spec, ContractSpecification)
-        self.assertEqual(contract_spec.specification, '1 + 1')
+        self.assertEqual(contract_spec.source_code, '1 + 1')
 
     def test_register_dependency_graph(self):
         contract_specification_id = create_uuid4()

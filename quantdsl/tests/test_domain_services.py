@@ -55,7 +55,7 @@ class TestDependencyGraph(unittest.TestCase):
         self.ps.close()
 
     def test_generate_dependency_graph_with_function_call(self):
-        contract_specification = register_contract_specification(specification="""
+        contract_specification = register_contract_specification(source_code="""
 def double(x):
     return x * 2
 
