@@ -16,12 +16,17 @@ class CallResult(EventSourcedEntity):
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
-    def __init__(self, result_value, perturbed_values, contract_valuation_id, dependency_graph_id, **kwargs):
+    def __init__(self, result_value, perturbed_values, contract_valuation_id, call_id, dependency_graph_id, **kwargs):
         super(CallResult, self).__init__(**kwargs)
         self._result_value = result_value
         self._perturbed_values = perturbed_values
         self._contract_valuation_id = contract_valuation_id
+        self._call_id = call_id
         self._dependency_graph_id = dependency_graph_id
+
+    @property
+    def call_id(self):
+        return self._call_id
 
     @property
     def result_value(self):
@@ -55,6 +60,7 @@ def register_call_result(call_id, result_value, perturbed_values, contract_valua
                                        result_value=result_value,
                                        perturbed_values=perturbed_values,
                                        contract_valuation_id=contract_valuation_id,
+                                       call_id=call_id,
                                        # Todo: Don't persist this, get the contract valuation object when needed.
                                        # Todo: Also save the list of fixing dates separately (if needs to be saved).
                                        dependency_graph_id=dependency_graph_id,
@@ -73,3 +79,13 @@ def make_call_result_id(contract_valuation_id, call_id):
 
 class CallResultRepository(EntityRepository):
     pass
+
+
+class ResultValueComputed(object):
+    """Event published when a result value is computed.
+
+    Used to track progress of computation more smoothly than
+    can be achieved by listening for CallResult.Created events.
+
+    (This is not a persisted domain event.)
+    """

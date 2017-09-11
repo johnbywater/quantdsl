@@ -1,13 +1,14 @@
 from multiprocessing.pool import Pool
 
 import gevent
+from eventsourcing.domain.model.events import publish
 from gevent.queue import Queue
 
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import register_call_result, make_call_result_id, CallResult, \
-    CallResultRepository
+    CallResultRepository, ResultValueComputed
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
@@ -498,6 +499,9 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
             result_value = expr_value
         else:
             perturbed_values[perturbation] = expr_value
+
+        # Publish result value computed event.
+        publish(ResultValueComputed())
 
     return result_value, perturbed_values
 

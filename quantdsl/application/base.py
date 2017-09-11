@@ -13,6 +13,7 @@ from quantdsl.domain.model.contract_valuation import create_contract_valuation_i
 from quantdsl.domain.model.dependency_graph import register_dependency_graph
 from quantdsl.domain.model.market_calibration import compute_market_calibration_params, register_market_calibration
 from quantdsl.domain.model.market_simulation import MarketSimulation, register_market_simulation
+from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.contract_valuations import evaluate_call_and_queue_next_calls, loop_on_evaluation_queue
 from quantdsl.domain.services.simulated_prices import identify_simulation_requirements
@@ -241,3 +242,18 @@ class QuantDslApplication(EventSourcingApplication):
     def calc_call_count(self, contract_specification_id):
         # Todo: Return the call count from the compilation method?
         return len(list(regenerate_execution_order(contract_specification_id, self.call_link_repo)))
+
+    def calc_call_costs(self, contract_specification_id, perturbation_dependencies_repo):
+        """Returns a dict of call IDs -> perturbation requirements."""
+        calls = {}
+        for call_id in regenerate_execution_order(contract_specification_id, self.call_link_repo):
+            # Get the perturbation requirements for this call.
+            try:
+                perturbation_dependencies = perturbation_dependencies_repo[call_id]
+            except KeyError:
+                calls[call_id] = 1
+            else:
+                assert isinstance(perturbation_dependencies, PerturbationDependencies)
+                # "1 + 2 * number of depedencies" because it does a double sided delta.
+                calls[call_id] = 1 + 2 * len(perturbation_dependencies.dependencies)
+        return calls

@@ -213,10 +213,10 @@ class String(DslConstant):
 
 
 class Number(DslConstant):
-
-    @property
-    def required_type(self):
-        return six.integer_types + (float, ndarray)
+    required_type = six.integer_types + (float, ndarray)
+    # @property
+    # def required_type(self):
+    #     return six.integer_types + (float, ndarray, Number)
 
 
 class Date(DslConstant):

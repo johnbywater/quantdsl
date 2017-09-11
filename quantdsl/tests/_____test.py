@@ -125,12 +125,12 @@ class DslTestCase(unittest.TestCase):
         # return value
         #
 
-# class TestDslMarket(DslTestCase):
-#
-#     def testValuation(self):
-#         specification = "Market('#1')"
-#         self.assertValuation(specification, 10, 1, 0)
-#
+class TestDslMarket(DslTestCase):
+
+    def testValuation(self):
+        specification = "Market('#1')"
+        self.assertValuation(specification, 10, 1, 0)
+
 #
 # class TestDslFixing(DslTestCase):
 #
