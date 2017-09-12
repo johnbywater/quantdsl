@@ -84,15 +84,18 @@ class DslParser(object):
                 # Put function def in module namespace.
                 module_namespace[dsl_object.name] = dsl_object
                 # Share module namespace with this function.
-                dsl_object.module_namespace = module_namespace
+                if dsl_object.module_namespace is None:
+                    dsl_object.module_namespace = module_namespace
 
+            # Include imported things.
             if isinstance(dsl_object, list):
                 for _dsl_object in inline(dsl_object):
-                    body.append(_dsl_object)
+                    if isinstance(_dsl_object, FunctionDef):
+                        module_namespace[_dsl_object.name] = _dsl_object
             else:
                 body.append(dsl_object)
 
-        return self.dsl_classes['Module'](body, node=node)
+        return self.dsl_classes['Module'](body, module_namespace, node=node)
 
     # def visitImport(self, node):
     #     """

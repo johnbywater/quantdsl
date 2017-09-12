@@ -990,12 +990,17 @@ class Module(DslObject):
         return "\n".join([str(statement) for statement in self.body])
 
     def validate(self, args):
-        self.assert_args_len(args, 1)
+        self.assert_args_len(args, 2)
         self.assert_args_arg(args, 0, [(FunctionDef, DslExpression, Date)])
+        self.assert_args_arg(args, 1, DslNamespace)
 
     @property
     def body(self):
         return self._args[0]
+
+    @property
+    def namespace(self):
+        return self._args[1]
 
 
 def inline(*args):

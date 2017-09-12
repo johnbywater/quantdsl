@@ -2,7 +2,23 @@ from quantdsl.tests.test_application import ContractValuationTestCase, TestCase
 
 
 class ExpressionTests(ContractValuationTestCase, TestCase):
-    def test_generate_valuation_addition(self):
+    def test_european1(self):
+        specification = """
+from quantdsl.lib.european1 import European
+
+European(Date('2012-01-11'), 9, Market('NBP'))
+"""
+        self.assert_contract_value(specification, 2.480, {}, expected_call_count=None)
+
+    def test_american1(self):
+        specification = """
+from quantdsl.lib.american1 import American
+
+American(Date('2012-01-01'), Date('2012-01-11'), 5, Market('NBP'), TimeDelta('1d'))
+"""
+        self.assert_contract_value(specification, 5.229, {}, expected_call_count=None)
+
+    def test_storage1(self):
         specification_tmpl = """
 from quantdsl.lib.storage1 import GasStorage
 

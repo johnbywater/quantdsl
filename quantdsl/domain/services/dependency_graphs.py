@@ -16,7 +16,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     assert isinstance(contract_specification, ContractSpecification)
     dsl_module = dsl_parse(dsl_source=contract_specification.source_code)
     assert isinstance(dsl_module, Module)
-    dsl_globals = DslNamespace()
+    dsl_globals = dsl_module.namespace.copy()
     function_defs, expressions = extract_defs_and_exprs(dsl_module, dsl_globals)
     dsl_expr = expressions[0]
     assert isinstance(dsl_expr, DslExpression)
