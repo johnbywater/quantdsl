@@ -619,6 +619,9 @@ class FunctionDef(DslObject):
         self.call_cache = {}
         self.enclosed_namespace = DslNamespace()
 
+        # Second attempt to implement module namespaces...
+        self.module_namespace = None
+
     def validate(self, args):
         self.assert_args_len(args, required_len=4)
 
@@ -657,7 +660,8 @@ class FunctionDef(DslObject):
         else:
             pass
             # assert isinstance(dsl_globals, DslNamespace)
-        dsl_globals = DslNamespace(itertools.chain(self.enclosed_namespace.items(), dsl_globals.items()))
+        dsl_globals = DslNamespace(itertools.chain(self.enclosed_namespace.items(), self.module_namespace.items(),
+                                                   dsl_globals.items()))
         dsl_locals = DslNamespace(dsl_locals)
 
         # Validate the call args with the definition.

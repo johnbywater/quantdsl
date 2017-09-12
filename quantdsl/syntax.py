@@ -4,6 +4,7 @@ import importlib
 import six
 
 from quantdsl.exceptions import DslSyntaxError
+from quantdsl.semantics import FunctionDef, DslNamespace
 
 
 class DslParser(object):
@@ -62,6 +63,9 @@ class DslParser(object):
         # assert isinstance(node, ast.Module)
         body = []
 
+        # Namespace for function defs in module.
+        module_namespace = DslNamespace()
+
         def inline(body):
             flat = []
             assert isinstance(body, list), body
@@ -76,6 +80,12 @@ class DslParser(object):
         for n in node.body:
             dsl_object = self.visitAstNode(n)
 
+            if isinstance(dsl_object, FunctionDef):
+                # Put function def in module namespace.
+                module_namespace[dsl_object.name] = dsl_object
+                # Share module namespace with this function.
+                dsl_object.module_namespace = module_namespace
+
             if isinstance(dsl_object, list):
                 for _dsl_object in inline(dsl_object):
                     body.append(_dsl_object)
@@ -84,28 +94,22 @@ class DslParser(object):
 
         return self.dsl_classes['Module'](body, node=node)
 
-    def visitImport(self, node):
-        """
-        Visitor method for ast.Import nodes.
-
-        Returns the result of visiting the expression held by the return statement.
-        """
-        assert isinstance(node, ast.Import)
-        nodes = []
-        for imported in node.names:
-            name = imported.name
-            if name == 'quantdsl.semantics':
-                continue
-            # spec = importlib.util.find_spec()
-            module = importlib.import_module(name)
-            path = module.__file__.strip('c')
-            source = open(path).read()  # .py not .pyc
-            dsl_node = self.parse(source, filename=path)
-            assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
-            for node in dsl_node.body:
-                nodes.append(node)
-
-        return nodes
+    # def visitImport(self, node):
+    #     """
+    #     Visitor method for ast.Import nodes.
+    #
+    #     Returns the result of visiting the expression held by the return statement.
+    #     """
+    #     assert isinstance(node, ast.Import)
+    #     nodes = []
+    #     for imported in node.names:
+    #         name = imported.name
+    #         if name == 'quantdsl.semantics':
+    #             continue
+    #         # spec = importlib.util.find_spec()
+    #         node = self.import_python_module(name, node, nodes)
+    #
+    #     return nodes
 
     def visitImportFrom(self, node):
         """
@@ -114,19 +118,24 @@ class DslParser(object):
         Returns the result of visiting the expression held by the return statement.
         """
         assert isinstance(node, ast.ImportFrom)
-        nodes = []
         if node.module == 'quantdsl.semantics':
-            return nodes
-        imported_names = [a.name for a in node.names]
-        module = importlib.import_module(node.module)
+            return []
+        from_names = [a.name for a in node.names]
+        dsl_module = self.import_python_module(node.module)
+        nodes = []
+        for node in dsl_module.body:
+            if isinstance(node, FunctionDef) and node.name in from_names:
+                nodes.append(node)
+        return nodes
+
+    def import_python_module(self, module_name):
+        nodes = []
+        module = importlib.import_module(module_name)
         path = module.__file__.strip('c')
-        source = open(path).read()
+        source = open(path).read()  # .py not .pyc
         dsl_node = self.parse(source, filename=path)
         assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
-        for dsl_obj in dsl_node.body:
-            # if dsl_obj.name in imported_names:
-            nodes.append(dsl_obj)
-        return nodes
+        return dsl_node
 
     def visitReturn(self, node):
         """
