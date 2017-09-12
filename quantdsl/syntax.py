@@ -94,6 +94,8 @@ class DslParser(object):
         nodes = []
         for imported in node.names:
             name = imported.name
+            if name == 'quantdsl.semantics':
+                continue
             # spec = importlib.util.find_spec()
             module = importlib.import_module(name)
             path = module.__file__.strip('c')
@@ -107,7 +109,7 @@ class DslParser(object):
 
     def visitImportFrom(self, node):
         """
-        Visitor method for ast.Import nodes.
+        Visitor method for ast.ImportFrom nodes.
 
         Returns the result of visiting the expression held by the return statement.
         """
