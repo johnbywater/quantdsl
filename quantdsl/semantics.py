@@ -10,11 +10,9 @@ from collections import namedtuple
 import scipy
 import scipy.linalg
 import six
-import six.moves.queue as queue
 from dateutil.relativedelta import relativedelta
 from scipy import ndarray
 
-from quantdsl.domain.model.call_requirement import StubbedCall
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.exceptions import DslError, DslNameError, DslSyntaxError, DslSystemError
@@ -47,14 +45,11 @@ class DslObject(six.with_metaclass(ABCMeta)):
         Creates a hash that is unique for this fragment of DSL.
         """
         if not hasattr(self, '_hash'):
-            try:
-                hashes = ""
-                for arg in self._args:
-                    if isinstance(arg, list):
-                        arg = tuple(arg)
-                    hashes += str(hash(arg))
-            except TypeError as e:
-                raise DslSystemError(e)
+            hashes = ""
+            for arg in self._args:
+                if isinstance(arg, list):
+                    arg = tuple(arg)
+                hashes += str(hash(arg))
             self._hash = hash(hashes)
         return self._hash
 
@@ -116,7 +111,7 @@ class DslObject(six.with_metaclass(ABCMeta)):
                 self.assert_args_arg(list_of_args, i, required_type)
         elif not isinstance(args[posn], required_type):
             error = "%s is broken" % self.__class__.__name__
-            if isinstance(required_type, tuple):
+            if isinstance(required_type, (list, tuple)):
                 required_type_names = [i.__name__ for i in required_type]
                 required_type_names = ", ".join(required_type_names)
             else:
@@ -142,11 +137,11 @@ class DslObject(six.with_metaclass(ABCMeta)):
             if isinstance(arg, DslObject):
                 for dsl_obj in arg.find_instances(dsl_type):
                     yield dsl_obj
-            elif isinstance(arg, list):
-                for arg in arg:
-                    if isinstance(arg, DslObject):
-                        for dsl_obj in arg.list_instances(dsl_type):
-                            yield dsl_obj
+            # elif isinstance(arg, list):
+            #     for arg in arg:
+            #         if isinstance(arg, DslObject):
+            #             for dsl_obj in arg.list_instances(dsl_type):
+            #                 yield dsl_obj
 
     def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pending_call_stack=None):
         """
@@ -193,8 +188,7 @@ class DslConstant(DslExpression):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=1)
-        if self.required_type == None:
-            raise Exception("required_type attribute not set on %s" % self.__class__)
+        assert self.required_type is not None, "required_type attribute not set on %s" % self.__class__
         self.assert_args_arg(args, posn=0, required_type=self.required_type)
         self.parse(args[0])
 
@@ -217,13 +211,10 @@ class String(DslConstant):
 
 class Number(DslConstant):
     required_type = six.integer_types + (float, ndarray)
-    # @property
-    # def required_type(self):
-    #     return six.integer_types + (float, ndarray, Number)
 
 
 class Date(DslConstant):
-    required_type = six.string_types + (String, datetime.date)
+    required_type = six.string_types + (String, datetime.date, datetime.datetime)
 
     def __str__(self, indent=0):
         return "Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)
@@ -241,17 +232,17 @@ class Date(DslConstant):
                 # return dateutil.parser.parse(date_str).replace()
             except ValueError:
                 raise DslSyntaxError("invalid date string", date_str, node=self.node)
-        elif isinstance(value, (datetime.datetime, datetime.date)):
-            return value
+        elif isinstance(value, datetime.date):
+            return datetime.datetime(value.year, value.month, value.day)
         else:
-            raise DslSystemError("shouldn't get here", value, node=self.node)
+            return value
 
 
 class TimeDelta(DslConstant):
     required_type = (String, datetime.timedelta, relativedelta)
 
     def __str__(self, indent=0):
-        return "%s('%dd')" % (self.__class__.__name__, self.value.days)
+        return "{}('{}')".format(self.__class__.__name__, self.value)
 
     def parse(self, value, regex=re.compile(r'((?P<days>\d+?)d|(?P<months>\d+?)m|(?P<years>\d+?)y)?')):
         if isinstance(value, String):
@@ -1588,192 +1579,3 @@ defaultDslClasses.update({
 
 PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'stacked_globals',
                                          'effective_present_time'])
-
-
-class PendingCallQueue(object):
-    def put(self, stub_id, stacked_function_def, stacked_locals, stacked_globals, effective_present_time):
-        pending_call = self.validate_pending_call(effective_present_time, stacked_function_def, stacked_globals,
-                                                  stacked_locals, stub_id)
-        self.put_pending_call(pending_call)
-
-    def validate_pending_call(self, effective_present_time, stacked_function_def, stacked_globals, stacked_locals,
-                              stub_id):
-        # assert isinstance(stub_id, six.string_types), type(stub_id)
-        # assert isinstance(stacked_function_def, FunctionDef), type(stacked_function_def)
-        # assert isinstance(stacked_locals, DslNamespace), type(stacked_locals)
-        # assert isinstance(stacked_globals, DslNamespace), type(stacked_globals)
-        # assert isinstance(effective_present_time, (datetime.datetime, type(None))), type(effective_present_time)
-        pending_call = PendingCall(stub_id, stacked_function_def, stacked_locals, stacked_globals,
-                                   effective_present_time)
-        return pending_call
-
-    @abstractmethod
-    def put_pending_call(self, pending_call):
-        """
-        Puts pending call on the queue.
-        """
-
-    @abstractmethod
-    def get(self):
-        """
-        Gets pending call from the queue.
-        """
-
-
-class PythonPendingCallQueue(PendingCallQueue):
-    def __init__(self):
-        self.queue = queue.Queue()
-
-    def put_pending_call(self, pending_call):
-        self.queue.put(pending_call)
-
-    def empty(self):
-        return self.queue.empty()
-
-    def get(self, *args, **kwargs):
-        return self.queue.get(*args, **kwargs)
-
-
-def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None):
-    """
-    Returns something that can be evaluated.
-    """
-
-    # It's a module compilation, so create a new namespace "context".
-    if dsl_locals is None:
-        dsl_locals = {}
-    dsl_locals = DslNamespace(dsl_locals)
-    if dsl_globals is None:
-        dsl_globals = {}
-    dsl_globals = DslNamespace(dsl_globals)
-
-    # Can't do much with an empty module.
-    if len(dsl_module.body) == 0:
-        raise DslSyntaxError('empty module', node=dsl_module.node)
-
-    function_defs, expressions = extract_defs_and_exprs(dsl_module, dsl_globals)
-
-    # Handle different combinations of functions and module level expressions in different ways.
-    # Todo: Simplify this, but support library files first?
-    # Can't meaningfully evaluate more than one expression (since assignments are not supported).
-    if len(expressions) > 1:
-        raise DslSyntaxError('more than one expression in module', node=expressions[1].node)
-
-    # Can't meaningfully evaluate more than one function def without a module level expression.
-    elif len(expressions) == 0 and len(function_defs) > 1:
-        second_def = function_defs[1]
-        raise DslSyntaxError('more than one function def in module without an expression',
-                             '"def %s"' % second_def.name, node=function_defs[1].node)
-
-    # If it's just a module with one function, then return the function def.
-    elif len(expressions) == 0 and len(function_defs) == 1:
-        return function_defs[0]
-
-    # If there is one expression, reduce it with the function defs that it calls.
-    else:
-        assert len(expressions) == 1
-        dsl_expr = expressions[0]
-        # assert isinstance(dsl_expr, DslExpression), dsl_expr
-
-        # Compile the module for a single threaded recursive operation (faster but not distributed,
-        # so also limited in space and perhaps time). For smaller computations only.
-        dsl_obj = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals))
-        return dsl_obj
-
-
-def extract_defs_and_exprs(dsl_module, dsl_globals):
-    # Pick out the expressions and function defs from the module body.
-    function_defs = []
-    expressions = []
-    for dsl_obj in dsl_module.body:
-
-        if isinstance(dsl_obj, FunctionDef):
-            # Todo: Move this setting of globals elsewhere, it doesn't belong here.
-            dsl_globals[dsl_obj.name] = dsl_obj
-            # Todo: Move this setting of the 'enclosed namespace' - is this even a good idea?
-            # Share the module level namespace (any function body can call any other function).
-            dsl_obj.enclosed_namespace = dsl_globals
-
-            function_defs.append(dsl_obj)
-        elif isinstance(dsl_obj, DslExpression):
-            expressions.append(dsl_obj)
-        else:
-            raise DslSyntaxError("'%s' not allowed in module" % type(dsl_obj), dsl_obj, node=dsl_obj.node)
-
-    return function_defs, expressions
-
-
-def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
-    # Create a stack of discovered calls to function defs.
-    # - since we are basically doing a breadth-first search, the pending call queue
-    #   will be the max width of the graph, so it might sometimes be useful to
-    #   persist the queue to allow for larger graph. For now, just use a Python queue.
-    pending_call_stack = PythonPendingCallQueue()
-
-    # Reduce the module object into a "root" stubbed expression with pending calls on the stack.
-    # - If an expression has a FunctionCall, it will cause a pending
-    # call to be placed on the pending call stack, and the function call will be
-    # replaced with a stub, which acts as a placeholder for the result of the function
-    # call. By looping over the pending call stack until it is empty, evaluating
-    # pending calls to generate stubbed expressions and further pending calls, the
-    # module can be compiled into a stack of stubbed expressions.
-    # Of course if the module's expression doesn't have a function call, there
-    # will just be one expression on the stack of "stubbed" expressions, and it will
-    # not have any stubs, and there will be no pending calls on the pending call stack.
-    stubbed_expr = dsl_expr.reduce(
-        dsl_locals,
-        DslNamespace(dsl_globals),
-        pending_call_stack=pending_call_stack
-    )
-
-    dependencies = list_stub_dependencies(stubbed_expr)
-    yield StubbedCall(root_stub_id, stubbed_expr, None, dependencies)
-
-    # Continue by looping over any pending calls.
-    while not pending_call_stack.empty():
-        # Get the next pending call.
-        pending_call = pending_call_stack.get()
-        # assert isinstance(pending_call, PendingCall), pending_call
-
-        # Get the function def.
-        function_def = pending_call.stacked_function_def
-        # assert isinstance(function_def, FunctionDef), type(function_def)
-
-        # Apply the stacked call values to the called function def.
-        stubbed_expr = function_def.apply(pending_call.stacked_globals,
-                                          pending_call.effective_present_time,
-                                          pending_call_stack=pending_call_stack,
-                                          is_destacking=True,
-                                          **pending_call.stacked_locals)
-
-        # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
-        dependencies = list_stub_dependencies(stubbed_expr)
-
-        yield StubbedCall(pending_call.stub_id, stubbed_expr, pending_call.effective_present_time, dependencies)
-
-
-def list_stub_dependencies(stubbed_expr):
-    return [s.name for s in stubbed_expr.list_instances(Stub)]
-
-
-def list_fixing_dates(dsl_expr):
-    # Find all unique fixing dates.
-    return sorted(list(find_fixing_dates(dsl_expr)))
-
-
-def find_fixing_dates(dsl_expr):
-    for dsl_fixing in dsl_expr.find_instances(dsl_type=Fixing):
-        # assert isinstance(dsl_fixing, Fixing)
-        if dsl_fixing.date is not None:
-            yield dsl_fixing.date
-
-
-def find_delivery_points(dsl_expr):
-    # Find all unique market names.
-    all_delivery_points = set()
-    for dsl_market in dsl_expr.find_instances(dsl_type=AbstractMarket):
-        # assert isinstance(dsl_market, Market)
-        delivery_point = dsl_market.get_delivery_point()
-        if delivery_point not in all_delivery_points:  # Deduplicate.
-            all_delivery_points.add(delivery_point)
-            yield delivery_point

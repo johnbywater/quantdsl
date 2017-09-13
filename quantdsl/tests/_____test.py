@@ -8,7 +8,7 @@ import unittest
 
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, DslNamespace
-from quantdsl.services import dsl_eval, dsl_compile
+from quantdsl.tests.test_parser import dsl_eval, dsl_compile
 
 
 def suite():
