@@ -1616,7 +1616,7 @@ class PythonPendingCallQueue(PendingCallQueue):
         return self.queue.get(*args, **kwargs)
 
 
-def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None, is_dependency_graph=None):
+def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None):
     """
     Returns something that can be evaluated.
     """
@@ -1651,29 +1651,15 @@ def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None, is_depende
         return function_defs[0]
 
     # If there is one expression, reduce it with the function defs that it calls.
-    elif len(expressions) == 1:
+    else:
+        assert len(expressions) == 1
         dsl_expr = expressions[0]
         # assert isinstance(dsl_expr, DslExpression), dsl_expr
-        # - if a dependency graph is required, then "reduce" into stub expressions
-        if is_dependency_graph:
-            # Compile the module as a dependency graph.
 
-            from quantdsl.domain.services import uuids
-            root_stub_id = uuids.create_uuid4()
-            # stubbed_calls = generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals)
-            raise NotImplementedError("")
-            # requirements, dependents, leaf_ids = extract_graph_structure(stubbed_calls)
-            # call_requirements = call_requirements_from_stubbed_calls(stubbed_calls)
-
-
-        else:
-            # Compile the module for a single threaded recursive operation (faster but not distributed,
-            # so also limited in space and perhaps time). For smaller computations only.
-            dsl_obj = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals))
+        # Compile the module for a single threaded recursive operation (faster but not distributed,
+        # so also limited in space and perhaps time). For smaller computations only.
+        dsl_obj = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals))
         return dsl_obj
-
-    else:
-        raise DslSyntaxError("shouldn't get here", node=dsl_module.node)
 
 
 def extract_defs_and_exprs(dsl_module, dsl_globals):

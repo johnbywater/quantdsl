@@ -217,14 +217,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     evalStartTime = datetime.datetime.now()
     try:
         # Evaluate the primitive DSL expression.
-        if is_parallel:
-            if is_multiprocessing:
-                dependency_graph_runner_class = MultiProcessingDependencyGraphRunner
-            else:
-                dependency_graph_runner_class = SingleThreadedDependencyGraphRunner
-            value = dsl_expr.evaluate(dependency_graph_runner_class=dependency_graph_runner_class, pool_size=pool_size, **evaluation_kwds)
-        else:
-            value = dsl_expr.evaluate(**evaluation_kwds)
+        value = dsl_expr.evaluate(**evaluation_kwds)
     except:
         if is_parallel:
             if is_verbose:
@@ -267,7 +260,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
         return value
 
 
-def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None, **extraCompileKwds):
+def dsl_compile(dsl_source, filename='<unknown>', dsl_classes=None, compile_kwds=None, **extraCompileKwds):
     """
     Returns a DSL expression, created according to the given DSL source module.
 
@@ -293,6 +286,6 @@ def dsl_compile(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=
 
     # Compile the module into either a dependency graph
     # if 'is_parallel' is True, otherwise a single primitive expression.
-    return compile_dsl_module(dsl_module, DslNamespace(), compile_kwds, is_dependency_graph=is_parallel)
+    return compile_dsl_module(dsl_module, DslNamespace(), compile_kwds)
 
 

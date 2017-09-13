@@ -377,6 +377,17 @@ fib(%d)
         # self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
         # self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
 
+    def test_two_defs(self):
+        dsl_source = """
+def add(a, b):
+    a + b
+
+def mul(a, b):
+    a if b == 1 else add(a, mul(a, b - 1))
+mul(3, 3)
+    """
+        self.assert_contract_value(dsl_source, 9, expected_call_count=6)
+
     def test_functional_derivative_option_definition(self):
         specification = """
 def Option(date, strike, x, y):

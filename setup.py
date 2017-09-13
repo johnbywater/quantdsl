@@ -43,8 +43,7 @@ setup(
         ],
     },
 
-    scripts=[
-    ],
+    scripts=[],
     author='John Bywater',
     author_email='john.bywater@appropriatesoftware.net',
     license='BSD',
