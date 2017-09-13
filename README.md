@@ -169,12 +169,12 @@ market_simulation = app.simulate(
 Make an evaluation using the simulation.
 
 ```python
-evaluation = app.evaluate(dependency_graph, market_simulation)
+valuation = app.evaluate(dependency_graph, market_simulation)
 ```
 
 Inspect the estimated value.
 
 ```python
-estimated_value = evaluation.result_value.mean()
+estimated_value = app.get_result(valuation).result_value.mean()
 assert 17 < estimated_value < 18, estimated_value
 ```
