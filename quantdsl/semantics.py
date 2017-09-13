@@ -979,7 +979,7 @@ class Compare(DslExpression):
 
 class Module(DslObject):
     """
-    A DSL module has a body, which is a list of DSL objects either
+    A DSL module has a body, which is a list of DSL statements either
     function defs or expressions.
     """
 

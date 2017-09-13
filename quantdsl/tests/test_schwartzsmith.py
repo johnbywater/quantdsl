@@ -9,13 +9,14 @@ import json
 import datetime
 import numpy as np
 
+# Todo: Maybe remove this stuff, because it doesn't really fit very well.
 
 class TestSchwartzSmithPriceProcess(TestCase):
 
     def setUp(self):
         np.random.seed(1234)
 
-    def testCalibrateAndSimulateAndPlot(self):
+    def _testCalibrateAndSimulateAndPlot(self):
         allData = self.allObservedData[:]
         allOptimizedSchwartzParams, allOptimizedSeasonalParams, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(allData, niter=100, path_count=50000)
 
@@ -23,7 +24,7 @@ class TestSchwartzSmithPriceProcess(TestCase):
 
         plot_simulated_prices(allData, simulatedPrices)
 
-    def testCalibrate(self):
+    def _testCalibrate(self):
         allOptimizedParams, allOptimizedSeasonalFactors, allRhos, correlationMatrix, simCorrelations, simulatedPrices = calibrate(self.allObservedData, niter=3)
         # Assert allOptimizedParams.
         # print(repr(allRhos))
@@ -44,7 +45,7 @@ class TestSchwartzSmithPriceProcess(TestCase):
         for i in range(len(self.allOptimizedSeasonalFactors)):
             assert_almost_equal(allRhos[i], self.allRhos[i], decimal=7, err_msg=repr(allRhos[i]) + repr(self.allRhos[i]))
 
-    def testSimulate(self):
+    def _testSimulate(self):
         months = self.allObservedData[0]['months']
         observation_date = self.allObservedData[0]['observation_date']
 
