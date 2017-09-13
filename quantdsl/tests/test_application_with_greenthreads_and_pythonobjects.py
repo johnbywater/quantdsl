@@ -2,7 +2,7 @@ import gevent
 
 from quantdsl.application.with_greenthreads_and_python_objects import \
     QuantDslApplicationWithGreenThreadsAndPythonObjects
-from quantdsl.test_application import TestCase, ContractValuationTests
+from quantdsl.tests.test_application import TestCase, ContractValuationTests
 
 
 class TestApplicationWithGreenThreadsAndPythonObjects(TestCase, ContractValuationTests):

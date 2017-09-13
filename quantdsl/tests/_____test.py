@@ -1,12 +1,14 @@
 from __future__ import division
 
+
+# Todo: Review this module, and reestablish tests that have not already been reproduced.
 import datetime
 import sys
 import unittest
 
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
 from quantdsl.semantics import DslExpression, DslNamespace
-from quantdsl.services import dsl_eval, dsl_compile
+from quantdsl.tests.test_parser import dsl_eval, dsl_compile
 
 
 def suite():
@@ -125,12 +127,12 @@ class DslTestCase(unittest.TestCase):
         # return value
         #
 
-# class TestDslMarket(DslTestCase):
-#
-#     def testValuation(self):
-#         specification = "Market('#1')"
-#         self.assertValuation(specification, 10, 1, 0)
-#
+class TestDslMarket(DslTestCase):
+
+    def testValuation(self):
+        specification = "Market('#1')"
+        self.assertValuation(specification, 10, 1, 0)
+
 #
 # class TestDslFixing(DslTestCase):
 #

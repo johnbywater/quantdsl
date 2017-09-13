@@ -1,5 +1,5 @@
 from quantdsl.application.with_sqlalchemy import QuantDslApplicationWithSQLAlchemy
-from quantdsl.test_application import TestCase, ContractValuationTests
+from quantdsl.tests.test_application import TestCase, ContractValuationTests
 
 
 class TestQuantDslApplicationWithSQLAlchemy(TestCase, ContractValuationTests):

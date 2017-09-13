@@ -9,4 +9,4 @@ def dsl_parse(dsl_source, filename='<unknown>', dsl_classes=None):
         from quantdsl.semantics import defaultDslClasses
         dsl_classes = defaultDslClasses.copy()
 
-    return DslParser().parse(dsl_source, filename=filename, dsl_classes=dsl_classes)
+    return DslParser(dsl_classes).parse(dsl_source, filename=filename)

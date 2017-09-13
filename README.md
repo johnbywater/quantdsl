@@ -79,7 +79,7 @@ and running your program.
 Let's jump in at the deep-end with a simple model of a gas-fired power station.
 
 ```python
-quantdsl_module = """
+source_code = """
 PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Stopped(1))
 
 def PowerStation(start, end, gas, power, duration_off):
@@ -131,7 +131,7 @@ app = QuantDslApplicationWithPythonObjects()
 Compile the module into a dependency graph.
 
 ```python
-dependency_graph = app.compile(quantdsl_module)
+contract_specification = app.compile(source_code)
 ```
 
 Calibrate from historical data. In this example, we can just register some calibration parameters.
@@ -159,7 +159,7 @@ Make a simulation from the calibration.
 import datetime
 
 market_simulation = app.simulate(
-    dependency_graph,
+    contract_specification,
     market_calibration,
     path_count=20000,
     observation_date=datetime.datetime(2011, 1, 1)
@@ -169,12 +169,12 @@ market_simulation = app.simulate(
 Make an evaluation using the simulation.
 
 ```python
-evaluation = app.evaluate(dependency_graph, market_simulation)
+valuation = app.evaluate(contract_specification, market_simulation)
 ```
 
 Inspect the estimated value.
 
 ```python
-estimated_value = evaluation.result_value.mean()
+estimated_value = app.get_result(valuation).result_value.mean()
 assert 17 < estimated_value < 18, estimated_value
 ```

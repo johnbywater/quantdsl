@@ -1,13 +1,15 @@
 from multiprocessing.pool import Pool
 
 import gevent
+from eventsourcing.domain.model.events import publish
 from gevent.queue import Queue
 
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import register_call_result, make_call_result_id, CallResult, \
-    CallResultRepository
+    CallResultRepository, ResultValueComputed
+from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
@@ -28,6 +30,7 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             simulated_price_repo=simulated_price_repo,
             call_requirement_repo=call_requirement_repo,
             call_dependencies_repo=call_dependencies_repo,
+            call_dependents_repo=call_dependents_repo,
             call_link_repo=call_link_repo,
             call_result_repo=call_result_repo,
             perturbation_dependencies_repo=perturbation_dependencies_repo,
@@ -50,7 +53,8 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
 
 
 def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, market_simulation_repo,
-                                simulated_price_repo, call_requirement_repo, call_dependencies_repo, call_link_repo,
+                                simulated_price_repo, call_requirement_repo, call_dependencies_repo,
+                                call_dependents_repo, call_link_repo,
                                 call_result_repo, perturbation_dependencies_repo, simulated_price_dependencies_repo):
     """
     Computes value of contract by following the series execution order of its call dependency graph
@@ -61,14 +65,14 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     assert isinstance(contract_valuation, ContractValuation), contract_valuation
 
-    # Get the dependency graph ID.
-    dependency_graph_id = contract_valuation.dependency_graph_id
+    # Get the contract specification ID.
+    contract_specification_id = contract_valuation.contract_specification_id
 
     # Get the market simulation.
     market_simulation = market_simulation_repo[contract_valuation.market_simulation_id]
 
     # Follow the execution order...
-    for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
+    for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
 
         # Get the call requirement entity.
         call_requirement = call_requirement_repo[call_id]
@@ -98,8 +102,23 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             result_value=result_value,
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
-            dependency_graph_id=dependency_graph_id,
+            contract_specification_id=contract_specification_id,
         )
+
+        # # Check for results that should be deleted.
+        # # - dependency results should be deleted if there is a result for each dependent of the dependency
+        # call_dependencies = call_dependencies_repo[call_id]
+        # assert isinstance(call_dependencies, CallDependencies)
+        # call_dependents = call_dependents_repo[call_id]
+        # assert isinstance(call_dependents, CallDependents), (type(call_dependents), CallDependents)
+        #
+        # for dependency_id in call_dependencies.dependencies:
+        #     for dependent_id in call_dependents.dependents[dependency_id]:
+        #         if dependent_id != call_id and dependent_id not in call_result_repo:
+        #             # Need to keep it.
+        #             break
+        #     else:
+        #         del (call_result_repo[dependency_id])
 
 
 def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo, call_leafs_repo, call_link_repo,
@@ -114,11 +133,11 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     # assert isinstance(contract_valuation, ContractValuation), contract_valuation
 
-    dependency_graph_id = contract_valuation.dependency_graph_id
+    contract_specification_id = contract_valuation.contract_specification_id
 
     if result_counters is not None:
         assert usage_counters is not None
-        for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
+        for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
             call_dependencies = call_dependencies_repo[call_id]
             call_dependents = call_dependents_repo[call_id]
             assert isinstance(call_dependencies, CallDependencies)
@@ -130,11 +149,11 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
             result_counters[call_result_id] = [None] * (count_dependencies - 1)
             usage_counters[call_result_id] = [None] * (count_dependents - 1)
 
-    call_leafs = call_leafs_repo[dependency_graph_id]
+    call_leafs = call_leafs_repo[contract_specification_id]
     # assert isinstance(call_leafs, CallLeafs)
 
     for call_id in call_leafs.leaf_ids:
-        call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, call_id))
+        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id))
         gevent.sleep(0)
 
 
@@ -147,11 +166,11 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
         if isinstance(call_evaluation_queue, gevent.queue.Queue):
             gevent.sleep(0)
         try:
-            dependency_graph_id, contract_valuation_id, call_id = item
+            contract_specification_id, contract_valuation_id, call_id = item
 
             evaluate_call_and_queue_next_calls(
                 contract_valuation_id=contract_valuation_id,
-                dependency_graph_id=dependency_graph_id,
+                contract_specification_id=contract_specification_id,
                 call_id=call_id,
                 call_evaluation_queue=call_evaluation_queue,
                 contract_valuation_repo=contract_valuation_repo,
@@ -172,7 +191,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
             call_evaluation_queue.task_done()
 
 
-def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_id, call_id, call_evaluation_queue,
+def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specification_id, call_id, call_evaluation_queue,
                                        contract_valuation_repo, call_requirement_repo, market_simulation_repo,
                                        call_dependencies_repo, call_result_repo, simulated_price_repo,
                                        call_dependents_repo, perturbation_dependencies_repo,
@@ -228,7 +247,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
             result_value=result_value,
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
-            dependency_graph_id=dependency_graph_id,
+            contract_specification_id=contract_specification_id,
         )
 
         # Find next calls.
@@ -266,7 +285,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
             # Otherwise put things directly on the queue.
             next_call_ids = []
             for next_call_id in ready_generator:
-                call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+                call_evaluation_queue.put((contract_specification_id, contract_valuation_id, next_call_id))
                 gevent.sleep(0)
 
     finally:
@@ -276,7 +295,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
 
     # Queue the next calls (if there are any - see above).
     for next_call_id in next_call_ids:
-        call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, next_call_id))
 
 
 def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_dependents_repo, call_dependencies_repo,
@@ -360,7 +379,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     """
     # assert isinstance(contract_valuation, ContractValuation), contract_valuation
     assert isinstance(call_requirement, CallRequirement), call_requirement
-    # assert isinstance(market_simulation, MarketSimulation), market_simulation
+    assert isinstance(market_simulation, MarketSimulation), market_simulation
     # assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
     # assert isinstance(call_result_repo, CallResultRepository)
     # assert isinstance(simulated_price_dict, SimulatedPriceRepository)
@@ -420,14 +439,16 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     if compute_pool is None:
         result_value, perturbed_values = evaluate_dsl_expr(dsl_expr, first_commodity_name, market_simulation.id,
                                                            market_simulation.interest_rate, present_time, simulated_value_dict,
-                                                           perturbation_dependencies.dependencies, dependency_results, market_simulation.path_count)
+                                                           perturbation_dependencies.dependencies, 
+                                                           dependency_results, market_simulation.path_count,
+                                                           market_simulation.perturbation_factor)
     else:
         assert isinstance(compute_pool, Pool)
         async_result = compute_pool.apply_async(
             evaluate_dsl_expr,
             args=(dsl_expr, first_commodity_name, market_simulation.id, market_simulation.interest_rate,
                   present_time, simulated_value_dict, perturbation_dependencies.dependencies, dependency_results,
-                  market_simulation.path_count),
+                  market_simulation.path_count, market_simulation.perturbation_factor),
         )
         gevent.sleep(0.0001)
         result_value, perturbed_values = async_result.get()
@@ -437,12 +458,13 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
-                      perturbation_dependencies, dependency_results, path_count):
+                      perturbation_dependencies, dependency_results, path_count, perturbation_factor):
 
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
         'interest_rate': interest_rate,
+        'perturbation_factor': perturbation_factor,
         'present_time': present_time,
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,
@@ -451,7 +473,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
     result_value = None
     perturbed_values = {}
 
-    for perturbation in [None] + perturbation_dependencies:
+    for perturbation in [None] + perturbation_dependencies + ['-' + p for p in perturbation_dependencies]:
 
         evaluation_kwds['active_perturbation'] = perturbation
 
@@ -477,6 +499,9 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
             result_value = expr_value
         else:
             perturbed_values[perturbation] = expr_value
+
+        # Publish result value computed event.
+        publish(ResultValueComputed())
 
     return result_value, perturbed_values
 

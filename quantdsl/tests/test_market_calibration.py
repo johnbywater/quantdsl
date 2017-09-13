@@ -1,4 +1,4 @@
-from quantdsl.test_application import TestCase
+from quantdsl.tests.test_application import TestCase
 
 # Todo: More about market calibration, especially generating the calibration params from historical data.
 

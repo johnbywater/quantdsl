@@ -6,18 +6,16 @@ import six
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement, register_call_requirement
-from quantdsl.domain.model.call_result import CallResult, register_call_result, make_call_result_id
+from quantdsl.domain.model.call_result import CallResult, make_call_result_id, register_call_result
 from quantdsl.domain.model.contract_specification import ContractSpecification
-from quantdsl.domain.model.dependency_graph import register_dependency_graph, DependencyGraph
 from quantdsl.domain.model.market_calibration import MarketCalibration
-from quantdsl.domain.model.simulated_price import register_simulated_price, SimulatedPrice, make_simulated_price_id
+from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id, register_simulated_price
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.test_application import TestCase
+from quantdsl.tests.test_application import TestCase
 
 
 class TestEventSourcedRepos(TestCase):
-
     def test_register_market_calibration(self):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
         calibration_params = {'param1': 10, 'param2': 20}
@@ -38,14 +36,7 @@ class TestEventSourcedRepos(TestCase):
         self.assertIsInstance(contract_spec.id, six.string_types)
         contract_spec = self.app.contract_specification_repo[contract_spec.id]
         assert isinstance(contract_spec, ContractSpecification)
-        self.assertEqual(contract_spec.specification, '1 + 1')
-
-    def test_register_dependency_graph(self):
-        contract_specification_id = create_uuid4()
-        dependency_graph = register_dependency_graph(contract_specification_id)
-        self.assertIsInstance(dependency_graph, DependencyGraph)
-        assert isinstance(dependency_graph, DependencyGraph)
-        self.assertEqual(dependency_graph.contract_specification_id, contract_specification_id)
+        self.assertEqual(contract_spec.source_code, '1 + 1')
 
     def test_register_call_requirements(self):
         call_id = create_uuid4()
@@ -90,7 +81,7 @@ class TestEventSourcedRepos(TestCase):
         self.assertEqual(call_dependents.dependents, dependents)
 
     def test_register_call_result(self):
-        dependency_graph_id = create_uuid4()
+        contract_specification_id = create_uuid4()
         contract_valuation_id = create_uuid4()
         call_id = create_uuid4()
 
@@ -98,14 +89,14 @@ class TestEventSourcedRepos(TestCase):
         self.assertRaises(KeyError, self.app.call_result_repo.__getitem__, call_result_id)
 
         register_call_result(call_id=call_id, result_value=123, perturbed_values={},
-                             contract_valuation_id=contract_valuation_id, dependency_graph_id=dependency_graph_id)
+                             contract_valuation_id=contract_valuation_id,
+                             contract_specification_id=contract_specification_id)
 
         call_result = self.app.call_result_repo[call_result_id]
         assert isinstance(call_result, CallResult)
         self.assertEqual(call_result.result_value, 123)
 
     def test_register_simulated_price(self):
-
         price_time = datetime.datetime(2011, 1, 1)
         price_value = scipy.array([1.1, 1.2, 1.367345987359734598734598723459872345987235698237459862345])
         simulation_id = create_uuid4()

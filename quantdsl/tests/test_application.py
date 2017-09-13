@@ -10,12 +10,12 @@ from six import with_metaclass
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_result import make_call_result_id, CallResult
-from quantdsl.domain.model.contract_valuation import create_contract_valuation_id
+from quantdsl.domain.model.contract_valuation import create_contract_valuation_id, ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
-from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.semantics import Market
+# from quantdsl.domain.services.call_links import regenerate_execution_order
+# from quantdsl.semantics import Market
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -79,50 +79,44 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         'SPARKSPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
     }
 
-    def setup_market_simulation(self, contract_specification):
-        market_calibration = self.app.register_market_calibration(self.price_process_name, self.calibration_params)
-        simulation_requirements = set()
-        observation_date = datetime.datetime(2011, 1, 1)
-        self.app.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements)
-        path_count = self.PATH_COUNT
-        market_simulation = self.app.register_market_simulation(
-            market_calibration_id=market_calibration.id,
-            requirements=list(simulation_requirements),
-            observation_date=observation_date,
-            path_count=path_count,
-            interest_rate='2.5',
-        )
-        return market_simulation
-
     def assert_contract_value(self, specification, expected_value, expected_deltas=None, expected_call_count=None):
+
         # Register the specification (creates call dependency graph).
-        contract_specification = self.app.register_contract_specification(specification=specification)
+        contract_specification = self.app.compile(source_code=specification)
 
         # Check the call count (the number of nodes of the call dependency graph).
-        call_count = len(list(regenerate_execution_order(contract_specification.id, self.app.call_link_repo)))
+        call_count = self.calc_call_count(contract_specification.id)
 
         if expected_call_count is not None:
             self.assertEqual(call_count, expected_call_count)
 
         # Generate the market simulation.
-        market_simulation = self.setup_market_simulation(contract_specification)
+        market_calibration = self.app.register_market_calibration(self.price_process_name, self.calibration_params)
+        observation_date = datetime.datetime(2011, 1, 1)
+        market_simulation = self.app.simulate(
+            contract_specification=contract_specification,
+            market_calibration=market_calibration,
+            observation_date=observation_date,
+            path_count=self.PATH_COUNT,
+            interest_rate='2.5',
+            perturbation_factor=0.001,
+        )
 
         # Generate the contract valuation ID.
-        contract_valuation_id = create_contract_valuation_id()
-        call_result_id = make_call_result_id(contract_valuation_id, contract_specification.id)
 
         # Listen for the call result, if possible.
         # Todo: Listen for results, rather than polling for results - there will be less lag.
         # call_result_listener = None
 
         # Start the contract valuation.
-        self.app.start_contract_valuation(contract_valuation_id, contract_specification.id, market_simulation)
+        contract_valuation = self.app.evaluate(contract_specification, market_simulation)
+        assert isinstance(contract_valuation, ContractValuation)
 
         # # Get the call result.
         # if call_result_listener:
         #     call_result_listener.wait()
 
-        main_result = self.get_result(call_result_id, call_count)
+        main_result = self.get_result(contract_valuation)
 
         # Check the call result.
         assert isinstance(main_result, CallResult)
@@ -135,7 +129,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         assert isinstance(market_simulation, MarketSimulation)
         for perturbation in expected_deltas.keys():
 
-            # Compute the delta.
+            # Get the deltas.
             if perturbation not in main_result.perturbed_values:
                 self.fail("There isn't a perturbed value for '{}': {}"
                           "".format(perturbation, list(main_result.perturbed_values.keys())))
@@ -148,7 +142,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             simulated_price = self.app.simulated_price_repo[simulated_price_id]
 
             dy = perturbed_value - main_result.result_value
-            dx = Market.PERTURBATION_FACTOR * simulated_price.value
+            dx = market_simulation.perturbation_factor * simulated_price.value
             contract_delta = dy / dx
 
             # Check the delta.
@@ -157,24 +151,29 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             error_msg = "{}: {} != {}".format(perturbation, actual_value, expected_value)
             self.assertAlmostEqual(actual_value, expected_value, places=2, msg=error_msg)
 
+    def calc_call_count(self, contract_specification_id):
+        return self.app.calc_call_count(contract_specification_id)
+
     def scalar(self, contract_value):
         if isinstance(contract_value, scipy.ndarray):
             contract_value = contract_value.mean()
         return contract_value
 
-    def get_result(self, call_result_id, call_count):
-        patience = max(call_count, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 1000)  # Guesses.
-        # while patience > 0:
+    def get_result(self, contract_valuation):
+        assert isinstance(contract_valuation, ContractValuation)
+        call_costs = self.app.calc_call_costs(contract_valuation.contract_specification_id)
+        total_cost = sum(call_costs.values())
+
+        patience = max(total_cost, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 1000)  # Guesses.
         while True:
-            if call_result_id in self.app.call_result_repo:
-                break
-            interval = 0.1
-            self.sleep(interval)
-            patience -= interval
-        else:
-            self.fail("Timeout whilst waiting for result")
-        call_result = self.app.call_result_repo[call_result_id]
-        return call_result
+            try:
+                return self.app.get_result(contract_valuation)
+            except:
+                interval = 0.1
+                self.sleep(interval)
+                patience -= interval
+                if not patience:
+                    self.fail("Timeout whilst waiting for result")
 
     def sleep(self, interval):
         sleep(interval)
@@ -377,6 +376,17 @@ fib(%d)
         # self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
         # self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
         # self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
+
+    def test_two_defs(self):
+        dsl_source = """
+def add(a, b):
+    a + b
+
+def mul(a, b):
+    a if b == 1 else add(a, mul(a, b - 1))
+mul(3, 3)
+    """
+        self.assert_contract_value(dsl_source, 9, expected_call_count=6)
 
     def test_functional_derivative_option_definition(self):
         specification = """
@@ -743,7 +753,6 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'limit': 2
         }
         self.assert_contract_value(specification, 15.3496, {}, expected_call_count=10)
-
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {

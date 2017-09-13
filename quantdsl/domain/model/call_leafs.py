@@ -19,8 +19,8 @@ class CallLeafs(EventSourcedEntity):
         return self._leaf_ids
 
 
-def register_call_leafs(dependency_graph_id, leaf_ids):
-    created_event = CallLeafs.Created(entity_id=dependency_graph_id, leaf_ids=leaf_ids)
+def register_call_leafs(contract_specification_id, leaf_ids):
+    created_event = CallLeafs.Created(entity_id=contract_specification_id, leaf_ids=leaf_ids)
     call_leafs = CallLeafs.mutator(event=created_event)
     publish(created_event)
     return call_leafs
