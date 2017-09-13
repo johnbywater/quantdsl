@@ -262,32 +262,6 @@ class TimeDelta(DslConstant):
             raise DslSystemError("shouldn't get here", value, node=self.node)
 
 
-class SnapToMonth(DslExpression):
-    def __str__(self, indent=0):
-        return "SnapToMonth({})".format(str(self._args[0]))
-
-    def validate(self, args):
-        self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(Date, Name))
-        self.assert_args_arg(args, posn=1, required_type=(Number, six.integer_types))
-        assert args[1].evaluate() < 29, DslSyntaxError("Snap day must be less than or equal to 28", node=self.node)
-
-    def evaluate(self, **kwds):
-        value = self._args[0].evaluate(**kwds)
-        snap_day = self._args[1].evaluate()
-        assert isinstance(value, datetime.date)
-        year = value.year
-        month = value.month
-        day = value.day
-        if day < snap_day:
-            if month == 1:
-                month = 12
-                year -= 1
-            else:
-                month += 1
-        return datetime.date(year, month, snap_day)
-
-
 class UnaryOp(DslExpression):
     opchar = None
 
@@ -1031,7 +1005,7 @@ class DatedDslObject(DslObject):
                 date = String(date)
             if isinstance(date, String):
                 date = Date(date, node=date.node)
-            if isinstance(date, (SnapToMonth, Date, BinOp)):
+            if isinstance(date, (Date, BinOp)):
                 date = date.evaluate()
             if not isinstance(date, datetime.date):
                 raise DslSyntaxError("date value should be a datetime.datetime by now, but it's a %s" % date,
@@ -1131,7 +1105,6 @@ functionalDslClasses = {
     'Min': Min,
     'Mod': Mod,
     'Module': Module,
-    'SnapToMonth': SnapToMonth,
     'Mult': Mult,
     'Name': Name,
     'Number': Number,
@@ -1245,7 +1218,7 @@ class ForwardMarket(AbstractMarket):
                 date = String(date)
             if isinstance(date, String):
                 date = Date(date, node=date.node)
-            if isinstance(date, (SnapToMonth, Date, BinOp)):
+            if isinstance(date, (Date, BinOp)):
                 date = date.evaluate()
             if not isinstance(date, datetime.date):
                 raise DslSyntaxError("delivery date value should be a datetime.datetime by now, but it's a %s" % date,
@@ -1261,7 +1234,7 @@ class Settlement(StochasticObject, DatedDslObject, DslExpression):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(String, Date, SnapToMonth, Name, BinOp))
+        self.assert_args_arg(args, posn=0, required_type=(String, Date, Name, BinOp))
         self.assert_args_arg(args, posn=1, required_type=DslExpression)
 
     def evaluate(self, **kwds):
