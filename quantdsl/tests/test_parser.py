@@ -1,23 +1,17 @@
 import datetime
 import unittest
 
-import mock
-import scipy
 from dateutil.relativedelta import relativedelta
-from pytz import utc
 
-from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.exceptions import DslSyntaxError
-from quantdsl.semantics import Module, Number, UnarySub, String, Name, Add, Sub, Mult, Div, \
-    FloorDiv, Pow, Mod, Compare, IfExp, If, Max, Date, TimeDelta, On, FunctionDef, FunctionCall, Fixing, DslExpression, \
-    DslNamespace
+from quantdsl.semantics import Add, Compare, Date, Div, DslExpression, DslNamespace, Fixing, FloorDiv, FunctionCall, \
+    FunctionDef, If, IfExp, Max, Mod, Module, Mult, Name, Number, On, Pow, String, Sub, TimeDelta, UnarySub
 from quantdsl.services import dsl_compile, dsl_eval
 from quantdsl.syntax import DslParser
 
 
 class TestDslParser(unittest.TestCase):
-
     def setUp(self):
         self.p = DslParser()
 
@@ -280,7 +274,7 @@ else:
         self.assertIsInstance(dsl.body, IfExp)
         self.assertEqual(dsl.body.test.evaluate(b=1), True)  # b != 0
         self.assertEqual(dsl.body.test.evaluate(b=0), False)
-        self.assertEqual(dsl.body.body.evaluate(b=4), 4)     # Max(b, 2)
+        self.assertEqual(dsl.body.body.evaluate(b=4), 4)  # Max(b, 2)
         self.assertEqual(dsl.body.body.evaluate(b=0), 2)
 
         a0 = dsl.apply(b=0)
@@ -446,7 +440,7 @@ mul(3, 3)
         self.assertEqual(str(dsl_module), dsl_source.strip())
 
         dsl_expr = dsl_compile(dsl_source)
-#        self.assertEqual(str(dsl_expr), "")
+        #        self.assertEqual(str(dsl_expr), "")
         self.assertEqual(dsl_expr.evaluate(), 9)
 
         dsl_value = dsl_eval(dsl_source)

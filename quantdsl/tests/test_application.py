@@ -161,7 +161,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
 
     def get_result(self, contract_valuation):
         assert isinstance(contract_valuation, ContractValuation)
-        call_costs = self.app.calc_call_costs(contract_valuation.dependency_graph_id)
+        call_costs = self.app.calc_call_costs(contract_valuation.contract_specification_id)
         total_cost = sum(call_costs.values())
 
         patience = max(total_cost, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 1000)  # Guesses.

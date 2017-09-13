@@ -66,7 +66,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
     assert isinstance(contract_valuation, ContractValuation), contract_valuation
 
     # Get the contract specification ID.
-    contract_specification_id = contract_valuation.dependency_graph_id
+    contract_specification_id = contract_valuation.contract_specification_id
 
     # Get the market simulation.
     market_simulation = market_simulation_repo[contract_valuation.market_simulation_id]
@@ -102,7 +102,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             result_value=result_value,
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
-            dependency_graph_id=contract_specification_id,
+            contract_specification_id=contract_specification_id,
         )
 
         # # Check for results that should be deleted.
@@ -133,11 +133,11 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     # assert isinstance(contract_valuation, ContractValuation), contract_valuation
 
-    dependency_graph_id = contract_valuation.dependency_graph_id
+    contract_specification_id = contract_valuation.contract_specification_id
 
     if result_counters is not None:
         assert usage_counters is not None
-        for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
+        for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
             call_dependencies = call_dependencies_repo[call_id]
             call_dependents = call_dependents_repo[call_id]
             assert isinstance(call_dependencies, CallDependencies)
@@ -149,11 +149,11 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
             result_counters[call_result_id] = [None] * (count_dependencies - 1)
             usage_counters[call_result_id] = [None] * (count_dependents - 1)
 
-    call_leafs = call_leafs_repo[dependency_graph_id]
+    call_leafs = call_leafs_repo[contract_specification_id]
     # assert isinstance(call_leafs, CallLeafs)
 
     for call_id in call_leafs.leaf_ids:
-        call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, call_id))
+        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id))
         gevent.sleep(0)
 
 
@@ -166,11 +166,11 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
         if isinstance(call_evaluation_queue, gevent.queue.Queue):
             gevent.sleep(0)
         try:
-            dependency_graph_id, contract_valuation_id, call_id = item
+            contract_specification_id, contract_valuation_id, call_id = item
 
             evaluate_call_and_queue_next_calls(
                 contract_valuation_id=contract_valuation_id,
-                dependency_graph_id=dependency_graph_id,
+                contract_specification_id=contract_specification_id,
                 call_id=call_id,
                 call_evaluation_queue=call_evaluation_queue,
                 contract_valuation_repo=contract_valuation_repo,
@@ -191,7 +191,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
             call_evaluation_queue.task_done()
 
 
-def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_id, call_id, call_evaluation_queue,
+def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specification_id, call_id, call_evaluation_queue,
                                        contract_valuation_repo, call_requirement_repo, market_simulation_repo,
                                        call_dependencies_repo, call_result_repo, simulated_price_repo,
                                        call_dependents_repo, perturbation_dependencies_repo,
@@ -247,7 +247,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
             result_value=result_value,
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
-            dependency_graph_id=dependency_graph_id,
+            contract_specification_id=contract_specification_id,
         )
 
         # Find next calls.
@@ -285,7 +285,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
             # Otherwise put things directly on the queue.
             next_call_ids = []
             for next_call_id in ready_generator:
-                call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+                call_evaluation_queue.put((contract_specification_id, contract_valuation_id, next_call_id))
                 gevent.sleep(0)
 
     finally:
@@ -295,7 +295,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, dependency_graph_i
 
     # Queue the next calls (if there are any - see above).
     for next_call_id in next_call_ids:
-        call_evaluation_queue.put((dependency_graph_id, contract_valuation_id, next_call_id))
+        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, next_call_id))
 
 
 def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_dependents_repo, call_dependencies_repo,

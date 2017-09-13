@@ -30,14 +30,14 @@ def simulate_future_prices(market_simulation, market_calibration):
         calibration_params=market_calibration.calibration_params)
 
 
-def identify_simulation_requirements(dependency_graph_id, call_requirement_repo, call_link_repo,
+def identify_simulation_requirements(contract_specification_id, call_requirement_repo, call_link_repo,
                                      call_dependencies_repo, market_dependencies_repo, observation_date, requirements):
     assert isinstance(call_requirement_repo, CallRequirementRepository)
     assert isinstance(call_link_repo, CallLinkRepository)
 
     all_perturbation_dependencies = {}
 
-    for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
+    for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
 
         # Get the stubbed expression.
         call_requirement = call_requirement_repo[call_id]

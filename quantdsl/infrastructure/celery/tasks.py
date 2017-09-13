@@ -1,4 +1,3 @@
-
 from filelock import FileLock
 
 from quantdsl.application.base import QuantDslApplication
@@ -7,14 +6,14 @@ from quantdsl.infrastructure.celery.app import celery_app
 
 
 class CeleryCallEvaluationQueueFacade(object):
-
     def put(self, item):
-        dependency_graph_id, contract_valuation_id, call_id = item
+        contract_specification_id, contract_valuation_id, call_id = item
         try:
-            celery_evaluate_call.delay(dependency_graph_id, contract_valuation_id, call_id)
-            # result = celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id)
+            celery_evaluate_call.delay(contract_specification_id, contract_valuation_id, call_id)
+            # result = celery_evaluate_call(contract_specification_id, contract_valuation_id, call_id)
         except OSError as e:
             raise Exception("Celery call failed (is RabbitMQ running?): %s" % e)
+
 
 _quantdsl_app_singleton = None
 
@@ -35,17 +34,15 @@ def close_quant_dsl_app_for_celery_worker():
     _quantdsl_app_singleton = None
 
 
-
 @celery_app.task
-def celery_evaluate_call(dependency_graph_id, contract_valuation_id, call_id):
-
+def celery_evaluate_call(contract_specification_id, contract_valuation_id, call_id):
     quantdsl_app = get_quant_dsl_app_for_celery_worker()
 
     assert isinstance(quantdsl_app, QuantDslApplication)
 
     quantdsl_app.evaluate_call_and_queue_next_calls(
         contract_valuation_id=contract_valuation_id,
-        dependency_graph_id=dependency_graph_id,
+        contract_specification_id=contract_specification_id,
         call_id=call_id,
         lock=FileLock('/tmp/quantdsl-results-lock'),
     )
