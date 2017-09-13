@@ -74,6 +74,7 @@ class DslObject(six.with_metaclass(ABCMeta)):
                 msg += ","
             if lenArgs > 1:
                 msg += "\n"
+        indent = indent[:-tab]
         if lenArgs > 1:
             msg += indent
         msg += ")"
@@ -232,10 +233,10 @@ class Date(DslConstant):
                 # return dateutil.parser.parse(date_str).replace()
             except ValueError:
                 raise DslSyntaxError("invalid date string", date_str, node=self.node)
+        elif isinstance(value, datetime.datetime):
+            return value
         elif isinstance(value, datetime.date):
             return datetime.datetime(value.year, value.month, value.day)
-        else:
-            return value
 
 
 class TimeDelta(DslConstant):
@@ -259,12 +260,6 @@ class TimeDelta(DslConstant):
             return value
         else:
             raise DslSystemError("shouldn't get here", value, node=self.node)
-
-    def __sub__(self, other):
-        raise Exception(str(other))
-
-    def __add__(self, other):
-        raise Exception(str(other))
 
 
 class SnapToMonth(DslExpression):
@@ -339,9 +334,6 @@ class BoolOp(DslExpression):
         for dsl_expr in self.values:
             # assert isinstance(dsl_expr, DslExpression)
             value = dsl_expr.evaluate(**kwds)
-            # Assert value is a simple value.
-            if not isinstance(dsl_expr, DslExpression):
-                raise DslSyntaxError("not a simple value", str(value), node=self.node)
             if self.op(value):
                 return self.op(True)
         return self.op(False)
