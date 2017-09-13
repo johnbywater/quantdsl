@@ -20,11 +20,11 @@ class DependencyGraph(EventSourcedEntity):
         return self._contract_specification_id
 
 
-def register_dependency_graph(contract_specification_id):
-    created_event = DependencyGraph.Created(entity_id=contract_specification_id, contract_specification_id=contract_specification_id)
-    contract_specification = DependencyGraph.mutator(event=created_event)
-    publish(created_event)
-    return contract_specification
+# def register_dependency_graph(contract_specification_id):
+#     created_event = DependencyGraph.Created(entity_id=contract_specification_id, contract_specification_id=contract_specification_id)
+#     contract_specification = DependencyGraph.mutator(event=created_event)
+#     publish(created_event)
+#     return contract_specification
 
 
 class DependencyGraphRepository(EntityRepository):

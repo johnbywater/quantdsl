@@ -8,7 +8,6 @@ from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement, register_call_requirement
 from quantdsl.domain.model.call_result import CallResult, register_call_result, make_call_result_id
 from quantdsl.domain.model.contract_specification import ContractSpecification
-from quantdsl.domain.model.dependency_graph import register_dependency_graph, DependencyGraph
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import register_simulated_price, SimulatedPrice, make_simulated_price_id
 from quantdsl.domain.services.uuids import create_uuid4
@@ -39,13 +38,6 @@ class TestEventSourcedRepos(TestCase):
         contract_spec = self.app.contract_specification_repo[contract_spec.id]
         assert isinstance(contract_spec, ContractSpecification)
         self.assertEqual(contract_spec.source_code, '1 + 1')
-
-    def test_register_dependency_graph(self):
-        contract_specification_id = create_uuid4()
-        dependency_graph = register_dependency_graph(contract_specification_id)
-        self.assertIsInstance(dependency_graph, DependencyGraph)
-        assert isinstance(dependency_graph, DependencyGraph)
-        self.assertEqual(dependency_graph.contract_specification_id, contract_specification_id)
 
     def test_register_call_requirements(self):
         call_id = create_uuid4()

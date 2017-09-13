@@ -34,9 +34,9 @@ def register_market_calibration(price_process_name, calibration_params):
     return call_result
 
 
-def compute_market_calibration_params(price_process_name, historical_data):
-    # Todo: Generate model params from historical price data.
-    return {}
+# def compute_market_calibration_params(price_process_name, historical_data):
+#     # Todo: Generate model params from historical price data.
+#     return {}
 
 
 class MarketCalibrationRepository(EntityRepository):
