@@ -1201,7 +1201,7 @@ class ForwardMarket(AbstractMarket):
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
         self.assert_args_arg(args, posn=0, required_type=(six.string_types, String, Name))
-        self.assert_args_arg(args, posn=1, required_type=(String, Date, Name, BinOp, SnapToMonth))
+        self.assert_args_arg(args, posn=1, required_type=(String, Date, Name, BinOp))
 
     @property
     def delivery_date(self):
