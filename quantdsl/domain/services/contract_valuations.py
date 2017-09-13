@@ -65,14 +65,14 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     assert isinstance(contract_valuation, ContractValuation), contract_valuation
 
-    # Get the dependency graph ID.
-    dependency_graph_id = contract_valuation.dependency_graph_id
+    # Get the contract specification ID.
+    contract_specification_id = contract_valuation.dependency_graph_id
 
     # Get the market simulation.
     market_simulation = market_simulation_repo[contract_valuation.market_simulation_id]
 
     # Follow the execution order...
-    for call_id in regenerate_execution_order(dependency_graph_id, call_link_repo):
+    for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
 
         # Get the call requirement entity.
         call_requirement = call_requirement_repo[call_id]
@@ -102,7 +102,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             result_value=result_value,
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
-            dependency_graph_id=dependency_graph_id,
+            dependency_graph_id=contract_specification_id,
         )
 
         # # Check for results that should be deleted.

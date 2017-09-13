@@ -59,11 +59,7 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     compile_time_delta = datetime.datetime.now() - compile_start_time
 
     # Check the result of the compilation.
-    # Todo: This feels unnecessary?
-    if is_parallel:
-        assert isinstance(dsl_expr, DependencyGraph), type(dsl_expr)
-    else:
-        assert isinstance(dsl_expr, DslExpression), type(dsl_expr)
+    assert isinstance(dsl_expr, DslExpression), type(dsl_expr)
 
     if is_verbose:
         if isinstance(dsl_expr, DependencyGraph):

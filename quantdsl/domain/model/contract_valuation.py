@@ -25,11 +25,12 @@ class ContractValuation(EventSourcedEntity):
         return self._dependency_graph_id
 
 
-def start_contract_valuation(entity_id, dependency_graph_id, market_simulation_id):
+def start_contract_valuation(contract_specification_id, market_simulation_id):
+    contract_valuation_id = create_contract_valuation_id()
     contract_valuation_created = ContractValuation.Created(
-        entity_id=entity_id,
+        entity_id=contract_valuation_id,
         market_simulation_id=market_simulation_id,
-        dependency_graph_id=dependency_graph_id,
+        dependency_graph_id=contract_specification_id,
     )
     contract_valuation = ContractValuation.mutator(event=contract_valuation_created)
     publish(contract_valuation_created)

@@ -9,8 +9,9 @@ from pytz import utc
 from quantdsl.domain.model.dependency_graph import DependencyGraph
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.exceptions import DslSyntaxError
-from quantdsl.semantics import Module, compile_dsl_module, Number, UnarySub, String, Name, Add, Sub, Mult, Div, \
-    FloorDiv, Pow, Mod, Compare, IfExp, If, Max, Date, TimeDelta, On, FunctionDef, FunctionCall, Fixing
+from quantdsl.semantics import Module, Number, UnarySub, String, Name, Add, Sub, Mult, Div, \
+    FloorDiv, Pow, Mod, Compare, IfExp, If, Max, Date, TimeDelta, On, FunctionDef, FunctionCall, Fixing, DslExpression, \
+    DslNamespace
 from quantdsl.services import dsl_compile, dsl_eval
 from quantdsl.syntax import DslParser
 
@@ -34,15 +35,20 @@ class TestDslParser(unittest.TestCase):
         # Check the parsed DSL can be rendered as a string that is equal to the original source.
         self.assertEqual(str(dsl_module).strip(), dsl_source.strip())
 
-        # Check the statement's expression type.
+        # Assume this test is dealing with modules that have one statement only.
         dsl_expr = dsl_module.body[0]
+
+        # Check expression type.
+        assert isinstance(dsl_expr, DslExpression)
         self.assertIsInstance(dsl_expr, expectedDslType)
 
         # Compile the module into an simple DSL expression object (no variables or calls to function defs).
-        dsl_expr = compile_dsl_module(dsl_module, compile_kwds)
+        dsl_expr = dsl_expr.reduce(DslNamespace(compile_kwds), DslNamespace())
 
         # Evaluate the compiled expression.
-        self.assertEqual(dsl_expr.evaluate(), expectedDslValue)
+        dsl_value = dsl_expr.evaluate()
+
+        self.assertEqual(dsl_value, expectedDslValue)
 
     def test_num(self):
         self.assertDslExprTypeValue("0", Number, 0)
