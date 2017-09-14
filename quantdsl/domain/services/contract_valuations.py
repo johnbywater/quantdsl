@@ -1,8 +1,6 @@
 from multiprocessing.pool import Pool
 
-import gevent
 from eventsourcing.domain.model.events import publish
-from gevent.queue import Queue
 
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_dependents import CallDependents
@@ -154,7 +152,6 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
     for call_id in call_leafs.leaf_ids:
         call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id))
-        gevent.sleep(0)
 
 
 def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, call_requirement_repo,
@@ -163,8 +160,6 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
                              call_result_lock, compute_pool=None, result_counters=None, usage_counters=None):
     while True:
         item = call_evaluation_queue.get()
-        if isinstance(call_evaluation_queue, gevent.queue.Queue):
-            gevent.sleep(0)
         try:
             contract_specification_id, contract_valuation_id, call_id = item
 
@@ -286,7 +281,6 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
             next_call_ids = []
             for next_call_id in ready_generator:
                 call_evaluation_queue.put((contract_specification_id, contract_valuation_id, next_call_id))
-                gevent.sleep(0)
 
     finally:
         # Unlock the results.
@@ -450,7 +444,6 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
                   present_time, simulated_value_dict, perturbation_dependencies.dependencies, dependency_results,
                   market_simulation.path_count, market_simulation.perturbation_factor),
         )
-        gevent.sleep(0.0001)
         result_value, perturbed_values = async_result.get()
 
     # Return the result.
