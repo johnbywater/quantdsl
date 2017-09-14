@@ -32,29 +32,13 @@ class DslObject(six.with_metaclass(ABCMeta)):
         self.node = kwds.pop('node', None)
         self.validate(args)
         self._args = list(args)
+        self._hash = None
 
     def __str__(self, indent=0):
         """
         Returns DSL source code, that can be parsed to generate a clone of self.
         """
-        return "%s(%s)" % (self.__class__.__name__, ", ".join([str(i) for i in self._args]))
-
-    @property
-    def hash(self):
-        """
-        Creates a hash that is unique for this fragment of DSL.
-        """
-        if not hasattr(self, '_hash'):
-            hashes = ""
-            for arg in self._args:
-                if isinstance(arg, list):
-                    arg = tuple(arg)
-                hashes += str(hash(arg))
-            self._hash = hash(hashes)
-        return self._hash
-
-    def __hash__(self):
-        return self.hash
+        return self.pprint('    ')
 
     def pprint(self, indent=''):
         msg = self.__class__.__name__ + "("
@@ -79,6 +63,23 @@ class DslObject(six.with_metaclass(ABCMeta)):
             msg += indent
         msg += ")"
         return msg
+
+    @property
+    def hash(self):
+        """
+        Creates a hash that is unique for this fragment of DSL.
+        """
+        if self._hash is None:
+            hashes = ""
+            for arg in self._args:
+                if isinstance(arg, list):
+                    arg = tuple(arg)
+                hashes += str(hash(arg))
+            self._hash = hash(hashes)
+        return self._hash
+
+    def __hash__(self):
+        return self.hash
 
     @abstractmethod
     def validate(self, args):
@@ -184,7 +185,7 @@ class DslExpression(DslObject):
 class DslConstant(DslExpression):
     required_type = None
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return repr(self.value)
 
     def validate(self, args):
@@ -217,7 +218,7 @@ class Number(DslConstant):
 class Date(DslConstant):
     required_type = six.string_types + (String, datetime.date, datetime.datetime)
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return "Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)
 
     def parse(self, value):
@@ -242,7 +243,7 @@ class Date(DslConstant):
 class TimeDelta(DslConstant):
     required_type = (String, datetime.timedelta, relativedelta)
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return "{}({})".format(self.__class__.__name__, self._args[0])
 
     def parse(self, value, regex=re.compile(r'((?P<days>\d+?)d|(?P<months>\d+?)m|(?P<years>\d+?)y)?')):
@@ -265,7 +266,7 @@ class TimeDelta(DslConstant):
 class UnaryOp(DslExpression):
     opchar = None
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return str(self.opchar) + str(self.operand)
 
     def validate(self, args):
@@ -338,7 +339,7 @@ class BinOp(DslExpression):
         Returns result of operating on two args.
         """
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         if self.opchar:
             def makeStr(dsl_expr):
                 dslString = str(dsl_expr)
@@ -476,7 +477,7 @@ class FloorDiv(BinOp):
 
 
 class Name(DslExpression):
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return self.name
 
     def validate(self, args):
@@ -536,7 +537,7 @@ class Stub(Name):
     with the value of another expression in a dependency graph.
     """
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         # Can't just return a Python string, like with Names, because this
         # is normally a UUID, and UUIDs are not valid Python variable names
         # because they have dashes and sometimes start with numbers.
@@ -562,7 +563,7 @@ class FunctionDef(DslObject):
     are assignments.
     """
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         indent_spaces = 4 * ' '
         msg = ""
         for decorator_name in self.decorator_names:
@@ -570,7 +571,7 @@ class FunctionDef(DslObject):
         msg += "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
         if isinstance(self.body, DslObject):
             try:
-                msg += indent_spaces + self.body.__str__(indent=indent + 1)
+                msg += indent_spaces + self.body.pprint(indent=indent + 1)
             except TypeError:
                 raise DslSystemError("DSL object can't handle indent: %s" % type(self.body))
         else:
@@ -722,7 +723,7 @@ class FunctionDef(DslObject):
 
 
 class FunctionCall(DslExpression):
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return "%s(%s)" % (self.functionDefName,
                            ", ".join([str(arg) for arg in self.callArgExprs]))
 
@@ -851,7 +852,7 @@ class BaseIf(DslExpression):
 
 
 class If(BaseIf):
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         indentation = indent * 4 * ' '
 
         msg = "\n"
@@ -880,7 +881,7 @@ class IfExp(If):
     Special case of If, where if-else clause is one expression (no elif support).
     """
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return "%s if %s else %s" % (self.body, self.test, self.orelse)
 
 
@@ -903,7 +904,7 @@ class Compare(DslExpression):
         'GtE': '>=',
     }
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return str(self.left) + ' ' \
                + " ".join(
             [str(self.opcodes[op]) + ' ' + str(right) for (op, right) in zip(self.op_names, self.comparators)])
@@ -951,7 +952,7 @@ class Module(DslObject):
     def __init__(self, *args, **kwds):
         super(Module, self).__init__(*args, **kwds)
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return "\n".join([str(statement) for statement in self.body])
 
     def validate(self, args):
@@ -1247,7 +1248,7 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
     A fixing defines the 'present_time' used for evaluating its expression.
     """
 
-    def __str__(self, indent=0):
+    def pprint(self, indent=0):
         return "%s('%04d-%02d-%02d', %s)" % (
             self.__class__.__name__,
             self.date.year,
