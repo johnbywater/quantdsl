@@ -38,6 +38,10 @@ class TestDslObject(TestCase):
         with self.assertRaises(DslSyntaxError):
             self.obj.assert_args_arg([[1, 'a']], 0, [int])
 
+        self.obj.assert_args_arg([1], 0, (int, float))
+        with self.assertRaises(DslSyntaxError):
+            self.obj.assert_args_arg(['1'], 0, (int, float))
+
     def test_pprint(self):
         text = self.obj.pprint()
         self.assertEqual(text, "Subclass()")
