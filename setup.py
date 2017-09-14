@@ -22,7 +22,6 @@ setup(
     zip_safe=False,
     install_requires=[
         'argh',
-        'celery',
         'mock==1.0.1',
         'scipy',
         'python-dateutil==2.2',
@@ -33,15 +32,6 @@ setup(
         'pytz',
         'blist',
     ],
-    extras_require={
-        'test': [
-            'sqlalchemy',
-            'gevent',
-        ],
-        'sqlalchemy': [
-            'sqlalchemy',
-        ],
-    },
 
     scripts=[],
     author='John Bywater',
