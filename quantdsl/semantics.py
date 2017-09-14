@@ -34,11 +34,11 @@ class DslObject(six.with_metaclass(ABCMeta)):
         self._args = list(args)
         self._hash = None
 
-    def __str__(self, indent=0):
+    def __str__(self):
         """
         Returns DSL source code, that can be parsed to generate a clone of self.
         """
-        return self.pprint('    ')
+        return self.pprint()
 
     def pprint(self, indent=''):
         msg = self.__class__.__name__ + "("
@@ -139,11 +139,11 @@ class DslObject(six.with_metaclass(ABCMeta)):
             if isinstance(arg, DslObject):
                 for dsl_obj in arg.find_instances(dsl_type):
                     yield dsl_obj
-            # elif isinstance(arg, list):
-            #     for arg in arg:
-            #         if isinstance(arg, DslObject):
-            #             for dsl_obj in arg.list_instances(dsl_type):
-            #                 yield dsl_obj
+                    # elif isinstance(arg, list):
+                    #     for arg in arg:
+                    #         if isinstance(arg, DslObject):
+                    #             for dsl_obj in arg.list_instances(dsl_type):
+                    #                 yield dsl_obj
 
     def reduce(self, dsl_locals, dsl_globals, effective_present_time=None, pending_call_stack=None):
         """
@@ -185,7 +185,7 @@ class DslExpression(DslObject):
 class DslConstant(DslExpression):
     required_type = None
 
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         return repr(self.value)
 
     def validate(self, args):
@@ -218,7 +218,7 @@ class Number(DslConstant):
 class Date(DslConstant):
     required_type = six.string_types + (String, datetime.date, datetime.datetime)
 
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         return "Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)
 
     def parse(self, value):
@@ -243,7 +243,7 @@ class Date(DslConstant):
 class TimeDelta(DslConstant):
     required_type = (String, datetime.timedelta, relativedelta)
 
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         return "{}({})".format(self.__class__.__name__, self._args[0])
 
     def parse(self, value, regex=re.compile(r'((?P<days>\d+?)d|(?P<months>\d+?)m|(?P<years>\d+?)y)?')):
@@ -266,7 +266,7 @@ class TimeDelta(DslConstant):
 class UnaryOp(DslExpression):
     opchar = None
 
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         return str(self.opchar) + str(self.operand)
 
     def validate(self, args):
@@ -339,7 +339,7 @@ class BinOp(DslExpression):
         Returns result of operating on two args.
         """
 
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         if self.opchar:
             def makeStr(dsl_expr):
                 dslString = str(dsl_expr)
@@ -347,9 +347,10 @@ class BinOp(DslExpression):
                     dslString = "(" + dslString + ")"
                 return dslString
 
-            return makeStr(self.left) + " " + self.opchar + " " + makeStr(self.right)
+            text = makeStr(self.left) + " " + self.opchar + " " + makeStr(self.right)
         else:
-            return '%s(%s, %s)' % (self.__class__.__name__, self.left, self.right)
+            text = '%s(%s, %s)' % (self.__class__.__name__, self.left, self.right)
+        return indent + text
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
@@ -477,7 +478,7 @@ class FloorDiv(BinOp):
 
 
 class Name(DslExpression):
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         return self.name
 
     def validate(self, args):
@@ -537,7 +538,7 @@ class Stub(Name):
     with the value of another expression in a dependency graph.
     """
 
-    def pprint(self, indent=0):
+    def pprint(self, indent=''):
         # Can't just return a Python string, like with Names, because this
         # is normally a UUID, and UUIDs are not valid Python variable names
         # because they have dashes and sometimes start with numbers.
@@ -563,15 +564,14 @@ class FunctionDef(DslObject):
     are assignments.
     """
 
-    def pprint(self, indent=0):
-        indent_spaces = 4 * ' '
+    def pprint(self, indent=''):
         msg = ""
         for decorator_name in self.decorator_names:
             msg += "@" + decorator_name + "\n"
         msg += "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
         if isinstance(self.body, DslObject):
             try:
-                msg += indent_spaces + self.body.pprint(indent=indent + 1)
+                msg += self.body.pprint(indent=indent + '    ')
             except TypeError:
                 raise DslSystemError("DSL object can't handle indent: %s" % type(self.body))
         else:
@@ -709,7 +709,7 @@ class FunctionDef(DslObject):
         if isinstance(obj, relativedelta):
             return hash(repr(obj))
         if isinstance(obj, (
-        int, float, six.string_types, datetime.datetime, datetime.date, datetime.timedelta, relativedelta)):
+                int, float, six.string_types, datetime.datetime, datetime.date, datetime.timedelta, relativedelta)):
             return hash(obj)
         if isinstance(obj, dict):
             return hash(tuple(sorted([(a, self.create_hash(b)) for a, b in obj.items()])))
@@ -723,9 +723,9 @@ class FunctionDef(DslObject):
 
 
 class FunctionCall(DslExpression):
-    def pprint(self, indent=0):
-        return "%s(%s)" % (self.functionDefName,
-                           ", ".join([str(arg) for arg in self.callArgExprs]))
+    def pprint(self, indent=''):
+        return indent + "%s(%s)" % (self.functionDefName,
+                                    ", ".join([str(arg) for arg in self.callArgExprs]))
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
@@ -852,27 +852,24 @@ class BaseIf(DslExpression):
 
 
 class If(BaseIf):
-    def pprint(self, indent=0):
-        indentation = indent * 4 * ' '
-
+    def pprint(self, indent=''):
         msg = "\n"
-        msg += indentation + "if %s:\n" % self.test
-        msg += indentation + "    %s\n" % self.body
-
-        msg += self.orelse_to_str(self.orelse, indentation)
+        msg += indent + "if %s:\n" % self.test
+        msg += indent + "    %s\n" % self.body
+        msg += self.orelse_to_str(self.orelse, indent)
         return msg
 
-    def orelse_to_str(self, orelse, indentation):
+    def orelse_to_str(self, orelse, indent):
         msg = ''
         if isinstance(orelse, If):
-            msg += indentation + "elif %s:\n" % orelse.test
-            msg += indentation + "    %s\n" % orelse.body
+            msg += indent + "elif %s:\n" % orelse.test
+            msg += indent + "    %s\n" % orelse.body
             # Recurse down "linked list" of alternatives...
-            msg += self.orelse_to_str(orelse.orelse, indentation)
+            msg += self.orelse_to_str(orelse.orelse, indent)
         else:
             # ...until we reach the final alternative.
-            msg += indentation + "else:\n"
-            msg += indentation + "    %s\n" % orelse
+            msg += indent + "else:\n"
+            msg += indent + "    %s\n" % orelse
         return msg
 
 
@@ -881,8 +878,8 @@ class IfExp(If):
     Special case of If, where if-else clause is one expression (no elif support).
     """
 
-    def pprint(self, indent=0):
-        return "%s if %s else %s" % (self.body, self.test, self.orelse)
+    def pprint(self, indent=''):
+        return indent + "%s if %s else %s" % (self.body, self.test, self.orelse)
 
 
 class Compare(DslExpression):
@@ -904,10 +901,10 @@ class Compare(DslExpression):
         'GtE': '>=',
     }
 
-    def pprint(self, indent=0):
-        return str(self.left) + ' ' \
-               + " ".join(
-            [str(self.opcodes[op]) + ' ' + str(right) for (op, right) in zip(self.op_names, self.comparators)])
+    def pprint(self, indent=''):
+        return indent + str(self.left) + ' ' + " ".join(
+            [str(self.opcodes[op]) + ' ' + str(right) for (op, right) in zip(self.op_names, self.comparators)]
+        )
 
     def validate(self, args):
         self.assert_args_len(args, 3)
@@ -952,8 +949,8 @@ class Module(DslObject):
     def __init__(self, *args, **kwds):
         super(Module, self).__init__(*args, **kwds)
 
-    def pprint(self, indent=0):
-        return "\n".join([str(statement) for statement in self.body])
+    def pprint(self, indent=''):
+        return indent + "\n".join([str(statement) for statement in self.body])
 
     def validate(self, args):
         self.assert_args_len(args, 2)
@@ -1248,8 +1245,8 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
     A fixing defines the 'present_time' used for evaluating its expression.
     """
 
-    def pprint(self, indent=0):
-        return "%s('%04d-%02d-%02d', %s)" % (
+    def pprint(self, indent=''):
+        return indent + "%s('%04d-%02d-%02d', %s)" % (
             self.__class__.__name__,
             self.date.year,
             self.date.month,
