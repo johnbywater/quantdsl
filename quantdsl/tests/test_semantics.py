@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from scipy import array
 
 from quantdsl.exceptions import DslSyntaxError
-from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta
+from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name
 
 
 class Subclass(DslObject):
@@ -42,17 +42,13 @@ class TestDslObject(TestCase):
         with self.assertRaises(DslSyntaxError):
             self.obj.assert_args_arg(['1'], 0, (int, float))
 
-    def test_pprint(self):
-        text = self.obj.pprint()
-        self.assertEqual(text, "Subclass()")
-        self.assertEqual(Subclass(Subclass()).pprint(), "Subclass(Subclass())")
-        self.assertEqual(Subclass(Subclass(), 1).pprint(), """Subclass(
-    Subclass(),
-    1
-)""")
+    def test_str(self):
+        self.assertEqual(str(self.obj), "Subclass()")
+        self.assertEqual(str(Subclass(Subclass())), "Subclass(Subclass())")
+
 
 class TestString(TestCase):
-    def test(self):
+    def test_value(self):
         obj = String('a')
         self.assertEqual(obj.value, 'a')
 
@@ -66,8 +62,14 @@ class TestString(TestCase):
         with self.assertRaises(DslSyntaxError):
             String(1)
 
+    def test_str(self):
+        obj = String('a')
+        self.assertEqual(str(obj), "'a'")
+        self.assertEqual(str(Subclass(obj)), "Subclass('a')")
+
+
 class TestNumber(TestCase):
-    def test(self):
+    def test_value(self):
         # Integers are ok.
         obj = Number(1)
         self.assertEqual(obj.value, 1)
@@ -96,8 +98,14 @@ class TestNumber(TestCase):
         with self.assertRaises(DslSyntaxError):
             Number('1')
 
+    def test_str(self):
+        obj = Number(1)
+        self.assertEqual(str(obj), '1')
+        self.assertEqual(str(Subclass(obj)), 'Subclass(1)')
+
+
 class TestDate(TestCase):
-    def test(self):
+    def test_value(self):
         # A Python string is ok.
         obj = Date('2011-1-1')
         self.assertEqual(obj.value, datetime.datetime(2011, 1, 1))
@@ -124,10 +132,17 @@ class TestDate(TestCase):
 
         # A string that doesn't look like a date is not ok.
         with self.assertRaises(DslSyntaxError):
-            Date('1-20').value
+            Date('1')
+
+    def test_str(self):
+        obj = Date(String('2011-1-1'))
+        self.assertEqual(str(obj), "Date('2011-01-01')")
+        self.assertEqual(str(Subclass(obj)), "Subclass(Date('2011-01-01'))")
+
 
 class TestTimeDelta(TestCase):
-    def test(self):
+    def test_value(self):
+        # Days, months, or years is ok.
         obj = TimeDelta(String('1d'))
         self.assertEqual(obj.value, relativedelta(days=1))
         obj = TimeDelta(String('2d'))
@@ -136,3 +151,12 @@ class TestTimeDelta(TestCase):
         self.assertEqual(obj.value, relativedelta(months=1))
         obj = TimeDelta(String('1y'))
         self.assertEqual(obj.value, relativedelta(years=1))
+
+        # An invalid time delta string is not ok.
+        with self.assertRaises(DslSyntaxError):
+            TimeDelta(String('1j'))
+
+    def test_str(self):
+        obj = TimeDelta(String('1d'))
+        self.assertEqual(str(obj), "TimeDelta('1d')")
+        self.assertEqual(str(Subclass(obj)), "Subclass(TimeDelta('1d'))")

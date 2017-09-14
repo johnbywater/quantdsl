@@ -243,16 +243,16 @@ class TimeDelta(DslConstant):
     required_type = (String, datetime.timedelta, relativedelta)
 
     def __str__(self, indent=0):
-        return "{}('{}')".format(self.__class__.__name__, self.value)
+        return "{}({})".format(self.__class__.__name__, self._args[0])
 
     def parse(self, value, regex=re.compile(r'((?P<days>\d+?)d|(?P<months>\d+?)m|(?P<years>\d+?)y)?')):
         if isinstance(value, String):
             duration_str = value.evaluate()
             parts = regex.match(duration_str)
-            if not parts:
-                raise DslSyntaxError('invalid time delta string', duration_str, node=self.node)
             parts = parts.groupdict()
             params = dict((name, int(param)) for (name, param) in six.iteritems(parts) if param)
+            if not params:
+                raise DslSyntaxError('invalid "time delta" string', duration_str, node=self.node)
             return relativedelta(**params)
         elif isinstance(value, datetime.timedelta):
             return value
