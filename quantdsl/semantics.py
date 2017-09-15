@@ -319,6 +319,12 @@ class BoolOp(DslExpression):
         Returns value, or not value, according to implementation.
         """
 
+    def pprint(self, indent=''):
+        operator = self.__class__.__name__.lower()
+        padded = ' ' + operator + ' '
+        text = padded.join([str(i) for i in self._args[0]])
+        return indent + '(' + text + ')'
+
 
 class Or(BoolOp):
     def op(self, value):

@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from scipy import array
 
 from quantdsl.exceptions import DslSyntaxError
-from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name
+from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name, And, Or
 
 
 class Subclass(DslObject):
@@ -160,3 +160,52 @@ class TestTimeDelta(TestCase):
         obj = TimeDelta(String('1d'))
         self.assertEqual(str(obj), "TimeDelta('1d')")
         self.assertEqual(str(Subclass(obj)), "Subclass(TimeDelta('1d'))")
+
+
+class TestAnd(TestCase):
+
+    def test_evaluate(self):
+        obj = And([Number(1), Number(1)])
+        self.assertTrue(obj.evaluate())
+
+        obj = And([Number(1), Number(0)])
+        self.assertFalse(obj.evaluate())
+
+        obj = And([Number(0), Number(1)])
+        self.assertFalse(obj.evaluate())
+
+        obj = And([Number(0), Number(0)])
+        self.assertFalse(obj.evaluate())
+
+    def test_str(self):
+        obj = And([Number(1), Number(2), Number(3)])
+        self.assertEqual(str(obj), '(1 and 2 and 3)')
+
+
+class TestOr(TestCase):
+
+    def test_evaluate(self):
+        obj = Or([Number(1), Number(1)])
+        self.assertTrue(obj.evaluate())
+
+        obj = Or([Number(1), Number(0)])
+        self.assertTrue(obj.evaluate())
+
+        obj = Or([Number(0), Number(1)])
+        self.assertTrue(obj.evaluate())
+
+        obj = Or([Number(0), Number(0)])
+        self.assertFalse(obj.evaluate())
+
+    def test_str(self):
+        obj = Or([Number(1), Number(2), Number(3)])
+        self.assertEqual(str(obj), '(1 or 2 or 3)')
+
+
+class TestAndOr(TestCase):
+
+    def test_str(self):
+        obj = And([Number(1), Or([Number(2), Number(3)])])
+        self.assertEqual(str(obj), '(1 and (2 or 3))')
+        # Check the indentation isn't propagated.
+        self.assertEqual(obj.pprint('    '), '    (1 and (2 or 3))')
