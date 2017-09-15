@@ -374,14 +374,6 @@ class BinOp(DslExpression):
     def evaluate(self, **kwds):
         left = self.left.evaluate(**kwds)
         right = self.right.evaluate(**kwds)
-        if isinstance(left, datetime.timedelta) and isinstance(right, float):
-            rightOrig = right
-            right = int(right)
-            assert rightOrig == right, "Can't %s timedelta and fractional number '%s'" % rightOrig
-        elif isinstance(right, datetime.timedelta) and isinstance(left, float):
-            leftOrig = left
-            left = int(left)
-            assert leftOrig == left, "Can't %s timedelta and fractional number '%s'" % leftOrig
         try:
             return self.op(left, right)
         except TypeError as e:

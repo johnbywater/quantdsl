@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from scipy import array
 
 from quantdsl.exceptions import DslSyntaxError
-from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name, And, Or
+from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name, And, Or, Add, Sub, Mult, Div
 
 
 class Subclass(DslObject):
@@ -209,3 +209,67 @@ class TestAndOr(TestCase):
         self.assertEqual(str(obj), '(1 and (2 or 3))')
         # Check the indentation isn't propagated.
         self.assertEqual(obj.pprint('    '), '    (1 and (2 or 3))')
+
+
+class TestAdd(TestCase):
+
+    def test_evaluate(self):
+        obj = Add(Number(1), Number(1))
+        self.assertEqual(obj.evaluate(), 2)
+
+        obj = Add(String('a'), String('b'))
+        self.assertEqual(obj.evaluate(), 'ab')
+
+        obj = Add(Number(1), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
+
+
+class TestSub(TestCase):
+
+    def test_evaluate(self):
+        obj = Sub(Number(1), Number(1))
+        self.assertEqual(obj.evaluate(), 0)
+
+        obj = Sub(Number(1), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
+
+
+class TestMul(TestCase):
+
+    def test_evaluate(self):
+        obj = Mult(Number(2), Number(2))
+        self.assertEqual(obj.evaluate(), 4)
+
+        obj = Mult(Number(2), String('a'))
+        self.assertEqual(obj.evaluate(), 'aa')
+
+        obj = Mult(Number(2.0), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
+
+        obj = Mult(String('a'), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
+
+        obj = Mult(Number(2.1), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
+
+
+class TestDiv(TestCase):
+    def test_evaluate(self):
+        obj = Div(Number(5), Number(2))
+        self.assertEqual(obj.evaluate(), 2.5)
+
+        obj = Div(TimeDelta(String('2d')), Number(2))
+        self.assertEqual(obj.evaluate(), relativedelta(days=1))
+
+        obj = Div(Number(5), Number(0))
+        with self.assertRaises(ZeroDivisionError):
+            obj.evaluate()
+
+        obj = Div(Number(2.1), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
