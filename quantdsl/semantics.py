@@ -206,6 +206,12 @@ class DslConstant(DslExpression):
     def parse(self, value):
         return value
 
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
 class String(DslConstant):
     required_type = six.string_types
@@ -409,48 +415,6 @@ class Div(BinOp):
         return left / right
 
 
-class NonInfixedBinOp(BinOp):
-    def op(self, a, b):
-        # Assume a and b have EITHER type ndarray, OR type int or float.
-        # Try to 'balance' the sides.
-        #  - two scalar numbers are good
-        #  - one number with one vector is okay
-        #  - two vectors is okay, but they must have the same length.
-        aIsaNumber = isinstance(a, (int, float))
-        bIsaNumber = isinstance(b, (int, float))
-        if aIsaNumber and bIsaNumber:
-            # Neither are vectors.
-            return self.scalar_op(a, b)
-        elif (not aIsaNumber) and (not bIsaNumber):
-            # Both are vectors.
-            if len(a) != len(b):
-                descr = "%s and %s" % (len(a), len(b))
-                raise DslSystemError('Vectors have different length: ', descr, self.node)
-        elif aIsaNumber and (not bIsaNumber):
-            # Todo: Optimise with scipy.zeros() when a equals zero?
-            a = scipy.array([a] * len(b))
-        elif bIsaNumber and (not aIsaNumber):
-            # Todo: Optimise with scipy.zeros() when b equals zero?
-            b = scipy.array([b] * len(a))
-        return self.vector_op(a, b)
-
-
-class Min(NonInfixedBinOp):
-    def vector_op(self, a, b):
-        return scipy.array([a, b]).min(axis=0)
-
-    def scalar_op(self, a, b):
-        return min(a, b)
-
-
-class Max(NonInfixedBinOp):
-    def vector_op(self, a, b):
-        return scipy.array([a, b]).max(axis=0)
-
-    def scalar_op(self, a, b):
-        return max(a, b)
-
-
 # Todo: Pow, Mod, FloorDiv don't have proofs, so shouldn't really be used for combining random variables? Either
 # prevent usage with ndarray inputs, or do the proofs. :-)
 
@@ -473,6 +437,55 @@ class FloorDiv(BinOp):
 
     def op(self, left, right):
         return left // right
+
+
+class NonInfixedBinOp(BinOp):
+    def op(self, a, b):
+        # Assume a and b have EITHER type ndarray, OR type int or float.
+        # Try to 'balance' the sides.
+        #  - two scalar numbers are good
+        #  - one number with one vector is okay
+        #  - two vectors is okay, but they must have the same length.
+        aIsaNumber = isinstance(a, (int, float))
+        bIsaNumber = isinstance(b, (int, float))
+        if aIsaNumber and bIsaNumber:
+            # Neither are vectors.
+            return self.scalar_op(a, b)
+        elif (not aIsaNumber) and (not bIsaNumber):
+            # Both are vectors.
+            msg = "Vectors have different length: %s and %s" % (len(a), len(b))
+            assert len(a) == len(b), msg
+        elif aIsaNumber and (not bIsaNumber):
+            # Todo: Optimise with scipy.zeros() when a equals zero?
+            a = scipy.array([a] * len(b))
+        elif bIsaNumber and (not aIsaNumber):
+            # Todo: Optimise with scipy.zeros() when b equals zero?
+            b = scipy.array([b] * len(a))
+        return self.vector_op(a, b)
+
+    @abstractmethod
+    def vector_op(self, a, b):
+        """Computes result of operation on vector values."""
+
+    @abstractmethod
+    def scalar_op(self, a, b):
+        """Computes result of operation on scalar values."""
+
+
+class Min(NonInfixedBinOp):
+    def vector_op(self, a, b):
+        return scipy.array([a, b]).min(axis=0)
+
+    def scalar_op(self, a, b):
+        return min(a, b)
+
+
+class Max(NonInfixedBinOp):
+    def vector_op(self, a, b):
+        return scipy.array([a, b]).max(axis=0)
+
+    def scalar_op(self, a, b):
+        return max(a, b)
 
 
 class Name(DslExpression):

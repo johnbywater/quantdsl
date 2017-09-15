@@ -4,8 +4,9 @@ from unittest.case import TestCase
 from dateutil.relativedelta import relativedelta
 from scipy import array
 
-from quantdsl.exceptions import DslSyntaxError
-from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name, And, Or, Add, Sub, Mult, Div
+from quantdsl.exceptions import DslSyntaxError, DslNameError
+from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name, And, Or, Add, Sub, Mult, Div, Min, \
+    Max, DslNamespace
 
 
 class Subclass(DslObject):
@@ -273,3 +274,51 @@ class TestDiv(TestCase):
         obj = Div(Number(2.1), String('a'))
         with self.assertRaises(DslSyntaxError):
             obj.evaluate()
+
+
+class TestMin(TestCase):
+    def test_evaluate(self):
+        obj = Min(Number(1), Number(2))
+        self.assertEqual(obj.evaluate(), 1)
+
+        obj = Min(Number(1), Number(array([1, 2, 3])))
+        self.assertEqual(list(obj.evaluate()), list(array([1, 1, 1])))
+
+        obj = Min(Number(2), Number(array([1, 2, 3])))
+        self.assertEqual(list(obj.evaluate()), list(array([1, 2, 2])))
+
+        obj = Min(Number(array([3, 2, 1])), Number(array([1, 2, 3])))
+        self.assertEqual(list(obj.evaluate()), list(array([1, 2, 1])))
+
+
+class TestMax(TestCase):
+    def test_evaluate(self):
+        obj = Max(Number(1), Number(2))
+        self.assertEqual(obj.evaluate(), 2)
+
+        obj = Max(Number(1), Number(array([1, 2, 3])))
+        self.assertEqual(list(obj.evaluate()), list(array([1, 2, 3])))
+
+        obj = Max(Number(2), Number(array([1, 2, 3])))
+        self.assertEqual(list(obj.evaluate()), list(array([2, 2, 3])))
+
+        obj = Max(Number(array([3, 2, 1])), Number(array([1, 2, 3])))
+        self.assertEqual(list(obj.evaluate()), list(array([3, 2, 3])))
+
+
+class TestName(TestCase):
+    def test_evaluate(self):
+        # Maybe if Name can take a string, perhaps also other things can?
+        # Maybe the parser should return Python string, numbers etc?
+        # Maybe String and Number etc don't add anything?
+        obj = Name('a')
+        self.assertEqual(obj.name, 'a')
+
+        obj = Name(String('a'))
+        self.assertEqual(obj.name, 'a')
+
+        with self.assertRaises(DslNameError):
+            obj.reduce(DslNamespace(), DslNamespace())
+
+        self.assertEqual(obj.reduce(DslNamespace({'a': 1}), DslNamespace()), Number(1))
+        self.assertEqual(obj.reduce(DslNamespace({'a': datetime.timedelta(1)}), DslNamespace()), TimeDelta(datetime.timedelta(1)))
