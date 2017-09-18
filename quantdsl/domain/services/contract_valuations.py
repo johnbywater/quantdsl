@@ -180,33 +180,6 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
     )
 
 
-def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_dependents_repo, call_dependencies_repo,
-                                          call_result_repo, result_counters):
-    # assert isinstance(contract_valuation_id, six.string_types), contract_valuation_id
-    # assert isinstance(call_id, six.string_types), call_id
-    # assert isinstance(call_dependents_repo, CallDependentsRepository)
-    # assert isinstance(call_dependencies_repo, CallDependenciesRepository)
-    # assert isinstance(call_result_repo, CallResultRepository)
-    assert result_counters is not None
-
-    # Get dependents (if any exist).
-    try:
-        call_dependents = call_dependents_repo[call_id]
-    except KeyError:
-        # Don't worry if there are none.
-        pass
-    else:
-        # Check if any dependents are ready to be evaluated.
-        ready = []
-        for dependent_id in call_dependents.dependents:
-            dependent_result_id = make_call_result_id(contract_valuation_id, dependent_id)
-            try:
-                result_counters[dependent_result_id].pop()  # Pop one off the array (atomic decrement).
-            except (KeyError, IndexError):
-                ready.append(dependent_id)
-        return ready
-
-
 def compute_call_result(contract_valuation, call_requirement, market_simulation, perturbation_dependencies,
                         call_dependencies_repo, call_result_repo, simulated_price_repo, simulation_requirements):
     """
