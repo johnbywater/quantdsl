@@ -41,7 +41,6 @@ class TestEvaluationSubscriber(unittest.TestCase):
             market_simulation_repo=market_simulation_repo,
             call_leafs_repo=call_leafs_repo,
             call_evaluation_queue=None,
-            result_counters=None,
             call_dependents_repo=call_dependents_repo,
             perturbation_dependencies_repo=perturbation_dependencies_repo,
             simulated_price_requirements_repo=simulated_price_requirements_repo

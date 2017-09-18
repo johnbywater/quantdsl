@@ -3,7 +3,6 @@ from multiprocessing.pool import Pool
 from eventsourcing.domain.model.events import publish
 
 from quantdsl.domain.model.call_dependencies import CallDependencies
-from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, CallResultRepository, ResultValueComputed, \
     make_call_result_id, register_call_result
@@ -18,8 +17,7 @@ from quantdsl.semantics import DslNamespace
 
 def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo,
                                 call_link_repo, call_requirement_repo, call_result_repo, contract_valuation_repo,
-                                market_simulation_repo, simulated_price_repo, result_counters,
-                                call_dependents_repo, perturbation_dependencies_repo,
+                                market_simulation_repo, simulated_price_repo, perturbation_dependencies_repo,
                                 simulated_price_dependencies_repo):
     if not call_evaluation_queue:
         evaluate_contract_in_series(
@@ -29,7 +27,6 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             simulated_price_repo=simulated_price_repo,
             call_requirement_repo=call_requirement_repo,
             call_dependencies_repo=call_dependencies_repo,
-            call_dependents_repo=call_dependents_repo,
             call_link_repo=call_link_repo,
             call_result_repo=call_result_repo,
             perturbation_dependencies_repo=perturbation_dependencies_repo,
@@ -41,19 +38,13 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             contract_valuation_repo=contract_valuation_repo,
             call_leafs_repo=call_leafs_repo,
             call_evaluation_queue=call_evaluation_queue,
-            call_link_repo=call_link_repo,
-            result_counters=result_counters,
-            call_dependencies_repo=call_dependencies_repo,
-            call_dependents_repo=call_dependents_repo,
-            perturbation_dependencies_repo=perturbation_dependencies_repo,
-            simulated_price_dependencies_repo=simulated_price_dependencies_repo,
         )
 
 
 def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, market_simulation_repo,
                                 simulated_price_repo, call_requirement_repo, call_dependencies_repo,
-                                call_dependents_repo, call_link_repo,
-                                call_result_repo, perturbation_dependencies_repo, simulated_price_dependencies_repo):
+                                call_link_repo, call_result_repo, perturbation_dependencies_repo,
+                                simulated_price_dependencies_repo):
     """
     Computes value of contract by following the series execution order of its call dependency graph
     in directly evaluating each call in turn until the whole graph has been evaluated.
@@ -89,7 +80,6 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             perturbation_dependencies=perturbation_dependencies,
             call_dependencies_repo=call_dependencies_repo,
             call_result_repo=call_result_repo,
-            perturbation_dependencies_repo=perturbation_dependencies_repo,
             simulated_price_repo=simulated_price_repo,
             simulation_requirements=simulation_requirements
         )
@@ -104,10 +94,8 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
         )
 
 
-def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo, call_leafs_repo, call_link_repo,
-                                  call_evaluation_queue, result_counters, call_dependencies_repo,
-                                  call_dependents_repo, perturbation_dependencies_repo,
-                                  simulated_price_dependencies_repo):
+def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo, call_leafs_repo,
+                                  call_evaluation_queue):
     """
     Computes value of contract by putting the dependency graph leaves on an evaluation queue and expecting
     there is at least one worker loop evaluating the queued calls and putting satisfied dependents on the queue.
@@ -118,18 +106,6 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
     contract_specification_id = contract_valuation.contract_specification_id
 
-    if result_counters is not None:
-        for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
-            call_dependencies = call_dependencies_repo[call_id]
-            call_dependents = call_dependents_repo[call_id]
-            assert isinstance(call_dependencies, CallDependencies)
-            assert isinstance(call_dependents, CallDependents)
-            count_dependencies = len(call_dependencies.dependencies)
-            # Crude attempt to count down using atomic operations, so we get an exception when we can't pop off the
-            # last one.
-            call_result_id = make_call_result_id(contract_valuation_id, call_id)
-            result_counters[call_result_id] = [None] * (count_dependencies - 1)
-
     call_leafs = call_leafs_repo[contract_specification_id]
     # assert isinstance(call_leafs, CallLeafs)
 
@@ -139,8 +115,7 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
 def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, call_requirement_repo,
                              market_simulation_repo, call_dependencies_repo, call_result_repo, simulated_price_repo,
-                             call_dependents_repo, perturbation_dependencies_repo, simulated_price_requirements_repo,
-                             compute_pool=None):
+                             call_dependents_repo, perturbation_dependencies_repo, simulated_price_requirements_repo):
     while True:
         item = call_evaluation_queue.get()
         try:
@@ -156,11 +131,8 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
                 call_dependencies_repo=call_dependencies_repo,
                 call_result_repo=call_result_repo,
                 simulated_price_repo=simulated_price_repo,
-                call_dependents_repo=call_dependents_repo,
                 perturbation_dependencies_repo=perturbation_dependencies_repo,
-                simulated_price_requirements_repo=simulated_price_requirements_repo,
-                compute_pool=compute_pool,
-            )
+                simulated_price_requirements_repo=simulated_price_requirements_repo)
         finally:
             call_evaluation_queue.task_done()
 
@@ -168,9 +140,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
 def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specification_id, call_id,
                                        contract_valuation_repo, call_requirement_repo, market_simulation_repo,
                                        call_dependencies_repo, call_result_repo, simulated_price_repo,
-                                       call_dependents_repo, perturbation_dependencies_repo,
-                                       simulated_price_requirements_repo,
-                                       compute_pool=None):
+                                       perturbation_dependencies_repo, simulated_price_requirements_repo):
     # Get the contract valuation.
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     assert isinstance(contract_valuation, ContractValuation)
@@ -197,9 +167,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
         call_dependencies_repo=call_dependencies_repo,
         call_result_repo=call_result_repo,
         simulated_price_repo=simulated_price_repo,
-        perturbation_dependencies_repo=perturbation_dependencies_repo,
         simulation_requirements=simulation_requirements,
-        compute_pool=compute_pool,
     )
 
     # Register the call result.
@@ -240,9 +208,7 @@ def find_dependents_ready_to_be_evaluated(contract_valuation_id, call_id, call_d
 
 
 def compute_call_result(contract_valuation, call_requirement, market_simulation, perturbation_dependencies,
-                        call_dependencies_repo, call_result_repo, simulated_price_repo,
-                        perturbation_dependencies_repo, simulation_requirements,
-                        compute_pool=None):
+                        call_dependencies_repo, call_result_repo, simulated_price_repo, simulation_requirements):
     """
     Parses, compiles and evaluates a call requirement.
     """
@@ -287,23 +253,12 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
         result_repo=call_result_repo,
     )
 
-    # Compute the call result.
-    if compute_pool is None:
-        result_value, perturbed_values = evaluate_dsl_expr(dsl_expr, first_commodity_name, market_simulation.id,
-                                                           market_simulation.interest_rate, present_time,
-                                                           simulated_value_dict,
-                                                           perturbation_dependencies.dependencies,
-                                                           dependency_results, market_simulation.path_count,
-                                                           market_simulation.perturbation_factor)
-    else:
-        assert isinstance(compute_pool, Pool)
-        async_result = compute_pool.apply_async(
-            evaluate_dsl_expr,
-            args=(dsl_expr, first_commodity_name, market_simulation.id, market_simulation.interest_rate,
-                  present_time, simulated_value_dict, perturbation_dependencies.dependencies, dependency_results,
-                  market_simulation.path_count, market_simulation.perturbation_factor),
-        )
-        result_value, perturbed_values = async_result.get()
+    result_value, perturbed_values = evaluate_dsl_expr(dsl_expr, first_commodity_name, market_simulation.id,
+                                                       market_simulation.interest_rate, present_time,
+                                                       simulated_value_dict,
+                                                       perturbation_dependencies.dependencies,
+                                                       dependency_results, market_simulation.path_count,
+                                                       market_simulation.perturbation_factor)
 
     # Return the result.
     return result_value, perturbed_values

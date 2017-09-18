@@ -50,7 +50,7 @@ class QuantDslApplication(EventSourcingApplication):
     Evaluate contract given call dependency graph and market simulation.
     """
 
-    def __init__(self, call_evaluation_queue=None, result_counters=None, *args, **kwargs):
+    def __init__(self, call_evaluation_queue=None, *args, **kwargs):
         super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
@@ -69,7 +69,6 @@ class QuantDslApplication(EventSourcingApplication):
         # self.call_result_repo = CallResultRepo(event_store=self.event_store, use_cache=True)
         self.call_result_repo = {}
         self.call_evaluation_queue = call_evaluation_queue
-        self.result_counters = result_counters
 
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
@@ -92,7 +91,6 @@ class QuantDslApplication(EventSourcingApplication):
             market_simulation_repo=self.market_simulation_repo,
             call_evaluation_queue=self.call_evaluation_queue,
             call_leafs_repo=self.call_leafs_repo,
-            result_counters=self.result_counters,
             call_dependents_repo=self.call_dependents_repo,
             perturbation_dependencies_repo=self.perturbation_dependencies_repo,
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
@@ -155,7 +153,7 @@ class QuantDslApplication(EventSourcingApplication):
         assert isinstance(contract_specification_id, six.string_types), contract_specification_id
         return start_contract_valuation(contract_specification_id, market_simulation_id)
 
-    def loop_on_evaluation_queue(self, compute_pool=None):
+    def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
             call_evaluation_queue=self.call_evaluation_queue,
             contract_valuation_repo=self.contract_valuation_repo,
@@ -167,7 +165,6 @@ class QuantDslApplication(EventSourcingApplication):
             call_dependents_repo=self.call_dependents_repo,
             perturbation_dependencies_repo=self.perturbation_dependencies_repo,
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
-            compute_pool=compute_pool,
         )
 
     def evaluate_call_and_queue_next_calls(self, contract_valuation_id, contract_specification_id, call_id):
@@ -181,7 +178,6 @@ class QuantDslApplication(EventSourcingApplication):
             call_dependencies_repo=self.call_dependencies_repo,
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
-            call_dependents_repo=self.call_dependents_repo,
             perturbation_dependencies_repo=self.perturbation_dependencies_repo,
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
         )

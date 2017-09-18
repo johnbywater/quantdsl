@@ -13,8 +13,8 @@ class CallResultPolicy(object):
         self.result = {}
         self.dependents = {}
         self.dependencies = {}
-        self.usages = {}
-        self.result_counters = {}
+        self.outstanding_dependents = {}
+        self.outstanding_dependencies = {}
 
         subscribe(self.is_call_dependencies_created, self.cache_dependencies)
         subscribe(self.is_call_dependents_created, self.cache_dependents)
@@ -43,13 +43,20 @@ class CallResultPolicy(object):
         assert isinstance(event, CallDependencies.Created)
         call_result_id = event.entity_id
         self.dependencies[call_result_id] = event.dependencies[:]
-        self.result_counters[call_result_id] = [None] * (len(event.dependencies) - 1)
+
+        # Count one outstanding dependency for each dependency of the call.
+        # - minus 1, so that pop() raises at the right time, see below
+        if self.call_evaluation_queue:
+            self.outstanding_dependencies[call_result_id] = [None] * (len(event.dependencies) - 1)
 
     def cache_dependents(self, event):
         assert isinstance(event, CallDependents.Created)
         call_result_id = event.entity_id
         self.dependents[call_result_id] = event.dependents[:]
-        self.usages[call_result_id] = [None] * (len(event.dependents) - 1)
+
+        # Count one outstanding dependent for each dependent of the call.
+        # - minus 1, so that pop() raises at the right time, see below
+        self.outstanding_dependents[call_result_id] = [None] * (len(event.dependents) - 1)
 
     def cache_result(self, event):
         assert isinstance(event, CallResult.Created)
@@ -61,22 +68,22 @@ class CallResultPolicy(object):
         if isinstance(self.call_result_repo, dict):
             self.call_result_repo[this_result_id] = call_result
 
-        # Remove one usage for each dependency of this result.
+        # Decrement outstanding dependents for each dependency of this result.
         for dependency_id in self.dependencies.get(event.call_id, ()):
             try:
-                self.usages[dependency_id].pop()
+                self.outstanding_dependents[dependency_id].pop()
             except IndexError:
-                # Discard the result when it has been fully used.
+                # Discard the result when there are no longer any outstanding dependents.
                 dependent_result_id = make_call_result_id(event.contract_valuation_id, dependency_id)
                 self.result[dependent_result_id].discard()
 
-        # Remove one result for each dependent of this result.
+        # Remove one outstanding dependency for each dependent of this result.
         if self.call_evaluation_queue:
             for dependent_id in self.dependents.get(event.call_id, ()):
                 try:
-                    self.result_counters[dependent_id].pop()
+                    self.outstanding_dependencies[dependent_id].pop()
                 except IndexError:
-                    # Queue the call if a dependent has all its results.
+                    # Queue the call if there are no more outstanding results.
                     job = (event.contract_specification_id, event.contract_valuation_id, dependent_id)
                     self.call_evaluation_queue.put(job)
 
