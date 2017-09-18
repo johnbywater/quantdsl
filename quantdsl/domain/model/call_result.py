@@ -1,15 +1,9 @@
-# from multiprocessing.sharedctypes import SynchronizedArray
-from threading import Lock
-
 import scipy
-from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
+from eventsourcing.domain.model.entity import EntityRepository, EventSourcedEntity
 from eventsourcing.domain.model.events import publish
-
-# from quantdsl.semantics import numpy_from_sharedmem
 
 
 class CallResult(EventSourcedEntity):
-
     class Created(EventSourcedEntity.Created):
         @property
         def call_id(self):
@@ -20,13 +14,18 @@ class CallResult(EventSourcedEntity):
             return self.__dict__['contract_valuation_id']
 
         @property
+        def contract_specification_id(self):
+            return self.__dict__['contract_specification_id']
+
+        @property
         def result_value(self):
             return self.__dict__['result_value']
 
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
-    def __init__(self, result_value, perturbed_values, contract_valuation_id, call_id, contract_specification_id, **kwargs):
+    def __init__(self, result_value, perturbed_values, contract_valuation_id, call_id, contract_specification_id,
+                 **kwargs):
         super(CallResult, self).__init__(**kwargs)
         self._result_value = result_value
         self._perturbed_values = perturbed_values
@@ -57,8 +56,6 @@ class CallResult(EventSourcedEntity):
     @property
     def scalar_result_value(self):
         result_value = self._result_value
-        # if isinstance(result_value, SynchronizedArray):
-        #     result_value = numpy_from_sharedmem(result_value)
         if isinstance(result_value, scipy.ndarray):
             result_value = result_value.mean()
         return result_value

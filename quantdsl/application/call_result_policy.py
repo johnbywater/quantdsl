@@ -7,12 +7,14 @@ from quantdsl.infrastructure.event_sourced_repos.call_result_repo import CallRes
 
 
 class CallResultPolicy(object):
-    def __init__(self, call_result_repo):
+    def __init__(self, call_result_repo, call_evaluation_queue=None):
         self.call_result_repo = call_result_repo
+        self.call_evaluation_queue = call_evaluation_queue
         self.result = {}
         self.dependents = {}
         self.dependencies = {}
         self.usages = {}
+        self.result_counters = {}
 
         subscribe(self.is_call_dependencies_created, self.cache_dependencies)
         subscribe(self.is_call_dependents_created, self.cache_dependents)
@@ -39,7 +41,9 @@ class CallResultPolicy(object):
 
     def cache_dependencies(self, event):
         assert isinstance(event, CallDependencies.Created)
-        self.dependencies[event.entity_id] = event.dependencies[:]
+        call_result_id = event.entity_id
+        self.dependencies[call_result_id] = event.dependencies[:]
+        self.result_counters[call_result_id] = [None] * (len(event.dependencies) - 1)
 
     def cache_dependents(self, event):
         assert isinstance(event, CallDependents.Created)
@@ -65,6 +69,16 @@ class CallResultPolicy(object):
                 # Discard the result when it has been fully used.
                 dependent_result_id = make_call_result_id(event.contract_valuation_id, dependency_id)
                 self.result[dependent_result_id].discard()
+
+        # Remove one result for each dependent of this result.
+        if self.call_evaluation_queue:
+            for dependent_id in self.dependents.get(event.call_id, ()):
+                try:
+                    self.result_counters[dependent_id].pop()
+                except IndexError:
+                    # Queue the call if a dependent has all its results.
+                    job = (event.contract_specification_id, event.contract_valuation_id, dependent_id)
+                    self.call_evaluation_queue.put(job)
 
     def purge_result(self, event):
         assert isinstance(event, CallResult.Discarded)
