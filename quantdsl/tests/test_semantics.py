@@ -4,9 +4,9 @@ from unittest.case import TestCase
 from dateutil.relativedelta import relativedelta
 from scipy import array
 
-from quantdsl.exceptions import DslSyntaxError, DslNameError
-from quantdsl.semantics import Date, DslObject, Number, String, TimeDelta, Name, And, Or, Add, Sub, Mult, Div, Min, \
-    Max, DslNamespace
+from quantdsl.exceptions import DslNameError, DslSyntaxError
+from quantdsl.semantics import Add, And, Date, Div, DslNamespace, DslObject, Max, Min, Mult, Name, Number, Or, \
+    String, Sub, TimeDelta
 
 
 class Subclass(DslObject):
@@ -164,7 +164,6 @@ class TestTimeDelta(TestCase):
 
 
 class TestAnd(TestCase):
-
     def test_evaluate(self):
         obj = And([Number(1), Number(1)])
         self.assertTrue(obj.evaluate())
@@ -184,7 +183,6 @@ class TestAnd(TestCase):
 
 
 class TestOr(TestCase):
-
     def test_evaluate(self):
         obj = Or([Number(1), Number(1)])
         self.assertTrue(obj.evaluate())
@@ -204,7 +202,6 @@ class TestOr(TestCase):
 
 
 class TestAndOr(TestCase):
-
     def test_str(self):
         obj = And([Number(1), Or([Number(2), Number(3)])])
         self.assertEqual(str(obj), '(1 and (2 or 3))')
@@ -213,7 +210,6 @@ class TestAndOr(TestCase):
 
 
 class TestAdd(TestCase):
-
     def test_evaluate(self):
         obj = Add(Number(1), Number(1))
         self.assertEqual(obj.evaluate(), 2)
@@ -227,7 +223,6 @@ class TestAdd(TestCase):
 
 
 class TestSub(TestCase):
-
     def test_evaluate(self):
         obj = Sub(Number(1), Number(1))
         self.assertEqual(obj.evaluate(), 0)
@@ -238,7 +233,6 @@ class TestSub(TestCase):
 
 
 class TestMul(TestCase):
-
     def test_evaluate(self):
         obj = Mult(Number(2), Number(2))
         self.assertEqual(obj.evaluate(), 4)
@@ -321,4 +315,5 @@ class TestName(TestCase):
             obj.reduce(DslNamespace(), DslNamespace())
 
         self.assertEqual(obj.reduce(DslNamespace({'a': 1}), DslNamespace()), Number(1))
-        self.assertEqual(obj.reduce(DslNamespace({'a': datetime.timedelta(1)}), DslNamespace()), TimeDelta(datetime.timedelta(1)))
+        self.assertEqual(obj.reduce(DslNamespace({'a': datetime.timedelta(1)}), DslNamespace()),
+                         TimeDelta(datetime.timedelta(1)))

@@ -11,7 +11,17 @@ from eventsourcing.domain.model.events import publish
 class CallResult(EventSourcedEntity):
 
     class Created(EventSourcedEntity.Created):
-        pass
+        @property
+        def call_id(self):
+            return self.__dict__['call_id']
+
+        @property
+        def contract_valuation_id(self):
+            return self.__dict__['contract_valuation_id']
+
+        @property
+        def result_value(self):
+            return self.__dict__['result_value']
 
     class Discarded(EventSourcedEntity.Discarded):
         pass

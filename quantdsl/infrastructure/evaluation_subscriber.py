@@ -18,13 +18,13 @@ class EvaluationSubscriber(object):
 
     def __init__(self, contract_valuation_repo, call_link_repo, call_dependencies_repo, call_requirement_repo,
                  call_result_repo, simulated_price_repo, market_simulation_repo, call_leafs_repo,
-                 call_evaluation_queue, result_counters, usage_counters, call_dependents_repo,
+                 call_evaluation_queue, result_counters, call_dependents_repo,
                  perturbation_dependencies_repo, simulated_price_requirements_repo):
         assert isinstance(contract_valuation_repo, ContractValuationRepository), contract_valuation_repo
         assert isinstance(call_link_repo, CallLinkRepository), call_link_repo
         assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
         assert isinstance(call_requirement_repo, CallRequirementRepository), call_requirement_repo
-        assert isinstance(call_result_repo, CallResultRepository), call_result_repo
+        assert isinstance(call_result_repo, (CallResultRepository, dict)), call_result_repo
         assert isinstance(simulated_price_repo, SimulatedPriceRepository), simulated_price_repo
         assert isinstance(market_simulation_repo, MarketSimulationRepository), market_simulation_repo
         assert isinstance(call_dependents_repo, CallDependentsRepository), call_dependents_repo
@@ -41,7 +41,6 @@ class EvaluationSubscriber(object):
         self.call_leafs_repo = call_leafs_repo
         self.call_evaluation_queue = call_evaluation_queue
         self.result_counters = result_counters
-        self.usage_counters = usage_counters
         self.call_dependents_repo = call_dependents_repo
         self.perturbation_dependencies_repo = perturbation_dependencies_repo
         self.simulated_price_dependencies_repo = simulated_price_requirements_repo
@@ -66,7 +65,6 @@ class EvaluationSubscriber(object):
                                     market_simulation_repo=self.market_simulation_repo,
                                     simulated_price_repo=self.simulated_price_repo,
                                     result_counters=self.result_counters,
-                                    usage_counters=self.usage_counters,
                                     call_dependents_repo=self.call_dependents_repo,
                                     perturbation_dependencies_repo=self.perturbation_dependencies_repo,
                                     simulated_price_dependencies_repo=self.simulated_price_dependencies_repo,
