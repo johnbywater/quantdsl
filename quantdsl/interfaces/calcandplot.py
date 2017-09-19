@@ -70,7 +70,7 @@ class CalcAndPlot(object):
         print("")
         print("Results in {}s".format((end_calc - start_calc).total_seconds()))
 
-        if len(periods) > 1:
+        if plt and len(periods) > 1 and not os.getenv('SUPRESS_MATPLOTLIB_PLOT_SHOW'):
             self.plot_results(interest_rate, path_count, perturbation_factor, periods, title, periodisation)
 
     def calc_results(self, app, interest_rate, observation_date, path_count, perturbation_factor,
@@ -259,51 +259,49 @@ class CalcAndPlot(object):
         print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
 
     def plot_results(self, interest_rate, path_count, perturbation_factor, periods, title, periodisation):
-        if plt:
-            prices_mean = [p['price_mean'] for p in periods]
-            prices_std = [p['price_std'] for p in periods]
-            prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
-            prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
+        prices_mean = [p['price_mean'] for p in periods]
+        prices_std = [p['price_std'] for p in periods]
+        prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
+        prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
 
-            cum_cash_mean = [p['cum_cash_mean'] for p in periods]
-            cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
-            cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
-            cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
+        cum_cash_mean = [p['cum_cash_mean'] for p in periods]
+        cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
+        cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
+        cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
 
-            cum_pos_mean = [p['cum_pos_mean'] for p in periods]
-            cum_pos_stderr = [p['cum_pos_stderr'] for p in periods]
-            cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
-            cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
+        cum_pos_mean = [p['cum_pos_mean'] for p in periods]
+        cum_pos_stderr = [p['cum_pos_stderr'] for p in periods]
+        cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
+        cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
 
-            dates = [p['date'] for p in periods]
+        dates = [p['date'] for p in periods]
 
-            f, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
-            f.canvas.set_window_title(title)
-            f.suptitle('paths:{} perturbation:{} interest:{}% '.format(
-                path_count, perturbation_factor, interest_rate))
-            if periodisation == 'monthly':
-                ax1.xaxis.set_major_locator(mdates.MonthLocator())
-                ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-            elif periodisation == 'daily':
-                ax1.xaxis.set_major_locator(mdates.DayLocator())
-                ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            else:
-                raise NotImplementedError(periodisation)
+        f, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
+        f.canvas.set_window_title(title)
+        f.suptitle('paths:{} perturbation:{} interest:{}% '.format(
+            path_count, perturbation_factor, interest_rate))
+        if periodisation == 'monthly':
+            ax1.xaxis.set_major_locator(mdates.MonthLocator())
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+        elif periodisation == 'daily':
+            ax1.xaxis.set_major_locator(mdates.DayLocator())
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        else:
+            raise NotImplementedError(periodisation)
 
-            ax1.set_title('Prices')
-            ax1.plot(dates, prices_plus, '0.75', dates, prices_minus, '0.75', dates, prices_mean, '0.25')
+        ax1.set_title('Prices')
+        ax1.plot(dates, prices_plus, '0.75', dates, prices_minus, '0.75', dates, prices_mean, '0.25')
 
-            ax2.set_title('Position')
-            ax2.plot(dates, cum_pos_plus, '0.75', dates, cum_pos_minus, '0.75', dates, cum_pos_mean, '0.25')
+        ax2.set_title('Position')
+        ax2.plot(dates, cum_pos_plus, '0.75', dates, cum_pos_minus, '0.75', dates, cum_pos_mean, '0.25')
 
-            ax3.set_title('Profit')
-            ax3.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
+        ax3.set_title('Profit')
+        ax3.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
 
-            f.autofmt_xdate(rotation=60)
+        f.autofmt_xdate(rotation=60)
 
-            ax1.grid()
-            ax2.grid()
-            ax3.grid()
+        ax1.grid()
+        ax2.grid()
+        ax3.grid()
 
-            if not os.getenv('SUPRESS_MATPLOTLIB_PLOT_SHOW'):
-                plt.show()
+        plt.show()
