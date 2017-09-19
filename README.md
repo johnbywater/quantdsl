@@ -80,7 +80,7 @@ Let's jump in at the deep-end with a simple model of a gas-fired power station.
 
 ```python
 source_code = """
-PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Stopped(1))
+PowerStation(Date('2012-1-1'), Date('2012-1-4'), Market('GAS'), Market('POWER'), Running())
 
 def PowerStation(start, end, gas, power, duration_off):
     if (start < end):
@@ -143,15 +143,21 @@ calibration_params = {
     'market': ['GAS', 'POWER'],
     'sigma': [0.3, 0.2],
     'rho': [
-        [1.0, 0.4],
-        [0.4, 1.0],
+        [1.0, 0.8],
+        [0.8, 1.0],
     ],
     'curve': {
         'GAS': [
-            ('2011-1-1', 10),
+            ('2011-1-1', 12),
+            ('2012-1-1', 11),
+            ('2012-1-2', 10),
+            ('2012-1-3', 9),
         ],
         'POWER': [
             ('2011-1-1', 11),
+            ('2012-1-1', 11),
+            ('2012-1-2', 11),
+            ('2012-1-3', 11),
         ],
     },
 }
@@ -186,5 +192,5 @@ Inspect the estimated value.
 
 ```python
 estimated_value = app.get_result(valuation).result_value.mean()
-assert 17 < estimated_value < 18, estimated_value
+assert 3 < estimated_value < 5, estimated_value
 ```
