@@ -2,7 +2,7 @@ from unittest.case import TestCase
 
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.interfaces.calcandplot import calc
+from quantdsl.interfaces.calcandplot import calc, calc_and_plot
 
 
 class TestCalcAndPlot(TestCase):
@@ -19,7 +19,7 @@ class TestCalcAndPlot(TestCase):
 GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
 """
 
-        calc(
+        calc_and_plot(
             title="Gas Storage",
             source_code=source_code,
             observation_date='2011-1-1',

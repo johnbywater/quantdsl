@@ -26,7 +26,7 @@ from quantdsl.priceprocess.base import datetime_from_date
 
 
 def calc_and_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
-                  perturbation_factor, price_process):
+                  perturbation_factor, price_process, supress_plot=False):
 
     fair_value, periods = calc(
         source_code=source_code,
@@ -39,7 +39,7 @@ def calc_and_plot(title, source_code, observation_date, periodisation, interest_
 
     print_results(fair_value, periods, path_count)
 
-    if periods and not os.getenv('SUPRESS_PLOT'):
+    if periods and not os.getenv('SUPRESS_PLOT') and not supress_plot:
         plot_periods(
             periods=periods,
             title=title,
