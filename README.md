@@ -40,24 +40,26 @@ Function definitions are also supported, to ease construction of Quant DSL expre
 The import statement is also supported to allow function definitions to be used from a library.
 
 
-## Usage
+## Usage Example
 
-The basic steps in evaluating a model are:
+The library provides a convenience function `calc_and_plot()` can be used to evaluate contracts.
 
-* specification of a contract model;
-* calibration of a price process;
-* simulation of future prices; and
-* evaluation of the contract model.
-
-A convenience function `calc_and_plot()` can be used to perform all the steps.
+Steps for evaluating a contract include: specification of a model of a contract; calibration of a price process
+for the underlying prices; simulation of future prices underlying the contract; and evaluation of the contract model
+against the simulation. The library provides an application class `QuantDslApplication` which has methods that 
+support these steps: `compile()`, `simulate()` and `evaluate()`. The function `calc_and_plot()` uses those methods of 
+that application to evaluate contracts.
+ 
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_and_plot
 ```
 
+### Gas Storage
+
 Here's an evaluation of a gas storage facility.
 
-```pyt hon
+```python
 calc_and_plot(
     title="Gas Storage",
     
@@ -149,6 +151,8 @@ GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
 )
 
 ```
+
+### Power Station
 
 Here's an evaluation of a power station.
 
