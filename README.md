@@ -8,7 +8,8 @@
 ## Install
 
 Use pip to install the [latest distribution](https://pypi.python.org/pypi/quantdsl) from
-the Python Package Index.
+the Python Package Index. To avoid disturbing your system's site packages, it is recommended to install
+into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 
 ```
 pip install --upgrade pip
@@ -17,8 +18,6 @@ pip install quantdsl
 
 Please register any [issues on GitHub](https://github.com/johnbywater/quantdsl/issues).
 
-To avoid disturbing your system's site packages, it is recommended to install
-into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 
 ## Overview
 
@@ -29,27 +28,32 @@ maths used in finance and trading. The elements of the language can be freely co
 of value. User defined functions generate extensive dependency graphs that effectively model and evaluate exotic
 derivatives.
 
+## Definition and implementation
+
 The syntax of Quant DSL expressions has been
 [formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
 the semantic model is supported with mathematical proofs.
 
-This package is an implementation of the language in Python.
+This package is an implementation of the language in Python. Function definitions are also supported, to ease 
+construction of Quant DSL expressions. The import statement is also supported to allow function definitions to be 
+used from a library (see below).
 
-Function definitions are also supported, to ease construction of Quant DSL expressions.
+Steps for evaluating a contract include: specification of a model of a contract; calibration of a stochastic process
+for the underlying prices; simulation using the price process of future prices underlying the contract; and evaluation
+of the contract model against the simulation.
 
-The import statement is also supported to allow function definitions to be used from a library.
+The library provides an application class `QuantDslApplication` which 
+has methods that support these steps: `compile()`, `simulate()` and `evaluate()`.
+
+The library also provides a convenience function `calc()` uses those methods of that application to evaluate 
+contracts.
 
 
-## Usage Example
 
-The library provides a convenience function `calc_and_plot()` can be used to evaluate contracts.
+## Example of usage
 
-Steps for evaluating a contract include: specification of a model of a contract; calibration of a price process
-for the underlying prices; simulation of future prices underlying the contract; and evaluation of the contract model
-against the simulation. The library provides an application class `QuantDslApplication` which has methods that 
-support these steps: `compile()`, `simulate()` and `evaluate()`. The function `calc_and_plot()` uses those methods of 
-that application to evaluate contracts.
- 
+The examples below use the library function `calc()` to evaluate contracts.
+
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_and_plot
@@ -154,50 +158,15 @@ GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
 
 ### Power Station
 
-Here's an evaluation of a power station.
+Here's an evaluation of a power station. This time, the source code imports a power station model from the library.
 
 ```python
 calc_and_plot(
     title="Power Station",
 
-    source_code="""
-def PowerStation(start, end, gas, power, duration_off):
-    if (start < end):
-        Wait(start,
-            Choice(
-                ProfitFromRunning(gas, power, duration_off) + PowerStation(
-                    Tomorrow(start), end, gas, power, Running()
-                ),
-                PowerStation(
-                    Tomorrow(start), end, gas, power, Stopped(duration_off)
-                )
-            )
-        )
-    else:
-        return 0
-
-@inline
-def ProfitFromRunning(gas, power, duration_off):
-    if duration_off > 1:
-        return 0.75 * power - gas
-    elif duration_off == 1:
-        return 0.90 * power - gas
-    else:
-        return 1.00 * power - gas
-
-@inline
-def Running():
-    return 0
-
-@inline
-def Stopped(duration_off):
-    return duration_off + 1
-
-@inline
-def Tomorrow(today):
-    return today + TimeDelta('1d')
-
-PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Running())
+    source_code="""from quantdsl.lib.powerplant2 import PowerPlant, Running
+        
+PowerPlant(Date('2011-1-1'), Date('2011-1-6'), Running())
 """,
 
     observation_date='2011-1-1',
@@ -219,24 +188,6 @@ PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWE
                 ('2011-4-1', 9.0),
                 ('2011-5-1', 7.5),
                 ('2011-6-1', 7.0),
-                ('2011-7-1', 6.5),
-                ('2011-8-1', 7.5),
-                ('2011-9-1', 8.5),
-                ('2011-10-1', 10.0),
-                ('2011-11-1', 11.5),
-                ('2011-12-1', 12.0),
-                ('2012-1-1', 13.5),
-                ('2012-2-1', 11.0),
-                ('2012-3-1', 10.0),
-                ('2012-4-1', 9.0),
-                ('2012-5-1', 7.5),
-                ('2012-6-1', 7.0),
-                ('2012-7-1', 6.5),
-                ('2012-8-1', 7.5),
-                ('2012-9-1', 8.5),
-                ('2012-10-1', 10.0),
-                ('2012-11-1', 11.5),
-                ('2012-12-1', 12.0)
             ],
             'POWER': [
                 ('2011-1-1', 13.5),
@@ -245,24 +196,6 @@ PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWE
                 ('2011-4-1', 9.0),
                 ('2011-5-1', 7.5),
                 ('2011-6-1', 7.0),
-                ('2011-7-1', 6.5),
-                ('2011-8-1', 7.5),
-                ('2011-9-1', 8.5),
-                ('2011-10-1', 10.0),
-                ('2011-11-1', 11.5),
-                ('2011-12-1', 12.0),
-                ('2012-1-1', 13.5),
-                ('2012-2-1', 11.0),
-                ('2012-3-1', 10.0),
-                ('2012-4-1', 9.0),
-                ('2012-5-1', 7.5),
-                ('2012-6-1', 7.0),
-                ('2012-7-1', 6.5),
-                ('2012-8-1', 7.5),
-                ('2012-9-1', 8.5),
-                ('2012-10-1', 10.0),
-                ('2012-11-1', 11.5),
-                ('2012-12-1', 12.0)
             ]
         }
     }

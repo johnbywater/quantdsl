@@ -6,6 +6,7 @@ import datetime
 import math
 import sys
 from threading import Event
+from time import sleep
 
 import dateutil.parser
 import numpy
@@ -24,74 +25,104 @@ from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.priceprocess.base import datetime_from_date
 
 
-def calc_and_plot(*args, **kwargs):
-    return CalcAndPlot().run(*args, **kwargs)
+def calc_and_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
+                  perturbation_factor, price_process):
+
+    fair_value, periods = calc(
+        source_code=source_code,
+        interest_rate=interest_rate,
+        path_count=path_count,
+        observation_date=observation_date,
+        perturbation_factor=perturbation_factor,
+        price_process=price_process,
+    )
+
+    print_results(fair_value, periods, path_count)
+
+    if periods and not os.getenv('SUPRESS_PLOT'):
+        plot_periods(
+            periods=periods,
+            title=title,
+            periodisation=periodisation,
+            interest_rate=interest_rate,
+            path_count=path_count,
+            perturbation_factor=perturbation_factor,
+        )
 
 
-class CalcAndPlot(object):
-    def __init__(self):
+def calc(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process):
+    with Calculate(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process) as cmd:
+        return cmd.run()
+
+
+class Calculate(object):
+    def __init__(self, source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process):
         self.result_values_computed_count = 0
         self.call_result_id = None
-        self.is_evaluation_ready = Event()
+        self.is_completed = Event()
+        subscribe(self.is_result_value_computed, self.count_result_values_computed)
+        subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
-    def is_evaluation_complete(self, event):
-        return isinstance(event, CallResult.Created) and event.entity_id == self.call_result_id
+        self.source_code = source_code
+        self.observation_date = observation_date
+        self.interest_rate = interest_rate
+        self.path_count = path_count
+        self.perturbation_factor = perturbation_factor
+        self.price_process = price_process
+        self._run_once = False
 
-    def on_evaluation_complete(self, _):
-        self.is_evaluation_ready.set()
+    def __enter__(self):
+        return self
 
-    def run(self, title, source_code, observation_date, interest_rate, path_count, perturbation_factor,
-            price_process, periodisation, supress_plot=False):
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        unsubscribe(self.is_result_value_computed, self.count_result_values_computed)
+        unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
+
+    def run(self):
+        assert not self._run_once, "Already run once"
+        self._run_once = True
         with QuantDslApplicationWithMultithreadingAndPythonObjects() as app:
 
             start_compile = datetime.datetime.now()
-            contract_specification = app.compile(source_code)
+            contract_specification = app.compile(self.source_code)
             end_compile = datetime.datetime.now()
             print("Compilation in {}s".format((end_compile - start_compile).total_seconds()))
 
-            subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
             start_calc = datetime.datetime.now()
 
-            evaluation, market_simulation = self.calc_results(app, interest_rate, observation_date,
-                                                              path_count, perturbation_factor, contract_specification,
-                                                              price_process['name'], price_process)
+            evaluation, market_simulation = self.calc_results(app, contract_specification)
 
             self.call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
 
 
             while self.call_result_id not in app.call_result_repo:
-                if self.is_evaluation_ready.wait(timeout=2):
+                if self.is_completed.wait(timeout=2):
                     break
 
-
-            fair_value_stderr, fair_value_mean, periods = self.read_results(app, evaluation, market_simulation,
-                                                                            path_count)
+            fair_value, periods = self.read_results(app, evaluation, market_simulation)
 
             end_calc = datetime.datetime.now()
-            self.print_results(fair_value_mean, fair_value_stderr, periods)
             print("")
             print("Results in {}s".format((end_calc - start_calc).total_seconds()))
 
-            supress_plot = supress_plot or os.getenv('SUPRESS_PLOT')
-            if not supress_plot and plt and len(periods) > 1:
-                self.plot_results(interest_rate, path_count, perturbation_factor, periods, title, periodisation)
+        return fair_value, periods
 
-            unsubscribe(self.is_result_value_computed, self.count_result_values_computed)
-            unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
-
-    def calc_results(self, app, interest_rate, observation_date, path_count, perturbation_factor,
-                     contract_specification, price_process_name, calibration_params):
+    def calc_results(self, app, contract_specification):
         market_calibration = app.register_market_calibration(
-            price_process_name,
-            calibration_params
+            self.price_process['name'],
+            self.price_process,
         )
+
         market_simulation = app.simulate(
             contract_specification,
             market_calibration,
-            path_count=path_count,
-            observation_date=datetime_from_date(dateutil.parser.parse(observation_date)),
-            interest_rate=interest_rate,
-            perturbation_factor=perturbation_factor,
+            path_count=self.path_count,
+            observation_date=datetime_from_date(dateutil.parser.parse(self.observation_date)),
+            interest_rate=self.interest_rate,
+            perturbation_factor=self.perturbation_factor,
         )
 
         call_costs = app.calc_call_costs(contract_specification.id)
@@ -99,59 +130,25 @@ class CalcAndPlot(object):
 
         self.times = collections.deque()
 
-        subscribe(self.is_result_value_computed, self.count_result_values_computed)
         evaluation = app.evaluate(contract_specification, market_simulation)
         return evaluation, market_simulation
 
-    def is_result_value_computed(self, event):
-        return isinstance(event, ResultValueComputed)
-
-    def count_result_values_computed(self, event):
-        self.times.append(datetime.datetime.now())
-        if len(self.times) > 0.5 * self.total_cost:
-            self.times.popleft()
-        if len(self.times) > 1:
-            duration = self.times[-1] - self.times[0]
-            rate = len(self.times) / duration.total_seconds()
-        else:
-            rate = 0.001
-        eta = (self.total_cost - self.result_values_computed_count) / rate
-        assert isinstance(event, ResultValueComputed)
-        self.result_values_computed_count += 1
-        sys.stdout.write(
-            "\r{:.2f}% complete ({}/{}) {:.2f}/s eta {:.0f}s".format(
-                (100.0 * self.result_values_computed_count) / self.total_cost,
-                self.result_values_computed_count,
-                self.total_cost,
-                rate,
-                eta
-            )
-        )
-        sys.stdout.flush()
-
-
-    def read_results(self, app, evaluation, market_simulation, path_count):
+    def read_results(self, app, evaluation, market_simulation):
         assert isinstance(evaluation, ContractValuation)
 
         call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
         call_result = app.call_result_repo[call_result_id]
 
-        sqrt_path_count = math.sqrt(path_count)
+        sqrt_path_count = math.sqrt(self.path_count)
 
         fair_value = call_result.result_value
-        if isinstance(fair_value, (int, float, long)):
-            fair_value_mean = fair_value
-            fair_value_stderr = 0
-        else:
-            fair_value_mean = fair_value.mean()
-            fair_value_stderr = fair_value.std() / sqrt_path_count
 
         perturbed_names = call_result.perturbed_values.keys()
         perturbed_names = [i for i in perturbed_names if not i.startswith('-')]
         perturbed_names = sorted(perturbed_names, key=lambda x: [int(i) for i in x.split('-')[1:]])
 
-        total_cash_in = zeros(path_count)
-        total_units = zeros(path_count)
+        total_cash_in = zeros(self.path_count)
+        total_units = zeros(self.path_count)
         periods = []
         for perturbed_name in perturbed_names:
 
@@ -242,109 +239,150 @@ class CalcAndPlot(object):
                     'total_unit_stderr': total_units_stderr,
                 })
 
-        return fair_value_stderr, fair_value_mean, periods
+        return fair_value, periods
 
-    def print_results(self, fair_value_mean, fair_value_stderr, periods):
-        print("")
-        print("")
+    def is_result_value_computed(self, event):
+        return isinstance(event, ResultValueComputed)
 
-        if periods:
-            for period in periods:
-                print(period['commodity'])
-                print("Price: {:.2f}".format(period['price_mean']))
-                print("Hedge: {:.2f} ± {:.2f} units of {}".format(period['hedge_units_mean'],
-                                                                  3 * period['hedge_units_stderr'],
-                                                                  period['commodity']))
-                print("Cash in: {:.2f} ± {:.2f}".format(period['cash_in_mean'], 3 * period['cash_in_stderr']))
-                print("Cum posn: {:.2f} ± {:.2f}".format(period['cum_pos_mean'], 3 * period['cum_pos_stderr']))
-                print()
-            last_data = periods[-1]
-            print("Net cash in: {:.2f} ± {:.2f}".format(last_data['cum_cash_mean'], 3 * last_data['cum_cash_stderr']))
-            print("Net position: {:.2f} ± {:.2f}".format(last_data['cum_pos_mean'], 3 * last_data['cum_pos_stderr']))
-            print()
-        print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
-
-    def plot_results(self, interest_rate, path_count, perturbation_factor, periods, title, periodisation):
-
-        names = set([p['commodity'].split('-')[0] for p in periods])
-
-        f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
-        f.canvas.set_window_title(title)
-        f.suptitle('paths:{} perturbation:{} interest:{}% '.format(
-            path_count, perturbation_factor, interest_rate))
-
-        if periodisation == 'monthly':
-            subplots[0].xaxis.set_major_locator(mdates.MonthLocator())
-            subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        elif periodisation == 'daily':
-            subplots[0].xaxis.set_major_locator(mdates.DayLocator())
-            subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    def count_result_values_computed(self, event):
+        self.times.append(datetime.datetime.now())
+        if len(self.times) > 0.5 * self.total_cost:
+            self.times.popleft()
+        if len(self.times) > 1:
+            duration = self.times[-1] - self.times[0]
+            rate = len(self.times) / duration.total_seconds()
         else:
-            raise NotImplementedError(periodisation)
+            rate = 0.001
+        eta = (self.total_cost - self.result_values_computed_count) / rate
+        assert isinstance(event, ResultValueComputed)
+        self.result_values_computed_count += 1
+        sys.stdout.write(
+            "\r{:.2f}% complete ({}/{}) {:.2f}/s eta {:.0f}s".format(
+                (100.0 * self.result_values_computed_count) / self.total_cost,
+                self.result_values_computed_count,
+                self.total_cost,
+                rate,
+                eta
+            )
+        )
+        sys.stdout.flush()
 
-        for i, name in enumerate(names):
+    def is_evaluation_complete(self, event):
+        return isinstance(event, CallResult.Created) and event.entity_id == self.call_result_id
 
-            _periods = [p for p in periods if p['commodity'].startswith(name)]
-
-            dates = [p['date'] for p in _periods]
-            price_plot = subplots[i]
-
-            prices_mean = [p['price_mean'] for p in _periods]
-            prices_std = [p['price_std'] for p in _periods]
-            prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
-            prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
-
-            price_plot.set_title('Prices - {}'.format(name))
-            price_plot.plot(dates, prices_plus, '0.75', dates, prices_minus, '0.75', dates, prices_mean, '0.25')
-
-            ymin = min(0, min(prices_minus)) - 1
-            ymax = max(0, max(prices_plus)) + 1
-            price_plot.set_ylim([ymin, ymax])
-
-            cum_pos_mean = cumsum([p['hedge_units_mean'] for p in _periods])
-            cum_pos_stderr = cumsum([p['hedge_units_stderr'] for p in _periods])
-            cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
-            cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
+    def on_evaluation_complete(self, _):
+        self.is_completed.set()
 
 
-            pos_plot = subplots[len(names) + i]
-            pos_plot.set_title('Position - {}'.format(name))
-            pos_plot.plot(dates, cum_pos_plus, '0.75', dates, cum_pos_minus, '0.75', dates, cum_pos_mean, '0.25')
-            ymin = min(0, min(cum_pos_minus)) - 1
-            ymax = max(0, max(cum_pos_plus)) + 1
-            pos_plot.set_ylim([ymin, ymax])
+def print_results(fair_value, periods, path_count):
+    print("")
+    print("")
 
-        profit_plot = subplots[-1]
-        profit_plot.set_title('Profit')
+    if isinstance(fair_value, (int, float, long)):
+        fair_value_mean = fair_value
+        fair_value_stderr = 0
+    else:
+        fair_value_mean = fair_value.mean()
+        fair_value_stderr = fair_value.std() / math.sqrt(path_count)
 
-        dates = []
-
-        cash_in_mean = defaultdict(int)
-        cash_in_stderr = defaultdict(int)
-
+    if periods:
         for period in periods:
-            date = period['date']
-            if date not in dates:
-                dates.append(date)
-            cash_in_mean[date] += period['cash_in_mean']
-            cash_in_stderr[date] += period['cash_in_stderr']
+            print(period['commodity'])
+            print("Price: {:.2f}".format(period['price_mean']))
+            print("Hedge: {:.2f} ± {:.2f} units of {}".format(period['hedge_units_mean'],
+                                                              3 * period['hedge_units_stderr'],
+                                                              period['commodity']))
+            print("Cash in: {:.2f} ± {:.2f}".format(period['cash_in_mean'], 3 * period['cash_in_stderr']))
+            print("Cum posn: {:.2f} ± {:.2f}".format(period['cum_pos_mean'], 3 * period['cum_pos_stderr']))
+            print()
+        last_data = periods[-1]
+        print("Net cash in: {:.2f} ± {:.2f}".format(last_data['cum_cash_mean'], 3 * last_data['cum_cash_stderr']))
+        print("Net position: {:.2f} ± {:.2f}".format(last_data['cum_pos_mean'], 3 * last_data['cum_pos_stderr']))
+        print()
+    print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
+
+
+def plot_periods(periods, title, periodisation, interest_rate, path_count, perturbation_factor):
+
+    names = set([p['commodity'].split('-')[0] for p in periods])
+
+    f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
+    f.canvas.set_window_title(title)
+    f.suptitle('paths:{} perturbation:{} interest:{}% '.format(
+        path_count, perturbation_factor, interest_rate))
+
+    if periodisation == 'monthly':
+        subplots[0].xaxis.set_major_locator(mdates.MonthLocator())
+        subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    elif periodisation == 'daily':
+        subplots[0].xaxis.set_major_locator(mdates.DayLocator())
+        subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    else:
+        raise NotImplementedError(periodisation)
+
+    for i, name in enumerate(names):
+
+        _periods = [p for p in periods if p['commodity'].startswith(name)]
+
+        dates = [p['date'] for p in _periods]
+        price_plot = subplots[i]
+
+        prices_mean = [p['price_mean'] for p in _periods]
+        prices_std = [p['price_std'] for p in _periods]
+        prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
+        prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
+
+        price_plot.set_title('Prices - {}'.format(name))
+        price_plot.plot(dates, prices_plus, '0.75', dates, prices_minus, '0.75', dates, prices_mean, '0.25')
+
+        ymin = min(0, min(prices_minus)) - 1
+        ymax = max(0, max(prices_plus)) + 1
+        price_plot.set_ylim([ymin, ymax])
+
+        cum_pos_mean = cumsum([p['hedge_units_mean'] for p in _periods])
+        cum_pos_stderr = cumsum([p['hedge_units_stderr'] for p in _periods])
+        cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
+        cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
+
+
+        pos_plot = subplots[len(names) + i]
+        pos_plot.set_title('Position - {}'.format(name))
+        pos_plot.plot(dates, cum_pos_plus, '0.75', dates, cum_pos_minus, '0.75', dates, cum_pos_mean, '0.25')
+        ymin = min(0, min(cum_pos_minus)) - 1
+        ymax = max(0, max(cum_pos_plus)) + 1
+        pos_plot.set_ylim([ymin, ymax])
+
+    profit_plot = subplots[-1]
+    profit_plot.set_title('Profit')
+
+    dates = []
+
+    cash_in_mean = defaultdict(int)
+    cash_in_stderr = defaultdict(int)
+
+    for period in periods:
+        date = period['date']
+        if date not in dates:
+            dates.append(date)
+        cash_in_mean[date] += period['cash_in_mean']
+        cash_in_stderr[date] += period['cash_in_stderr']
 
 
 
-        # [cash_in[p['date']].append(p['cash_in_mean']) for p in _periods]
+    # [cash_in[p['date']].append(p['cash_in_mean']) for p in _periods]
 
-        cum_cash_mean = cumsum([cash_in_mean[date] for date in dates])
-        cum_cash_stderr = cumsum([cash_in_stderr[date] for date in dates])
-        # cum_cash_mean = [p['cum_cash_mean'] for p in periods]
-        # cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
-        cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
-        cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
+    cum_cash_mean = cumsum([cash_in_mean[date] for date in dates])
+    cum_cash_stderr = cumsum([cash_in_stderr[date] for date in dates])
+    # cum_cash_mean = [p['cum_cash_mean'] for p in periods]
+    # cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
+    cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
+    cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
 
-        profit_plot.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
-        # profit_plot.plot(dates, cum_cash_mean, '0.25')
+    profit_plot.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
+    # profit_plot.plot(dates, cum_cash_mean, '0.25')
 
-        f.autofmt_xdate(rotation=60)
+    f.autofmt_xdate(rotation=60)
 
-        [p.grid() for p in subplots]
+    [p.grid() for p in subplots]
 
-        plt.show()
+    plt.show()
