@@ -1,9 +1,17 @@
 from unittest.case import TestCase
 
+from eventsourcing.domain.model.events import assert_event_handlers_empty
+
 from quantdsl.interfaces.calcandplot import calc_and_plot
 
 
 class TestCalcAndPlot(TestCase):
+    def setUp(self):
+        assert_event_handlers_empty()
+
+    def tearDown(self):
+        assert_event_handlers_empty()
+
     def test(self):
 
         source_code = """from quantdsl.lib.storage2 import GasStorage
