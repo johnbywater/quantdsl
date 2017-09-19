@@ -3,13 +3,36 @@ from __future__ import division
 import datetime
 import math
 
+import dateutil.parser
 import scipy
 import scipy.linalg
+from scipy import array, sort, searchsorted
 from scipy.linalg import LinAlgError
 
 from quantdsl.exceptions import DslError
-from quantdsl.priceprocess.base import PriceProcess
+from quantdsl.priceprocess.base import PriceProcess, datetime_from_date
 from quantdsl.priceprocess.base import get_duration_years
+
+
+class ForwardCurve(object):
+    def __init__(self, name, data):
+        self.name = name
+        self.data = data
+        self.by_date = dict(
+            [(datetime_from_date(dateutil.parser.parse(d)), v) for (d, v) in self.data]
+        )
+        self.sorted = sort(array(self.by_date.keys()))
+
+    def get_price(self, date):
+        try:
+            price = self.by_date[date]
+        except:
+            # Search for earlier date.
+            index = searchsorted(self.sorted, date) - 1
+            if index < 0:
+                raise KeyError("Fixing date {} not found in '{}' forward curve.".format(date, self.name))
+            price = self.by_date[self.sorted[index]]
+        return price
 
 
 class BlackScholesPriceProcess(PriceProcess):
@@ -26,15 +49,12 @@ class BlackScholesPriceProcess(PriceProcess):
         # motions, the actual historical volatility, and the last price.
         for commodity_name, brownian_motions in all_brownian_motions:
             # Get the 'last price' for this commodity.
-            param_name = '%s-LAST-PRICE' % commodity_name
-            last_price = self.get_calibration_param(param_name, calibration_params)
 
-            # Get the 'actual historical volatility' for this commodity.
-            param_name = '%s-ACTUAL-HISTORICAL-VOLATILITY' % commodity_name
-            actual_historical_volatility = self.get_calibration_param(param_name, calibration_params)
-
-            sigma = actual_historical_volatility / 100.0
+            index = calibration_params['market'].index(commodity_name)
+            sigma = calibration_params['sigma'][index]
+            curve = ForwardCurve(commodity_name, calibration_params['curve'][commodity_name])
             for fixing_date, brownian_rv in brownian_motions:
+                last_price = curve.get_price(fixing_date)
                 T = get_duration_years(observation_date, fixing_date)
                 simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
                 yield commodity_name, fixing_date, fixing_date, simulated_value
@@ -136,15 +156,15 @@ class BlackScholesPriceProcess(PriceProcess):
         return all_brownian_motions
 
     def get_correlation_from_calibration(self, market_calibration, name_i, name_j):
-        market_name_pair = tuple(sorted([name_i, name_j]))
-        calibration_name = "%s-%s-CORRELATION" % market_name_pair
+        index_i = market_calibration['market'].index(name_i)
+        index_j = market_calibration['market'].index(name_j)
         try:
-            correlation = market_calibration[calibration_name]
+            correlation = market_calibration['rho'][index_i][index_j]
         except KeyError as e:
             msg = "Can't find correlation between '%s' and '%s' in market calibration params: %s: %s" % (
-                market_name_pair[0],
-                market_name_pair[1],
-                market_calibration.keys(),
+                name_i,
+                name_j,
+                market_calibration,
                 e
             )
             raise DslError(msg)

@@ -140,12 +140,22 @@ Calibrate from historical data. In this example, we can just register some calib
 price_process_name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
 
 calibration_params = {
-    'GAS-LAST-PRICE': 10,
-    'POWER-LAST-PRICE': 11,
-    'GAS-ACTUAL-HISTORICAL-VOLATILITY': 30,
-    'POWER-ACTUAL-HISTORICAL-VOLATILITY': 20,
-    'GAS-POWER-CORRELATION': 0.4,
+    'market': ['GAS', 'POWER'],
+    'sigma': [0.3, 0.2],
+    'rho': [
+        [1.0, 0.4],
+        [0.4, 1.0],
+    ],
+    'curve': {
+        'GAS': [
+            ('2011-1-1', 10),
+        ],
+        'POWER': [
+            ('2011-1-1', 11),
+        ],
+    },
 }
+
 
 market_calibration = app.register_market_calibration(
     price_process_name,

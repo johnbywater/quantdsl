@@ -54,6 +54,32 @@ class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
 class ContractValuationTestCase(ApplicationTestCaseMixin):
     price_process_name = DEFAULT_PRICE_PROCESS_NAME
     calibration_params = {
+        'market': ['#1', '#2', 'NBP', 'TTF', 'SPARKSPREAD'],
+        'sigma': [0.5, 0.5, 0.5, 0.4, 0.4],
+        'curve': {
+            '#1': [
+                ('2011-1-1', 10),
+            ],
+            '#2': [
+                ('2011-1-1', 10),
+            ],
+            'NBP': [
+                ('2011-1-1', 10),
+            ],
+            'TTF': [
+                ('2011-1-1', 11),
+            ],
+            'SPARKSPREAD': [
+                ('2011-1-1', 1),
+            ],
+        },
+        'rho': [
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.4, 0.0],
+            [0.0, 0.0, 0.4, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+        ],
         '#1-LAST-PRICE': 10,
         '#2-LAST-PRICE': 10,
         '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
