@@ -50,6 +50,7 @@ The basic steps in evaluating a model are:
 * evaluation of the contract model.
 
 A convenience function `calc_and_plot()` can be used to perform all the steps.
+
 ```python
 from quantdsl.interfaces.calcandplot import calc_and_plot
 ```
@@ -57,12 +58,11 @@ from quantdsl.interfaces.calcandplot import calc_and_plot
 Here's an evaluation of a gas storage facility.
 
 ```pyt hon
-from quantdsl.interfaces.calcandplot import calc_and_plot
-
-
 calc_and_plot(
     title="Gas Storage",
-    source_code="""def GasStorage(start, end, commodity_name, quantity, target, limit, step, period):
+    
+    source_code="""
+def GasStorage(start, end, commodity_name, quantity, target, limit, step, period):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
             return Wait(start, Choice(
@@ -104,11 +104,13 @@ def Inject(start, end, commodity_name, quantity, limit, step, period, target, vo
 
 GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
 """,
+
     observation_date='2011-1-1',
     interest_rate=2.5,
     path_count=20000,
     perturbation_factor=0.01,
     periodisation='monthly',
+
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
         'market': ['GAS'],
@@ -153,6 +155,7 @@ Here's an evaluation of a power station.
 ```python
 calc_and_plot(
     title="Gas Storage",
+
     source_code="""
 def PowerStation(start, end, gas, power, duration_off):
     if (start < end):
@@ -192,11 +195,13 @@ def Tomorrow(today):
 
 PowerStation(Date('2012-01-01'), Date('2012-01-13'), Market('GAS'), Market('POWER'), Running())
 """,
+
     observation_date='2011-1-1',
     interest_rate=2.5,
     path_count=20000,
     perturbation_factor=0.01,
     periodisation='monthly',
+
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
         'market': ['GAS', 'POWER'],
