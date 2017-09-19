@@ -12,7 +12,7 @@ from quantdsl.domain.model.perturbation_dependencies import PerturbationDependen
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse
-from quantdsl.semantics import DslNamespace
+from quantdsl.semantics import DslNamespace, Module
 
 
 def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo,
@@ -186,21 +186,19 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     Parses, compiles and evaluates a call requirement.
     """
     # assert isinstance(contract_valuation, ContractValuation), contract_valuation
-    assert isinstance(call_requirement, CallRequirement), call_requirement
-    assert isinstance(market_simulation, MarketSimulation), market_simulation
+    # assert isinstance(call_requirement, CallRequirement), call_requirement
+    # assert isinstance(market_simulation, MarketSimulation), market_simulation
     # assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
     # assert isinstance(call_result_repo, CallResultRepository)
     # assert isinstance(simulated_price_dict, SimulatedPriceRepository)
 
-    # Todo: Put getting the dependency values in a separate thread, and perhaps make each call a separate thread.
     # Parse the DSL source into a DSL module object (composite tree of objects that provide the DSL semantics).
-    if call_requirement._dsl_expr is not None:
-        dsl_expr = call_requirement._dsl_expr
-    else:
-        dsl_module = dsl_parse(call_requirement.dsl_source)
-        dsl_expr = dsl_module.body[0]
-
-    # assert isinstance(dsl_module, Module), "Parsed stubbed expr string is not a module: %s" % dsl_module
+    # if call_requirement._dsl_expr is not None:
+    dsl_expr = call_requirement._dsl_expr
+    # else:
+    #     dsl_module = dsl_parse(call_requirement.dsl_source)
+    #     assert isinstance(dsl_module, Module), "Parsed stubbed expr string is not a module: %s" % dsl_module
+    #     dsl_expr = dsl_module.body[0]
 
     present_time = call_requirement.effective_present_time or market_simulation.observation_date
 

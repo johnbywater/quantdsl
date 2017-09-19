@@ -40,7 +40,9 @@ class DslObject(six.with_metaclass(ABCMeta)):
         """
         return self.pprint()
 
+    # Todo: More tests that this round trip actually works.
     def pprint(self, indent=''):
+        """Returns Quant DSL source code for the DSL object."""
         msg = self.__class__.__name__ + "("
         lenArgs = len(self._args)
         if lenArgs > 1:

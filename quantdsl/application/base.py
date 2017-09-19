@@ -60,7 +60,8 @@ class QuantDslApplication(EventSourcingApplication):
                                                                            use_cache=True)
         self.simulated_price_requirements_repo = SimulatedPriceRequirementsRepo(event_store=self.event_store,
                                                                                 use_cache=True)
-        self.simulated_price_repo = SimulatedPriceRepo(event_store=self.event_store, use_cache=True)
+        # self.simulated_price_repo = SimulatedPriceRepo(event_store=self.event_store, use_cache=True)
+        self.simulated_price_repo = {}
         self.call_requirement_repo = CallRequirementRepo(event_store=self.event_store, use_cache=True)
         self.call_dependencies_repo = CallDependenciesRepo(event_store=self.event_store, use_cache=True)
         self.call_dependents_repo = CallDependentsRepo(event_store=self.event_store, use_cache=True)
@@ -73,6 +74,7 @@ class QuantDslApplication(EventSourcingApplication):
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
             market_simulation_repo=self.market_simulation_repo,
+            simulated_price_repo=self.simulated_price_repo
         )
         self.dependency_graph_subscriber = DependencyGraphSubscriber(
             contract_specification_repo=self.contract_specification_repo,

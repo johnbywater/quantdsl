@@ -25,7 +25,7 @@ class EvaluationSubscriber(object):
         assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
         assert isinstance(call_requirement_repo, CallRequirementRepository), call_requirement_repo
         assert isinstance(call_result_repo, (CallResultRepository, dict)), call_result_repo
-        assert isinstance(simulated_price_repo, SimulatedPriceRepository), simulated_price_repo
+        # assert isinstance(simulated_price_repo, SimulatedPriceRepository), simulated_price_repo
         assert isinstance(market_simulation_repo, MarketSimulationRepository), market_simulation_repo
         assert isinstance(call_dependents_repo, CallDependentsRepository), call_dependents_repo
         assert isinstance(perturbation_dependencies_repo, PerturbationDependenciesRepo), perturbation_dependencies_repo

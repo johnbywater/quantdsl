@@ -15,7 +15,7 @@ from quantdsl.semantics import DslObject
 
 def generate_simulated_prices(market_simulation, market_calibration):
     for commodity_name, fixing_date, delivery_date, price_value in simulate_future_prices(market_simulation, market_calibration):
-        register_simulated_price(market_simulation.id, commodity_name, fixing_date, delivery_date, price_value)
+        yield register_simulated_price(market_simulation.id, commodity_name, fixing_date, delivery_date, price_value)
 
 
 def simulate_future_prices(market_simulation, market_calibration):
