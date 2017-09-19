@@ -10,9 +10,11 @@ from threading import Event
 import dateutil.parser
 import numpy
 import os
+
+from collections import defaultdict
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 from matplotlib import dates as mdates, pylab as plt
-from numpy import zeros
+from numpy import zeros, cumsum
 
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
@@ -263,49 +265,86 @@ class CalcAndPlot(object):
         print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
 
     def plot_results(self, interest_rate, path_count, perturbation_factor, periods, title, periodisation):
-        prices_mean = [p['price_mean'] for p in periods]
-        prices_std = [p['price_std'] for p in periods]
-        prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
-        prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
 
-        cum_cash_mean = [p['cum_cash_mean'] for p in periods]
-        cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
-        cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
-        cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
+        names = set([p['commodity'].split('-')[0] for p in periods])
 
-        cum_pos_mean = [p['cum_pos_mean'] for p in periods]
-        cum_pos_stderr = [p['cum_pos_stderr'] for p in periods]
-        cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
-        cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
-
-        dates = [p['date'] for p in periods]
-
-        f, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
+        f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
         f.canvas.set_window_title(title)
         f.suptitle('paths:{} perturbation:{} interest:{}% '.format(
             path_count, perturbation_factor, interest_rate))
+
         if periodisation == 'monthly':
-            ax1.xaxis.set_major_locator(mdates.MonthLocator())
-            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+            subplots[0].xaxis.set_major_locator(mdates.MonthLocator())
+            subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
         elif periodisation == 'daily':
-            ax1.xaxis.set_major_locator(mdates.DayLocator())
-            ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+            subplots[0].xaxis.set_major_locator(mdates.DayLocator())
+            subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
         else:
             raise NotImplementedError(periodisation)
 
-        ax1.set_title('Prices')
-        ax1.plot(dates, prices_plus, '0.75', dates, prices_minus, '0.75', dates, prices_mean, '0.25')
+        for i, name in enumerate(names):
 
-        ax2.set_title('Position')
-        ax2.plot(dates, cum_pos_plus, '0.75', dates, cum_pos_minus, '0.75', dates, cum_pos_mean, '0.25')
+            _periods = [p for p in periods if p['commodity'].startswith(name)]
 
-        ax3.set_title('Profit')
-        ax3.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
+            dates = [p['date'] for p in _periods]
+            price_plot = subplots[i]
+
+            prices_mean = [p['price_mean'] for p in _periods]
+            prices_std = [p['price_std'] for p in _periods]
+            prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
+            prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
+
+            price_plot.set_title('Prices - {}'.format(name))
+            price_plot.plot(dates, prices_plus, '0.75', dates, prices_minus, '0.75', dates, prices_mean, '0.25')
+
+            ymin = min(0, min(prices_minus)) - 1
+            ymax = max(0, max(prices_plus)) + 1
+            price_plot.set_ylim([ymin, ymax])
+
+            cum_pos_mean = cumsum([p['hedge_units_mean'] for p in _periods])
+            cum_pos_stderr = cumsum([p['hedge_units_stderr'] for p in _periods])
+            cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
+            cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
+
+
+            pos_plot = subplots[len(names) + i]
+            pos_plot.set_title('Position - {}'.format(name))
+            pos_plot.plot(dates, cum_pos_plus, '0.75', dates, cum_pos_minus, '0.75', dates, cum_pos_mean, '0.25')
+            ymin = min(0, min(cum_pos_minus)) - 1
+            ymax = max(0, max(cum_pos_plus)) + 1
+            pos_plot.set_ylim([ymin, ymax])
+
+        profit_plot = subplots[-1]
+        profit_plot.set_title('Profit')
+
+        dates = []
+
+        cash_in_mean = defaultdict(int)
+        cash_in_stderr = defaultdict(int)
+
+        for period in periods:
+            date = period['date']
+            if date not in dates:
+                dates.append(date)
+            cash_in_mean[date] += period['cash_in_mean']
+            cash_in_stderr[date] += period['cash_in_stderr']
+
+
+
+        # [cash_in[p['date']].append(p['cash_in_mean']) for p in _periods]
+
+        cum_cash_mean = cumsum([cash_in_mean[date] for date in dates])
+        cum_cash_stderr = cumsum([cash_in_stderr[date] for date in dates])
+        # cum_cash_mean = [p['cum_cash_mean'] for p in periods]
+        # cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
+        cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
+        cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
+
+        profit_plot.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
+        # profit_plot.plot(dates, cum_cash_mean, '0.25')
 
         f.autofmt_xdate(rotation=60)
 
-        ax1.grid()
-        ax2.grid()
-        ax3.grid()
+        [p.grid() for p in subplots]
 
         plt.show()
