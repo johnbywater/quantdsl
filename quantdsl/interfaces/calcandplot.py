@@ -61,7 +61,6 @@ class CalcAndPlot(object):
                 if self.is_evaluation_ready.wait(timeout=2):
                     break
 
-            unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
             fair_value_stderr, fair_value_mean, periods = self.read_results(app, evaluation, market_simulation,
                                                                             path_count)
@@ -74,6 +73,9 @@ class CalcAndPlot(object):
             supress_plot = supress_plot or os.getenv('SUPRESS_PLOT')
             if not supress_plot and plt and len(periods) > 1:
                 self.plot_results(interest_rate, path_count, perturbation_factor, periods, title, periodisation)
+
+            unsubscribe(self.is_result_value_computed, self.count_result_values_computed)
+            unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
     def calc_results(self, app, interest_rate, observation_date, path_count, perturbation_factor,
                      contract_specification, price_process_name, calibration_params):
@@ -97,7 +99,6 @@ class CalcAndPlot(object):
 
         subscribe(self.is_result_value_computed, self.count_result_values_computed)
         evaluation = app.evaluate(contract_specification, market_simulation)
-        unsubscribe(self.is_result_value_computed, self.count_result_values_computed)
         return evaluation, market_simulation
 
     def is_result_value_computed(self, event):
