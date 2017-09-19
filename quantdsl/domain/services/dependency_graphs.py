@@ -224,7 +224,7 @@ class PendingCallQueue(object):
 
 class PythonPendingCallQueue(PendingCallQueue):
     def __init__(self):
-        self.queue = queue.LifoQueue()
+        self.queue = queue.Queue()
 
     def put_pending_call(self, pending_call):
         self.queue.put(pending_call)
