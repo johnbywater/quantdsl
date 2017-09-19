@@ -154,7 +154,7 @@ Here's an evaluation of a power station.
 
 ```python
 calc_and_plot(
-    title="Gas Storage",
+    title="Power Station",
 
     source_code="""
 def PowerStation(start, end, gas, power, duration_off):
