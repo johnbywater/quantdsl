@@ -31,7 +31,7 @@ class CalcAndPlot(object):
         self.result_values_computed_count = 0
 
     def run(self, title, source_code, observation_date, interest_rate, path_count, perturbation_factor,
-            price_process, periodisation):
+            price_process, periodisation, supress_plot=False):
         app = QuantDslApplicationWithMultithreadingAndPythonObjects()
 
         start_compile = datetime.datetime.now()
@@ -70,7 +70,8 @@ class CalcAndPlot(object):
         print("")
         print("Results in {}s".format((end_calc - start_calc).total_seconds()))
 
-        if plt and len(periods) > 1 and not os.getenv('SUPRESS_MATPLOTLIB_PLOT_SHOW'):
+        supress_plot = supress_plot or os.getenv('SUPRESS_PLOT')
+        if not supress_plot and plt and len(periods) > 1:
             self.plot_results(interest_rate, path_count, perturbation_factor, periods, title, periodisation)
 
     def calc_results(self, app, interest_rate, observation_date, path_count, perturbation_factor,
