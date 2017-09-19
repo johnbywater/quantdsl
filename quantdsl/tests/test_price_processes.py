@@ -3,7 +3,7 @@ import unittest
 
 import scipy
 
-from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
+from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess, calc_sigma
 
 
 class TestBlackScholesPriceProcess(unittest.TestCase):
@@ -194,3 +194,14 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
 
         for price, expected_price in zip(prices, expected_prices):
             self.assertAlmostEqual(price, expected_price, places=0)
+
+
+class TestCalcSigma(unittest.TestCase):
+    def test(self):
+        sigma = calc_sigma([
+            (datetime.datetime(2011, 1, 1), 10),
+            (datetime.datetime(2011, 2, 1), 11),
+            (datetime.datetime(2011, 3, 1), 9),
+            (datetime.datetime(2011, 4, 1), 10),
+        ])
+        self.assertAlmostEqual(sigma, 0.14, places=2)
