@@ -45,14 +45,14 @@ class TestReadmeFile(TestCase):
             readme_py.writelines("\n".join(lines) + '\n')
 
         # Run the code and catch errors.
-        p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE)
+        p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE, env={'SUPRESS_MATPLOTLIB_PLOT_SHOW': 'True'})
         out, err = p.communicate()
         out = out.decode('utf8').replace(temp_filename, readme_filename)
         err = err.decode('utf8').replace(temp_filename, readme_filename)
         exit_status = p.wait()
 
         # Check for errors running the code.
-        self.assertEqual(exit_status, 0, "Usage exit status {}:\n{}\n{}".format(exit_status, out, err))
+        self.assertEqual(exit_status, 0, u"Usage exit status {}:\n{}\n{}".format(exit_status, out, err))
 
         # Delete the temp file.
         os.unlink(temp_path)

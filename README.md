@@ -20,38 +20,6 @@ Please register any [issues on GitHub](https://github.com/johnbywater/quantdsl/i
 To avoid disturbing your system's site packages, it is recommended to install
 into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
 
-If you are working on a corporate LAN, with an HTTP proxy that requires authentication, then pip may fail to find
-the Python Package Index. In this case you may need to download the distribution (and dependencies) by hand, and 
-then use the path to the downloaded files instead of the package name in the `pip` command:
-
-```
-pip install ~/Downloads/quantdsl-X.X.X.tar.gz
-```
-
-### Trouble building NumPy and SciPy?
-
-This package depends on [SciPy](https://www.scipy.org/), which depends on [NumPy](http://www.numpy.org/).
-
-Both should be automatically installed as Python dependencies, however they depend on compilers being available on 
-your system.
-
-On GNU/Linux systems you may need to install developer tools (e.g. ```build-essential``` on Debian). If
-you don't want to build the binaries, you can just install NumPy and SciPy as system packages and create a Python
-virtual environment that uses system site packages (`--system-site-packages`).
-
-Similarly, OSX users may benefit from reading [this page](https://www.scipy.org/scipylib/building/macosx.html):
-install Apple’s Developer Tools, then install the Fortran compiler binary. Then you should be able
-to install NumPy and SciPy using pip.
-
-Windows users may also not be able to install NumPy and SciPy because they do not have a
-compiler installed. Obtaining one that works can be frustrating. If so, one solution would
-be to install the [PythonXY](https://code.google.com/p/pythonxy/wiki/Downloads?tm=2)
-distribution of Python, so that you have NumPy and SciPy - other distributions are available.
-Then create a virtual environment with the `--system-site-packages` option of `virtualenv`
-so that NumPy and SciPy will be available in your virtual environment. If you get bogged down,
-the simpler alternative is to install *Quant DSL* directly into your PythonXY installation,
-using `pip install quantdsl` or `easy_install quantdsl` if `pip` is not available.
-
 ## Overview
 
 Quant DSL is a functional programming language for modelling derivative instruments.
@@ -63,134 +31,77 @@ derivatives.
 
 The syntax of Quant DSL expressions has been
 [formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
-the semantic model is supported with mathematical proofs. The syntax is a strict subset of the Python language
-syntax. This package is an implementation of the language in Python. At this time, we are not aware of any 
-other implementation of Quant DSL, in Python or in any other language.
+the semantic model is supported with mathematical proofs.
+
+This package is an implementation of the language in Python.
+
+Function definitions are also supported, to ease construction of Quant DSL expressions.
+
+The import statement is also supported to allow function definitions to be used from a library.
 
 
 ## Usage
 
-To create a working program, you can copy and paste the following code snippets into a single Python file. The code
-snippets in this section have been tested. Please feel free to experiment by making variations.
+The basic steps in evaluating a model are:
 
-If you are using a Python virtualenv, please check that your virtualenv is activated before installing the library
-and running your program.
+* specification of a contract model;
+* calibration of a price process;
+* simulation of future prices; and
+* evaluation of the contract model.
 
-Let's jump in at the deep-end with a simple model of a gas-fired power station.
+A convenience function `calc_and_plot()` can be used to perform all the steps.
 
 ```python
-source_code = """
-PowerStation(Date('2012-1-1'), Date('2012-1-4'), Market('GAS'), Market('POWER'), Running())
+from quantdsl.interfaces.calcandplot import calc_and_plot
 
-def PowerStation(start, end, gas, power, duration_off):
-    if (start < end):
-        Wait(start,
-            Choice(
-                ProfitFromRunning(gas, power, duration_off) + PowerStation(
-                    Tomorrow(start), end, gas, power, Running()
-                ),
-                PowerStation(
-                    Tomorrow(start), end, gas, power, Stopped(duration_off)
-                )
-            )
-        )
-    else:
-        return 0
+source_code = """from quantdsl.lib.storage2 import GasStorage
 
-@inline
-def ProfitFromRunning(gas, power, duration_off):
-    if duration_off > 1:
-        return 0.75 * power - gas
-    elif duration_off == 1:
-        return 0.90 * power - gas
-    else:
-        return 1.00 * power - gas
-
-@inline
-def Running():
-    return 0
-
-@inline
-def Stopped(duration_off):
-    return duration_off + 1
-
-@inline
-def Tomorrow(today):
-    return today + TimeDelta('1d')
+GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
 """
-```
 
-Construct a Quant DSL application object.
-
-```python
-from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-
-app = QuantDslApplicationWithPythonObjects()
-```
-
-Compile the module into a dependency graph.
-
-```python
-contract_specification = app.compile(source_code)
-```
-
-Calibrate from historical data. In this example, we can just register some calibration parameters.
-
-```python
-price_process_name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
-
-calibration_params = {
-    'market': ['GAS', 'POWER'],
-    'sigma': [0.3, 0.2],
-    'rho': [
-        [1.0, 0.8],
-        [0.8, 1.0],
-    ],
-    'curve': {
-        'GAS': [
-            ('2011-1-1', 12),
-            ('2012-1-1', 11),
-            ('2012-1-2', 10),
-            ('2012-1-3', 9),
-        ],
-        'POWER': [
-            ('2011-1-1', 11),
-            ('2012-1-1', 11),
-            ('2012-1-2', 11),
-            ('2012-1-3', 11),
-        ],
-    },
-}
-
-
-market_calibration = app.register_market_calibration(
-    price_process_name,
-    calibration_params
-)
-```
-
-Make a simulation from the calibration.
-
-```python
-import datetime
-
-market_simulation = app.simulate(
-    contract_specification,
-    market_calibration,
+calc_and_plot(
+    title="Gas Storage",
+    source_code=source_code,
+    observation_date='2011-1-1',
+    interest_rate=2.5,
     path_count=20000,
-    observation_date=datetime.datetime(2011, 1, 1)
+    perturbation_factor=0.01,
+    periodisation='monthly',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.5],
+        'alpha': [0.1],
+        'rho': [[1.0]],
+        'curve': {
+            'GAS': (
+                ('2011-1-1', 13.5),
+                ('2011-2-1', 11.0),
+                ('2011-3-1', 10.0),
+                ('2011-4-1', 9.0),
+                ('2011-5-1', 7.5),
+                ('2011-6-1', 7.0),
+                ('2011-7-1', 6.5),
+                ('2011-8-1', 7.5),
+                ('2011-9-1', 8.5),
+                ('2011-10-1', 10.0),
+                ('2011-11-1', 11.5),
+                ('2011-12-1', 12.0),
+                ('2012-1-1', 13.5),
+                ('2012-2-1', 11.0),
+                ('2012-3-1', 10.0),
+                ('2012-4-1', 9.0),
+                ('2012-5-1', 7.5),
+                ('2012-6-1', 7.0),
+                ('2012-7-1', 6.5),
+                ('2012-8-1', 7.5),
+                ('2012-9-1', 8.5),
+                ('2012-10-1', 10.0),
+                ('2012-11-1', 11.5),
+                ('2012-12-1', 12.0)
+            )
+        }
+    }
 )
-```
 
-Make an evaluation using the simulation.
-
-```python
-valuation = app.evaluate(contract_specification, market_simulation)
-```
-
-Inspect the estimated value.
-
-```python
-estimated_value = app.get_result(valuation).result_value.mean()
-assert 3 < estimated_value < 5, estimated_value
 ```
