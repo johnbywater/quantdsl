@@ -64,8 +64,6 @@ from quantdsl.interfaces.calcandplot import calc
 Simple calculations.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
-
 results = calc("2 + 3 * 4 - 10 / 5")
 
 assert results.fair_value == 12, results.fair_value
@@ -453,8 +451,8 @@ assert 5 < results.fair_value.mean() < 7, results.fair_value.mean()
 
 ### Power station
 
-An evaluation of a power station. This time, the source code imports a power station model from the library. It uses
- a market model with two correlated markets. The source code for the power station model is copied in below.
+An evaluation of a power station. This example imports a power station model from the library. It 
+uses a market model with two correlated markets. The source code for the power station model is copied in below.
 
 ```python
 results = calc_print_plot(
