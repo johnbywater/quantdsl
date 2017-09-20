@@ -355,8 +355,8 @@ The plot will also show the statistical distribution of the simulated prices, an
 
 ### European and american options
 
-An general option can be expressed as waiting until a date for a choice between on one hand the 
-difference between the price of an underlying and a strike price, and on the other hand an alternative expression.
+In general, an option can be expressed as a "wait" until a date for a "choice" between, on one hand, the 
+difference between the price of an underlying and a strike price, and, on the other hand, an alternative expression.
 
 ```python
 
@@ -373,7 +373,7 @@ def European(date, strike, underlying):
     return Option(date, strike, underlying, 0)
 ```
 
-Similarly, an american option is an option to exercise at the strike price on the start date, with an alternative being
+Similarly, an american option is an option to exercise at a given strike price on the start date, with an alternative being
  an american option starting the next date (after a `step` in time, such as one day), and so on until the end date.
 
 
