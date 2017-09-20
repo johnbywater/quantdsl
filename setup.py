@@ -32,6 +32,7 @@ setup(
         'pytz',
         'blist',
         'importlib',
+        'matplotlib',
     ],
 
     scripts=[],

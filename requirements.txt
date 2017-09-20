@@ -9,3 +9,4 @@ filelock
 pytz
 blist
 importlib
+matplotlib

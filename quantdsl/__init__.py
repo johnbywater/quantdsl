@@ -1,5 +1,5 @@
 
-__version__ = '1.1.0rc0'
+__version__ = '1.1.0'
 
 # Todo: Warning when a built-in is being overridden by a user defined function. Or perhaps that would be useful? In any case, make sure this is handled properly (currently the user defined function will just be ignore?).
 # Todo: Make price process create calibration params from market observations, as well as consume the calibration parameters.
