@@ -8,7 +8,9 @@ class CallDependencies(EventSourcedEntity):
     """
 
     class Created(EventSourcedEntity.Created):
-        pass
+        @property
+        def dependencies(self):
+            return self.__dict__['dependencies']
 
     class Discarded(EventSourcedEntity.Discarded):
         pass

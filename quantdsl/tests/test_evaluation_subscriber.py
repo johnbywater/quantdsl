@@ -1,18 +1,16 @@
-import datetime
 import unittest
 
-from eventsourcing.domain.model.events import publish, assert_event_handlers_empty
-from mock import MagicMock, Mock
-from mock import patch
+from eventsourcing.domain.model.events import assert_event_handlers_empty, publish
+from mock import MagicMock, Mock, patch
 
 from quantdsl.domain.model.call_dependencies import CallDependenciesRepository
 from quantdsl.domain.model.call_dependents import CallDependentsRepository
-from quantdsl.domain.model.call_leafs import CallLeafsRepository, CallLeafs
+from quantdsl.domain.model.call_leafs import CallLeafs, CallLeafsRepository
 from quantdsl.domain.model.call_link import CallLinkRepository
 from quantdsl.domain.model.call_requirement import CallRequirementRepository
 from quantdsl.domain.model.call_result import CallResultRepository
-from quantdsl.domain.model.contract_valuation import ContractValuationRepository, ContractValuation
-from quantdsl.domain.model.market_simulation import MarketSimulationRepository, MarketSimulation
+from quantdsl.domain.model.contract_valuation import ContractValuation, ContractValuationRepository
+from quantdsl.domain.model.market_simulation import MarketSimulation, MarketSimulationRepository
 from quantdsl.domain.model.simulated_price import SimulatedPriceRepository
 from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
 from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
@@ -21,7 +19,6 @@ from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_re
 
 
 class TestEvaluationSubscriber(unittest.TestCase):
-
     def setUp(self):
         assert_event_handlers_empty()
         contract_valuation_repo = MagicMock(spec=ContractValuationRepository)
@@ -44,8 +41,6 @@ class TestEvaluationSubscriber(unittest.TestCase):
             market_simulation_repo=market_simulation_repo,
             call_leafs_repo=call_leafs_repo,
             call_evaluation_queue=None,
-            result_counters=None,
-            usage_counters=None,
             call_dependents_repo=call_dependents_repo,
             perturbation_dependencies_repo=perturbation_dependencies_repo,
             simulated_price_requirements_repo=simulated_price_requirements_repo

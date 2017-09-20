@@ -1,14 +1,13 @@
 import os
 import sys
-from os.path import join, dirname
-from subprocess import Popen, PIPE
+from os.path import dirname, join
+from subprocess import PIPE, Popen
 from unittest.case import TestCase
 
 import quantdsl
 
 
 class TestReadmeFile(TestCase):
-
     def test_code_snippets_in_readme_file(self):
         # Extract lines of Python code from the README.md file.
         readme_filename = 'README.md'
@@ -45,14 +44,14 @@ class TestReadmeFile(TestCase):
             readme_py.writelines("\n".join(lines) + '\n')
 
         # Run the code and catch errors.
-        p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE)
+        p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE, env={'SUPRESS_PLOT': 'True'})
         out, err = p.communicate()
         out = out.decode('utf8').replace(temp_filename, readme_filename)
         err = err.decode('utf8').replace(temp_filename, readme_filename)
         exit_status = p.wait()
 
         # Check for errors running the code.
-        self.assertEqual(exit_status, 0, "Usage exit status {}:\n{}\n{}".format(exit_status, out, err))
+        self.assertEqual(exit_status, 0, u"Usage exit status {}:\n{}\n{}".format(exit_status, out, err))
 
         # Delete the temp file.
         os.unlink(temp_path)

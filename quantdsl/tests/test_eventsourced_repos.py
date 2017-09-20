@@ -107,6 +107,8 @@ class TestEventSourcedRepos(TestCase):
         assert isinstance(price, SimulatedPrice), price
         assert price.id
         simulated_price_id = make_simulated_price_id(simulation_id, '#1', price_time, price_time)
+        self.assertEqual(price.id, simulated_price_id)
+        self.app.simulated_price_repo[price.id] = price
         price = self.app.simulated_price_repo[simulated_price_id]
         assert isinstance(price, SimulatedPrice)
         import numpy

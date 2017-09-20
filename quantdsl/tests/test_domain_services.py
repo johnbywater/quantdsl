@@ -226,7 +226,8 @@ class TestSimulatedPrices(unittest.TestCase):
     def test_generate_simulated_prices(self, simulate_future_prices, register_simuated_price):
         market_calibration = Mock(spec=MarketCalibration)
         market_simulation = Mock(spec=MarketSimulation)
-        generate_simulated_prices(market_simulation=market_simulation, market_calibration=market_calibration)
+        prices = generate_simulated_prices(market_simulation=market_simulation, market_calibration=market_calibration)
+        prices = list(prices)
         self.assertEqual(register_simuated_price.call_count, len(simulate_future_prices.return_value))
 
     @patch('quantdsl.domain.services.simulated_prices.get_price_process', new=lambda name: Mock(

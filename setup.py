@@ -22,7 +22,6 @@ setup(
     zip_safe=False,
     install_requires=[
         'argh',
-        'celery',
         'mock==1.0.1',
         'scipy',
         'python-dateutil==2.2',
@@ -32,16 +31,8 @@ setup(
         'eventsourcing==0.9.4',
         'pytz',
         'blist',
+        'importlib',
     ],
-    extras_require={
-        'test': [
-            'sqlalchemy',
-            'gevent',
-        ],
-        'sqlalchemy': [
-            'sqlalchemy',
-        ],
-    },
 
     scripts=[],
     author='John Bywater',
@@ -63,6 +54,7 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
         'Topic :: Office/Business :: Financial',
         'Topic :: Office/Business :: Financial :: Investment',
         'Topic :: Office/Business :: Financial :: Spreadsheet',

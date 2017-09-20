@@ -1,6 +1,5 @@
 import datetime
 import unittest
-
 from abc import ABCMeta
 from time import sleep
 
@@ -9,13 +8,11 @@ from eventsourcing.domain.model.events import assert_event_handlers_empty
 from six import with_metaclass
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.domain.model.call_result import make_call_result_id, CallResult
-from quantdsl.domain.model.contract_valuation import create_contract_valuation_id, ContractValuation
+from quantdsl.domain.model.call_result import CallResult
+from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
-# from quantdsl.domain.services.call_links import regenerate_execution_order
-# from quantdsl.semantics import Market
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -23,7 +20,7 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
     skip_assert_event_handers_empty = False
     NUMBER_DAYS = 5
     NUMBER_MARKETS = 2
-    NUMBER_WORKERS = 30
+    NUMBER_WORKERS = 20
     PATH_COUNT = 2000
 
     def setUp(self):
@@ -40,14 +37,13 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
             self.app.close()
         if not self.skip_assert_event_handers_empty:
             assert_event_handlers_empty()
-        # super(ContractValuationTestCase, self).tearDown()
+            # super(ContractValuationTestCase, self).tearDown()
 
     def setup_application(self):
         self.app = QuantDslApplicationWithPythonObjects()
 
 
 class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
-
     def setUp(self):
         super(TestCase, self).setUp()
 
@@ -56,9 +52,34 @@ class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
 
 
 class ContractValuationTestCase(ApplicationTestCaseMixin):
-
     price_process_name = DEFAULT_PRICE_PROCESS_NAME
     calibration_params = {
+        'market': ['#1', '#2', 'NBP', 'TTF', 'SPARKSPREAD'],
+        'sigma': [0.5, 0.5, 0.5, 0.4, 0.4],
+        'curve': {
+            '#1': [
+                ('2011-1-1', 10),
+            ],
+            '#2': [
+                ('2011-1-1', 10),
+            ],
+            'NBP': [
+                ('2011-1-1', 10),
+            ],
+            'TTF': [
+                ('2011-1-1', 11),
+            ],
+            'SPARKSPREAD': [
+                ('2011-1-1', 1),
+            ],
+        },
+        'rho': [
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.4, 0.0],
+            [0.0, 0.0, 0.4, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+        ],
         '#1-LAST-PRICE': 10,
         '#2-LAST-PRICE': 10,
         '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
@@ -109,7 +130,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         # call_result_listener = None
 
         # Start the contract valuation.
-        contract_valuation = self.app.evaluate(contract_specification, market_simulation)
+        contract_valuation = self.app.evaluate(contract_specification.id, market_simulation.id)
         assert isinstance(contract_valuation, ContractValuation)
 
         # # Get the call result.
@@ -138,7 +159,9 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             market_calibration = self.app.market_calibration_repo[market_simulation.market_calibration_id]
             assert isinstance(market_calibration, MarketCalibration)
             commodity_name = perturbation.split('-')[0]
-            simulated_price_id = make_simulated_price_id(market_simulation.id, commodity_name, market_simulation.observation_date, market_simulation.observation_date)
+            simulated_price_id = make_simulated_price_id(market_simulation.id, commodity_name,
+                                                         market_simulation.observation_date,
+                                                         market_simulation.observation_date)
             simulated_price = self.app.simulated_price_repo[simulated_price_id]
 
             dy = perturbed_value - main_result.result_value
@@ -180,7 +203,6 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
 
 
 class ExpressionTests(ContractValuationTestCase):
-
     def test_generate_valuation_addition(self):
         self.assert_contract_value("""1 + 2""", 3)
         self.assert_contract_value("""2 + 4""", 6)
@@ -361,7 +383,6 @@ Max(
 
 
 class FunctionTests(ContractValuationTestCase):
-
     def test_functional_fibonacci_numbers(self):
         fib_tmpl = """
 def fib(n): return fib(n-1) + fib(n-2) if n > 1 else n
@@ -426,7 +447,7 @@ def Option(date, strike, underlying, alternative):
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Lift('%(underlying)s', Market('%(underlying)s')))
 """
         self.assert_contract_value(american_option_tmpl % {
-            'starts':'2011-01-02',
+            'starts': '2011-01-02',
             'ends': '2011-01-04',
             'strike': 9,
             'underlying': '#1'
@@ -449,13 +470,13 @@ Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 
 
 class LongerTests(ContractValuationTestCase):
-
     def test_value_swing_option(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Choice(
-            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, Market(underlying)),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, 
+            Market(underlying)),
             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
         )
     else:
@@ -501,7 +522,6 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
 
 
 class SpecialTests(ContractValuationTestCase):
-
     def test_simple_expression_with_market(self):
         dsl = "Market('NBP') + 2 * Market('TTF')"
         self.assert_contract_value(dsl, 32, {('NBP', 2011, 1): 1, ('TTF', 2011, 1): 2}, expected_call_count=1)
@@ -577,13 +597,13 @@ Swing(Date('2011-1-1'), Date('2011-1-4'), Lift('#2', Market('#2')), 2) * 2
 
 
 class ExperimentalTests(ContractValuationTestCase):
-
     def test_value_swing_option_with_fixing_on_market(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Choice(
-            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, Market(underlying)),
+            Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity-1) + Fixing(start_date, 
+            Market(underlying)),
             Swing(start_date + TimeDelta('1d'), end_date, underlying, quantity)
         )
     else:
@@ -607,7 +627,6 @@ def Swing(start_date, end_date, underlying, quantity):
 Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 """
         self.assert_contract_value(specification, 30.0000, expected_call_count=15)
-
 
     def test_value_swing_option_with_settlements_and_fixings_on_choice(self):
         specification = """
@@ -766,7 +785,6 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
 
 
 class SingleTests(ContractValuationTestCase):
-
     def test_value_swing_option_with_forward_markets(self):
         specification = """
 def Swing(start_date, end_date, quantity):
@@ -798,4 +816,3 @@ class ContractValuationTests(
     FunctionTests,
     LongerTests
 ): pass
-

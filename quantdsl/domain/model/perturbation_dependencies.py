@@ -17,9 +17,6 @@ class PerturbationDependencies(EventSourcedEntity):
         super(PerturbationDependencies, self).__init__(**kwargs)
         self._dependencies = dependencies
 
-    def __getitem__(self, item):
-        return self._dependencies.__getitem__(item)
-
     @property
     def dependencies(self):
         return self._dependencies

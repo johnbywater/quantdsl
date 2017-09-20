@@ -25,9 +25,20 @@ class TestDslParser(unittest.TestCase):
         self.p = DslParser()
 
     def test_empty_string(self):
+        # Empty string can be parsed as a module, but not compiled into an expression, or evaluated.
         self.assertTrue(isinstance(dsl_parse(""), Module))
         self.assertRaises(DslSyntaxError, dsl_compile, "")
         self.assertRaises(DslSyntaxError, dsl_eval, "")
+
+    def test_invalid_source(self):
+        # Check a non-valid Python string raises an error.
+        self.assertRaises(DslSyntaxError, dsl_parse, "1 +")
+        # Check a non-string raises an error.
+        self.assertRaises(DslSyntaxError, dsl_compile, 1)
+
+    def test_unsupported_elements(self):
+        # Check an unsupported element isn't parsed.
+        self.assertRaises(DslSyntaxError, dsl_parse, "pass")
 
     def assertDslExprTypeValue(self, dsl_source, expectedDslType, expectedDslValue, **compile_kwds):
         # Assumes dsl_source is just one statement.

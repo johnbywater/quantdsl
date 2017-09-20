@@ -16,11 +16,20 @@ class TestMarketSimulation(TestCase):
         # Set up the market calibration.
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
         calibration_params = {
-            '#1-LAST-PRICE': 10,
-            '#2-LAST-PRICE': 20,
-            '#1-ACTUAL-HISTORICAL-VOLATILITY': 10,
-            '#2-ACTUAL-HISTORICAL-VOLATILITY': 20,
-            '#1-#2-CORRELATION': 0.5,
+            'market': ['#1', '#2'],
+            'sigma': [0.1, 0.2],
+            'curve': {
+                '#1': [
+                    ('2011-1-1', 10),
+                ],
+                '#2': [
+                    ('2011-1-1', 20),
+                ],
+            },
+            'rho': [
+                [1.0, 0.5],
+                [0.5, 1.0],
+            ],
         }
         market_calibration = self.app.register_market_calibration(price_process_name, calibration_params)
 

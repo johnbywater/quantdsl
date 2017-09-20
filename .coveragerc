@@ -4,3 +4,4 @@ omit =
     */python?.?/*
     */test_?.py
     */tests/*
+    */quantdsl/lib/*
