@@ -115,7 +115,8 @@ assert results.fair_value == False, results.fair_value
 Function definitions can be used to structure complex expressions.
  
 When evaluating an expression that involves calls to function definitions, the call to the function definition is 
-firstly replaced with the expression returned by the function definition, so that a larger expression is formed.
+firstly replaced with the expression 
+ed by the function definition, so that a larger expression is formed.
 
 The call args of the function definition can be used as names in the function definition's expressions. The call arg 
 values will be used to evaluate the expression returned by the function.
@@ -361,7 +362,7 @@ difference between the price of an underlying and a strike price, and, on the ot
 ```python
 
 def Option(date, strike, underlying, alternative):
-    return Wait(date, Choice(underlying - strike, alternative))
+    Wait(date, Choice(underlying - strike, alternative))
 
 ```
 
@@ -370,7 +371,7 @@ on a given date, the alternative being to do nothing.
 
 ```python
 def European(date, strike, underlying):
-    return Option(date, strike, underlying, 0)
+    Option(date, strike, underlying, 0)
 ```
 
 Similarly, an american option is an option to exercise at a given strike price on the start date, with an alternative being
@@ -449,26 +450,26 @@ results = calc_print_plot(
 def GasStorage(start, end, commodity_name, quantity, target, limit, step, period):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
-            return Wait(start, Choice(
+            Wait(start, Choice(
                 Continue(start, end, commodity_name, quantity, target, limit, step, period),
                 Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
             ))
         elif quantity >= limit:
-            return Wait(start, Choice(
+            Wait(start, Choice(
                 Continue(start, end, commodity_name, quantity, target, limit, step, period),
                 Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
             ))
         else:
-            return Wait(start, Choice(
+            Wait(start, Choice(
                 Continue(start, end, commodity_name, quantity, target, limit, step, period),
                 Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
                 Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
             ))
     else:
         if target < 0 or target == quantity:
-            return 0
+            0
         else:
-            return BreachOfContract()
+            BreachOfContract()
 
 
 @inline
@@ -609,17 +610,17 @@ def PowerPlant(start, end, duration_off):
             )
         )
     else:
-        return 0
+        0
 
 
 @inline
 def ProfitFromRunning(duration_off):
     if duration_off > 1:
-        return 0.75 * Power() - Gas()
+        0.75 * Power() - Gas()
     elif duration_off == 1:
-        return 0.90 * Power() - Gas()
+        0.90 * Power() - Gas()
     else:
-        return 1.00 * Power() - Gas()
+        1.00 * Power() - Gas()
 
 
 @inline
@@ -634,16 +635,16 @@ def Gas():
 
 @inline
 def Running():
-    return 0
+    0
 
 
 @inline
 def Stopped(duration_off):
-    return duration_off + 1
+    duration_off + 1
 
 
 @inline
 def Tomorrow(today):
-    return today + TimeDelta('1d')
+    today + TimeDelta('1d')
 
 ```
