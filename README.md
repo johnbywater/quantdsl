@@ -95,9 +95,12 @@ assert results.fair_value == False, results.fair_value
 
 ### Function definitions
 
-Function definitions can be used to structure complex expressions. When evaluating an expression that involves 
-function calls, the call args are used to evaluating the function, which returns an expression that replaces the 
-function call in the expression. The expression will be evaluated with the function call arguments.
+Function definitions can be used to structure complex expressions. The call args of the function definition
+can be used as names in the function definition's expressions.
+ 
+When evaluating an expression that involves calls to function definitions, the call to the function definition is 
+firstly replaced with the expression returned by the function definition, so that a larger expression is formed.
+
 
 ```python
 results = calc(source_code="""
