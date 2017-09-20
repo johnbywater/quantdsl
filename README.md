@@ -329,31 +329,6 @@ Choice(
 assert 70 < results.fair_value.mean() < 100, results.fair_value.mean()
 ```   
 
-
-### Lift
-
-The examples below use the `Lift` element to specify deltas with respect to each market and each period (e.g. 
-daily, monthly, or yearly) across the term of the contract.
- 
-
-## Examples of usage
-
-The examples below use the library function `calc_print_plot()` to evaluate contracts, and print and plot results.
-
-```python
-from quantdsl.interfaces.calcandplot import calc_print_plot
-```
-
-If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
- hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
- displayed showing underlying prices and the cumulative hedge positions for each underlying, and the net cash from the 
- hedge positions (profit and loss).
-
-The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
- positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
- how well the deltas are performing.
-
-
 ### European and american options
 
 In general, an option can be expressed as a "wait" until a date for a "choice" between, on one hand, the 
@@ -435,6 +410,30 @@ American(Date('2012-1-1'), Date('2012-1-10'), 10, Market('GAS'), TimeDelta('1d')
 )
 assert results.fair_value.mean() > 3, results.fair_value.mean()
 ```
+
+
+### Lift
+
+The examples below use the `Lift` element to specify deltas with respect to each market and each period (e.g. 
+daily, monthly, or yearly) across the term of the contract.
+ 
+
+## Examples of usage
+
+The examples below use the library function `calc_print_plot()` to evaluate contracts, and print and plot results.
+
+```python
+from quantdsl.interfaces.calcandplot import calc_print_plot
+```
+
+If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
+ hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
+ displayed showing underlying prices and the cumulative hedge positions for each underlying, and the net cash from the 
+ hedge positions (profit and loss).
+
+The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
+ positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
+ how well the deltas are performing.
 
 
 ### Gas storage
