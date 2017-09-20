@@ -28,37 +28,42 @@ maths used in finance and trading. The elements of the language can be freely co
 of value. User defined functions generate extensive dependency graphs that effectively model and evaluate exotic
 derivatives.
 
-
-## Definition and implementation
-
 The syntax of Quant DSL expressions has been
 [formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
 the semantic model is supported with mathematical proofs.
 
-This package is an implementation of the language in Python. Function definitions are also supported, to ease 
-construction of Quant DSL expressions. The import statement is also supported to allow function definitions to be 
-used from a library (see below).
+This package is an implementation of the Quant DSL in Python. 
+
+## Implementation
+
+In addition to the Quant DSL expressions, to ease construction of Quant DSL expressions, function definition
+statements `def` are supported. And the `import` statement is supported, to allow function definitions to be used
+from a library (see below).
 
 Steps for evaluating a contract include: specification of a model of a contract; calibration of a stochastic process
 for the underlying prices; simulation using the price process of future prices underlying the contract; and evaluation
 of the contract model against the simulation.
 
-The library provides an application class `QuantDslApplication` which 
-has methods that support these steps: `compile()`, `simulate()` and `evaluate()`.
+The library provides an application class `QuantDslApplication` which has methods that support these steps:
+`compile()`, `simulate()` and `evaluate()`. During compilation of the specification source code, the application 
+constructs a dependency graph of function calls. The simulation is generated according to requirements derived 
+from the depedency graph, and a calibrated price process. During evaluation, nodes are evaluated when they are ready
+ to be evaluated, and intermediate call results are discarded as soon as they are no longer required, which means 
+ memory usage is mostly constant during evaluation. For the delta calculations, nodes are selectively 
+ re-evaluated with perturbed values, according to the periods and markets they involve.
 
-
-## Introduction
-The examples below use the library function calc_print_plot() to evaluate contracts.
+The examples below use the library function `calc()` to evaluate Quant DSL source code. `calc()` uses the methods 
+of the `QuantDslApplication` described above.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc
 ```
 
+## Introduction
+
 Simple calculations.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
-
 results = calc("2 + 3 * 4 - 10 / 5")
 
 assert results.fair_value == 12, results.fair_value
@@ -72,11 +77,18 @@ results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
 assert results.fair_value == 4, results.fair_value
 ```
 
-Logical operations.
+Boolean operations.
 
 ```python
 assert calc("1 and 2").fair_value == True
 assert calc("0 and 2").fair_value == False
+assert calc("2 and 0").fair_value == False
+assert calc("0 and 0").fair_value == False
+
+assert calc("1 or 1").fair_value == True
+assert calc("1 or 0").fair_value == True
+assert calc("0 or 1").fair_value == True
+assert calc("0 or 0").fair_value == False
 ```
 
 Date and time values and operations.
@@ -131,8 +143,14 @@ assert results.fair_value == 11250, results.fair_value
 The call args of the function definition can be used in an if-else block, so that different expressions can be 
 returned depending upon the function call argument values.
 
+Please note, the expressions preceding the colon in the if-else block must be simple expressions involving the call 
+args and must not involve any Quant DSL stochastic elements, such as `Market`, `Choice`, `Wait`, `Settlement`,
+`Fixing`. Calls to function definitions from these expressions are currently not supported.
+
 Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
 memoised, so it is only called once with the same argument values, and the result of such a call is reused.
+
+
 
 ```python
 results = calc(source_code="""
@@ -316,7 +334,7 @@ Choice(
     interest_rate=2.5,
 )
 
-assert 70 < results.fair_value.mean() < 90, results.fair_value.mean()
+assert 70 < results.fair_value.mean() < 100, results.fair_value.mean()
 ```   
 
 
@@ -446,8 +464,8 @@ assert 5 < results.fair_value.mean() < 7, results.fair_value.mean()
 
 ### Power station
 
-An evaluation of a power station. This time, the source code imports a power station model from the library. It uses
- a market model with two correlated markets. The source code for the power station model is copied in below.
+An evaluation of a power station. This example imports a power station model from the library. It 
+uses a market model with two correlated markets. The source code for the power station model is copied in below.
 
 ```python
 results = calc_print_plot(
@@ -493,10 +511,12 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
 assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 ```
 
-### Library of contract models
+### Library
 
-Here is a copy of the Quant DSL source code for the power plant model `quantdsl.lib.powerplant2`, as used in the 
-example above. There are other models in the library of models under `quantdsl.lib`. Please feel free to propose 
+Putting Quant DSL source code in dedicated Python files makes it much easier to develop and maintain.
+
+Below is a copy of the Quant DSL source code for the power plant model `quantdsl.lib.powerplant2`, as used in the 
+example above. There are other Quant DSL modules in the library under `quantdsl.lib`. Please feel free to propose 
 additions or improvements.
 
 ```python
