@@ -121,7 +121,7 @@ The call args of the function definition can be used as names in the function de
 values will be used to evaluate the expression returned by the function.
 
 ```python
-results = calc(source_code="""
+results = calc("""
 def Contract1(a):
     a * Contract2() + 1000 * Contract3(a)
 
@@ -153,7 +153,7 @@ memoised, so it is only called once with the same argument values, and the resul
 
 
 ```python
-results = calc(source_code="""
+results = calc("""
 def Fib(n):
     if n > 1:
         Fib(n-1) + Fib(n-2)
@@ -173,8 +173,7 @@ prices.
 
 ```python
 
-results = calc(
-    source_code="""Market('GAS')""",
+results = calc("Market('GAS')",
     observation_date='2011-1-1',
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
@@ -200,8 +199,7 @@ The forward curve is used to estimate future prices, with zero-order hold from t
 
 ```python
 
-results = calc(
-    source_code="""Fixing('2112-1-1', Market('GAS'))""",
+results = calc("Fixing('2112-1-1', Market('GAS'))",
     observation_date='2011-1-1',
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
@@ -224,8 +222,7 @@ With geometric brownian motion, there may be future price movements.
 
 ```python
 
-results = calc(
-    source_code="""Fixing('2112-1-1', Max(1000, Market('GAS')))""",
+results = calc("Fixing('2112-1-1', Max(1000, Market('GAS')))",
     observation_date='2011-1-1',
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
@@ -250,8 +247,7 @@ Discounting to net present value with `Settlement`. A hundred years at 2.5% give
 than 1.
 
 ```python
-results = calc(
-    source_code="""Settlement('2111-1-1', 10)""",
+results = calc("Settlement('2111-1-1', 10)",
     observation_date='2011-1-1',
     interest_rate=2.5,
 )
@@ -262,15 +258,13 @@ assert results.fair_value < 1, results.fair_value
 If the effective present time is the same as the settlement date, there is no discounting.
 
 ```python
-results = calc(
-    source_code="""Settlement('2111-1-1', 10)""",
+results = calc("Settlement('2111-1-1', 10)",
     observation_date='2111-1-1',
     interest_rate=2.5,
 )
 assert results.fair_value == 10, results.fair_value
 
-results = calc(
-    source_code="""Fixing('2111-1-1', Settlement('2111-1-1', 10))""",
+results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
     observation_date='2011-1-1',
     interest_rate=2.5,
 )
@@ -285,9 +279,7 @@ effective present time of the including expression.
 
 ```python
 
-results = calc(
-    # source_code="""Settlement('2112-1-1', Fixing('2112-1-1', Market('GAS')))""",
-    source_code="""Wait('2112-1-1', Market('GAS'))""",
+results = calc("Wait('2112-1-1', Market('GAS'))",
     observation_date='2011-1-1',
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
@@ -312,8 +304,7 @@ The `Choice` element uses the least-squares Monte Carlo approach proposed by Lon
 Schwartz (1998) to compare the conditional expected value of each alternative.
 
 ```python
-results = calc(
-    source_code="""
+results = calc("""
 Choice(
     Wait('2012-1-1', Market('GAS')),
     Wait('2112-1-1', Market('GAS')),
@@ -354,12 +345,97 @@ from quantdsl.interfaces.calcandplot import calc_print_plot
 
 If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
  hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
- displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge
- positions.
+ displayed showing underlying prices and the cumulative hedge positions for each underlying, and the net cash from the 
+ hedge positions (profit and loss).
 
 The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
  positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
  how well the deltas are performing.
+
+
+### European and american options
+
+An general option can be expressed as waiting until a date for a choice between on one hand the 
+difference between the price of an underlying and a strike price, and on the other hand an alternative expression.
+
+```python
+
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+```
+
+A european option can then be expressed as an option to buy an underlying commodity at a given strike price 
+on a given date, the alternative being to do nothing.
+
+```python
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+```
+
+Similarly, an american option is an option to exercise at the strike price on the start date, with an alternative being
+ an american option starting the next date (after a `step` in time, such as one day), and so on until the end date.
+
+
+```python
+def American(start, end, strike, underlying, step):
+    if start <= end:
+        Option(start, strike, underlying,
+            American(start + step, end, strike, underlying, step)
+        )
+    else:
+        0
+```
+
+These function definitions are included in the library, and can be imported.
+
+If the strike price is the same as the underlying, without any volatility (`sigma`) there is no value holding an 
+option.
+
+```python
+results = calc("""from quantdsl.lib.american1 import American
+
+American(Date('2011-1-1'), Date('2011-1-10'), 10, Market('GAS'), TimeDelta('1d'))
+""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.0],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+assert results.fair_value.mean() == 0, results.fair_value.mean()
+```
+
+If the strike price is the same as the underlying, with some volatility in the price of the underlying (`sigma`) there
+ is some value in the option.
+
+```python
+results = calc("""from quantdsl.lib.american1 import American
+
+American(Date('2012-1-1'), Date('2012-1-10'), 10, Market('GAS'), TimeDelta('1d'))
+""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.9],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+assert results.fair_value.mean() > 3, results.fair_value.mean()
+```
 
 
 ### Gas storage
