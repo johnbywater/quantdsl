@@ -291,20 +291,25 @@ assert results.fair_value.mean() < 100, results.fair_value.mean()
 
 ## Examples of usage
 
-The examples below use the library function `calc_print_plot()` to evaluate contracts. If you run these examples, 
-the deltas for each market in each period are calculated, and risk neutral hedge positions are printed for each market
- in each period, along with the overall fair value. A plot is displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge positions.
- The plot shows the statistical distribution of the simulated prices, and the statistical error of the hedge 
- positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
- how well the deltas are performing.
+The examples below use the library function `calc_print_plot()` to evaluate contracts.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_print_plot
 ```
 
+If you run these examples, the deltas for each market in each period will be calculated, and risk neutral hedge 
+positions will be printed for each market in each period, along with the overall fair value. A plot will be 
+displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge 
+positions.
+
+The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
+ positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
+ how well the deltas are performing.
+
+
 ### Gas Storage
 
-Here's an evaluation of a gas storage facility.
+An evaluation of a gas storage facility.
 
 This example uses a forward curve that reflects seasonal variations across the term of the contract. 
 
@@ -405,7 +410,7 @@ assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 ### Power Station
 
-Here's an evaluation of a power station. It uses a market model with two correlated markets. 
+An evaluation of a power station. It uses a market model with two correlated markets. 
 
 This time, the source code imports a power station model from the library. The source code for the power station 
 model is copied in below. 
@@ -455,7 +460,10 @@ assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 ```
 
-Quant DSL source code for the library power plant model.
+### Library of models
+
+Quant DSL source code for the library power plant model `quantdsl.lib.powerplant2`, as used in the example 
+above.
 
 ```python
 from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
