@@ -399,9 +399,11 @@ assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 ### Power Station
 
-Here's an evaluation of a power station. This time, the source code imports a power station model from the library.
+Here's an evaluation of a power station. It uses a market model with two correlated markets. 
 
-This example uses a market model with two correlated markets. 
+This time, the source code imports a power station model from the library. The source code for the power station 
+model is copied in below. 
+
 
 ```python
 results = calc_print_plot(
@@ -444,5 +446,63 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
     }
 )
 assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
+
+```
+
+Quant DSL source code for the library power plant model.
+
+```python
+from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
+
+
+def PowerPlant(start, end, duration_off):
+    if (start < end):
+        Wait(start,
+             Choice(
+                 ProfitFromRunning(duration_off) + PowerPlant(
+                     Tomorrow(start), end, Running()
+                 ),
+                 PowerPlant(
+                     Tomorrow(start), end, Stopped(duration_off)
+                 )
+             )
+             )
+    else:
+        return 0
+
+
+@inline
+def ProfitFromRunning(duration_off):
+    if duration_off > 1:
+        return 0.75 * Power() - Gas()
+    elif duration_off == 1:
+        return 0.90 * Power() - Gas()
+    else:
+        return 1.00 * Power() - Gas()
+
+
+@inline
+def Power():
+    Lift('POWER', 'daily', Market('POWER'))
+
+
+@inline
+def Gas():
+    Lift('GAS', 'daily', Market('GAS'))
+
+
+@inline
+def Running():
+    return 0
+
+
+@inline
+def Stopped(duration_off):
+    return duration_off + 1
+
+
+@inline
+def Tomorrow(today):
+    return today + TimeDelta('1d')
 
 ```
