@@ -200,14 +200,12 @@ class TestListMarketNamesAndFixingDates(unittest.TestCase):
                                                2: Mock(spec=CallDependencies, dependencies=[]),
                                                3: Mock(spec=CallDependencies, dependencies=[]),
                                            }[x])
-        market_dependencies_repo = MagicMock(spec=PerturbationDependenciesRepo)
 
         observation_date = datetime.datetime(2011, 1, 1)
 
         requirements = set()
         identify_simulation_requirements(contract_specification.id, call_requirement_repo, call_link_repo,
-                                         call_dependencies_repo, market_dependencies_repo, observation_date,
-                                         requirements)
+                                         call_dependencies_repo, observation_date, requirements)
 
         self.assertEqual(requirements, {
             ('1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1)),

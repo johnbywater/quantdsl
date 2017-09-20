@@ -1051,10 +1051,10 @@ class Lift(DslExpression):
     def expr(self):
         return self._args[-1]
 
-    def identify_perturbation_dependencies(self, dependencies, **kwds):
-        perturbation = self.get_perturbation(**kwds)
-        dependencies.add(perturbation)
-        super(Lift, self).identify_perturbation_dependencies(dependencies, **kwds)
+    # def identify_perturbation_dependencies(self, dependencies, **kwds):
+    #     perturbation = self.get_perturbation(**kwds)
+    #     dependencies.add(perturbation)
+    #     super(Lift, self).identify_perturbation_dependencies(dependencies, **kwds)
 
     def get_perturbation(self, **kwds):
         try:
@@ -1070,13 +1070,10 @@ class Lift(DslExpression):
         if mode.startswith('alltime'):
             perturbation = commodity_name
         elif mode.startswith('year'):
-            # perturbation = json.dumps((commodity_name, present_time.year))
             perturbation = "{}-{}".format(commodity_name, present_time.year)
         elif mode.startswith('mon'):
-            # perturbation = json.dumps((commodity_name, present_time.year, present_time.month))
             perturbation = "{}-{}-{}".format(commodity_name, present_time.year, present_time.month)
         elif mode.startswith('da'):
-            # perturbation = json.dumps((commodity_name, present_time.year, present_time.month, present_time.day))
             perturbation = "{}-{}-{}-{}".format(commodity_name, present_time.year, present_time.month,
                                                 present_time.day)
         else:
@@ -1084,17 +1081,17 @@ class Lift(DslExpression):
         return perturbation
 
     def evaluate(self, **kwds):
-        # Get the perturbed market name, if set.
-        active_perturbation = kwds.get('active_perturbation', None)
-        perturbation_factor = kwds['perturbation_factor']
-
-        # If this is a perturbed market, perturb the simulated value.
+    #     # Get the active perturbation, if set.
+    #     active_perturbation = kwds.get('active_perturbation', None)
+    #     perturbation_factor = kwds['perturbation_factor']
+    #
         expr_value = self.expr.evaluate(**kwds)
-        if active_perturbation and self.get_perturbation(**kwds) == active_perturbation.lstrip('-'):
-            sign = -1 if active_perturbation.startswith('-') else 1
-            evaluated_value = expr_value * (1 + sign * perturbation_factor)
-        else:
-            evaluated_value = expr_value
+    #     if active_perturbation and self.get_perturbation(**kwds) == active_perturbation.lstrip('-'):
+    #         # If this perturbation is active, perturb the simulated value.
+    #         sign = -1 if active_perturbation.startswith('-') else 1
+    #         evaluated_value = expr_value * (1 + sign * perturbation_factor)
+    #     else:
+        evaluated_value = expr_value
         return evaluated_value
 
 
@@ -1164,7 +1161,18 @@ class AbstractMarket(StochasticObject, DslExpression):
         except KeyError:
             raise DslError("Simulated price not found ID: {}".format(simulated_price_id))
 
-        return simulated_price_value
+        # Get the active perturbation, if set.
+        active_perturbation = kwds.get('active_perturbation', None)
+        perturbation_factor = kwds['perturbation_factor']
+
+        expr_value = simulated_price_value
+        if active_perturbation and self.get_perturbation(**kwds) == active_perturbation.lstrip('-'):
+            # If this perturbation is active, perturb the simulated value.
+            sign = -1 if active_perturbation.startswith('-') else 1
+            evaluated_value = expr_value * (1 + sign * perturbation_factor)
+        else:
+            evaluated_value = expr_value
+        return evaluated_value
 
     @property
     def market_name(self):
@@ -1200,6 +1208,36 @@ class AbstractMarket(StochasticObject, DslExpression):
         requirement = (self.commodity_name, fixing_date, self.delivery_date or present_time)
         requirements.add(requirement)
         super(AbstractMarket, self).identify_price_simulation_requirements(requirements, **kwds)
+
+    def identify_perturbation_dependencies(self, dependencies, **kwds):
+        perturbation = self.get_perturbation(**kwds)
+        if perturbation is not None:
+            dependencies.add(perturbation)
+        super(AbstractMarket, self).identify_perturbation_dependencies(dependencies, **kwds)
+
+    def get_perturbation(self, **kwds):
+        try:
+            present_time = kwds['present_time']
+        except KeyError:
+            raise DslSyntaxError(
+                "'present_time' not found in evaluation kwds",
+                ", ".join(kwds.keys()),
+                node=self.node
+            )
+        periodisation = kwds.get('periodisation')
+        perturbation = None
+        if periodisation is not None:
+            commodity_name = self.commodity_name
+            if periodisation.startswith('alltime'):
+                perturbation = commodity_name
+            elif periodisation.startswith('year'):
+                perturbation = "{}-{}".format(commodity_name, present_time.year)
+            elif periodisation.startswith('mon'):
+                perturbation = "{}-{}-{}".format(commodity_name, present_time.year, present_time.month)
+            elif periodisation.startswith('da'):
+                perturbation = "{}-{}-{}-{}".format(commodity_name, present_time.year, present_time.month,
+                                                    present_time.day)
+        return perturbation
 
 
 class Market(AbstractMarket):

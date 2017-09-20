@@ -33,7 +33,7 @@ def simulate_future_prices(market_simulation, market_calibration):
 
 
 def identify_simulation_requirements(contract_specification_id, call_requirement_repo, call_link_repo,
-                                     call_dependencies_repo, market_dependencies_repo, observation_date, requirements):
+                                     call_dependencies_repo, observation_date, requirements, periodisation=None):
     assert isinstance(call_requirement_repo, CallRequirementRepository)
     assert isinstance(call_link_repo, CallLinkRepository)
 
@@ -68,7 +68,11 @@ def identify_simulation_requirements(contract_specification_id, call_requirement
 
         # Identify this call's perturbation dependencies.
         perturbation_dependencies = set()
-        dsl_expr.identify_perturbation_dependencies(perturbation_dependencies, present_time=present_time)
+        dsl_expr.identify_perturbation_dependencies(
+            dependencies=perturbation_dependencies,
+            present_time=present_time,
+            periodisation=periodisation,
+        )
 
         # Add the expression's perturbation dependencies to the perturbation dependencies of its call dependencies.
         call_dependencies = call_dependencies_repo[call_id]
