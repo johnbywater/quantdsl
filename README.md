@@ -28,6 +28,7 @@ maths used in finance and trading. The elements of the language can be freely co
 of value. User defined functions generate extensive dependency graphs that effectively model and evaluate exotic
 derivatives.
 
+
 ## Definition and implementation
 
 The syntax of Quant DSL expressions has been
@@ -45,26 +46,245 @@ of the contract model against the simulation.
 The library provides an application class `QuantDslApplication` which 
 has methods that support these steps: `compile()`, `simulate()` and `evaluate()`.
 
-The library also provides a convenience function `calc()` uses those methods of that application to evaluate 
-contracts.
 
+## Introduction
 
-
-## Example of usage
-
-The examples below use the library function `calc()` to evaluate contracts.
-
+Simple calculations.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc_and_plot
+from quantdsl.interfaces.calcandplot import calc
+
+results = calc("2 + 3 * 4 - 10 / 5")
+
+assert results.fair_value == 12, results.fair_value
+```
+
+Other binary operations.
+
+```python
+from quantdsl.interfaces.calcandplot import calc
+
+results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
+
+assert results.fair_value == 4, results.fair_value
+```
+
+Logical operations.
+
+```python
+from quantdsl.interfaces.calcandplot import calc
+
+assert calc("1 and 2").fair_value == True
+assert calc("0 and 2").fair_value == False
+
+
+```
+
+Date and time values and operations.
+
+```python
+import datetime
+
+from quantdsl.interfaces.calcandplot import calc
+
+
+results = calc("Date('2011-1-1')")
+assert results.fair_value == datetime.datetime(2011, 1, 1), results.fair_value
+
+results = calc("Date('2011-1-10') - Date('2011-1-1')")
+assert results.fair_value == datetime.timedelta(days=9), results.fair_value
+
+results = calc("Date('2011-1-1') + 5 * TimeDelta('1d') < Date('2011-1-10')")
+assert results.fair_value == True, results.fair_value
+
+results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') < Date('2011-1-10')")
+assert results.fair_value == False, results.fair_value
+
+```
+
+Discounting to net present value with `Settlement`. A hundred years at 2.5% gives heavy discounting from 10 to less 
+than 1.
+
+```python
+results = calc(
+    source_code="""Settlement('2111-1-1', 10)""",
+    observation_date='2011-1-1',
+    interest_rate=2.5,
+)
+
+assert results.fair_value < 1, results.fair_value
+```
+
+If the observation date is the same as the settlement date, there is no discounting.
+
+```python
+results = calc(
+    source_code="""Settlement('2111-1-1', 10)""",
+    observation_date='2111-1-1',
+    interest_rate=2.5,
+)
+
+assert results.fair_value == 10, results.fair_value
+```
+
+Underlying prices.
+
+```python
+
+results = calc(
+    source_code="""Market('GAS')""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.0],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10)
+            ]
+        },
+    }
+)
+
+assert results.fair_value.mean() == 10, results.fair_value
+```
+
+The forward curve is used to estimate future prices, with zero-order hold from the last known value.
+
+```python
+
+results = calc(
+    source_code="""Fixing('2112-1-1', Market('GAS'))""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.0],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert results.fair_value.mean() == 1000, results.fair_value.mean()
+```   
+
+With non-zero geometric brownian motion, the future price may move.
+
+```python
+
+results = calc(
+    source_code="""Fixing('2112-1-1', Max(1000, Market('GAS')))""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.2],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert results.fair_value.mean() > 1000, results.fair_value.mean()
+```   
+
+The `Wait` element combines `Settlement` and `Fixing`.
+
+```python
+
+results = calc(
+    source_code="""Wait('2112-1-1', Market('GAS'))""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.2],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert results.fair_value.mean() < 100, results.fair_value.mean()
+```   
+
+Function definitions can be used to structure complex expressions. When evaluating an expression that involves 
+function calls, the call args are used to evaluating the function, which returns an expression that replaces the 
+function call in the expression. The expression will be evaluated with the function call arguments.
+
+```python
+from quantdsl.interfaces.calcandplot import calc
+
+results = calc(source_code="""
+def Contract1(a):
+    a * Contract2() + 1000 * Contract3(a)
+
+
+def Contract2():
+    25
+
+
+def Contract3(a):
+    a * 1.1
+
+
+Contract1(10)
+""")
+
+assert results.fair_value == 11250, results.fair_value
+```   
+
+Each call to a function definition becomes a node on a dependecy graph. Each call is internally  
+memoised, so it is only called once with the same argument values, and the result of such a call is reused.
+
+The function body can be an if-else block, so that the expression returned depends upon the function call argument 
+values.
+
+```python
+from quantdsl.interfaces.calcandplot import calc
+
+results = calc(source_code="""
+def Fib(n):
+    if n > 1:
+        Fib(n-1) + Fib(n-2)
+    else:
+        n
+
+Fib(60)
+""")
+
+assert results.fair_value == 1548008755920, results.fair_value
+```   
+
+## Examples of usage
+
+The examples below use the library function `calc_print_plot()` to evaluate contracts.
+
+```python
+from quantdsl.interfaces.calcandplot import calc_print_plot
 ```
 
 ### Gas Storage
 
 Here's an evaluation of a gas storage facility.
 
+This example uses a forward curve that reflects seasonal variations across the term of the contract. 
+
 ```python
-calc_and_plot(
+results = calc_print_plot(
     title="Gas Storage",
     
     source_code="""
@@ -94,10 +314,6 @@ def GasStorage(start, end, commodity_name, quantity, target, limit, step, period
 
 
 @inline
-def BreachOfContract():
-    -10000000000000000
-
-@inline
 def Continue(start, end, commodity_name, quantity, limit, step, period, target):
     GasStorage(start + step, end, commodity_name, quantity, target, limit, step, period)
 
@@ -106,6 +322,11 @@ def Continue(start, end, commodity_name, quantity, limit, step, period, target):
 def Inject(start, end, commodity_name, quantity, limit, step, period, target, vol):
     Continue(start, end, commodity_name, quantity + vol, limit, step, period, target) - \
     vol * Lift(commodity_name, period, Market(commodity_name))
+
+
+@inline
+def BreachOfContract():
+    -10000000000000000
 
 
 GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
@@ -160,8 +381,10 @@ GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
 
 Here's an evaluation of a power station. This time, the source code imports a power station model from the library.
 
+This example uses a market model with two correlated markets. 
+
 ```python
-calc_and_plot(
+results = calc_print_plot(
     title="Power Station",
 
     source_code="""from quantdsl.lib.powerplant2 import PowerPlant, Running

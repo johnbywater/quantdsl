@@ -20,6 +20,8 @@ def generate_simulated_prices(market_simulation, market_calibration):
 
 def simulate_future_prices(market_simulation, market_calibration):
     assert isinstance(market_simulation, MarketSimulation), market_simulation
+    if not market_simulation.requirements:
+        return []
     assert isinstance(market_calibration, MarketCalibration), market_calibration
     price_process = get_price_process(market_calibration.price_process_name)
     assert isinstance(price_process, PriceProcess), price_process

@@ -130,7 +130,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         # call_result_listener = None
 
         # Start the contract valuation.
-        contract_valuation = self.app.evaluate(contract_specification, market_simulation)
+        contract_valuation = self.app.evaluate(contract_specification.id, market_simulation.id)
         assert isinstance(contract_valuation, ContractValuation)
 
         # # Get the call result.
