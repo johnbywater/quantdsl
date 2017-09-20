@@ -458,15 +458,15 @@ from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
 def PowerPlant(start, end, duration_off):
     if (start < end):
         Wait(start,
-             Choice(
-                 ProfitFromRunning(duration_off) + PowerPlant(
-                     Tomorrow(start), end, Running()
-                 ),
-                 PowerPlant(
-                     Tomorrow(start), end, Stopped(duration_off)
-                 )
-             )
-             )
+            Choice(
+                ProfitFromRunning(duration_off) + PowerPlant(
+                    Tomorrow(start), end, Running()
+                ),
+                PowerPlant(
+                    Tomorrow(start), end, Stopped(duration_off)
+                )
+            )
+        )
     else:
         return 0
 
