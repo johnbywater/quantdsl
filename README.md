@@ -297,10 +297,6 @@ The examples below use the library function `calc_print_plot()` to evaluate cont
 from quantdsl.interfaces.calcandplot import calc_print_plot
 ```
 
-### Lift
-
-The examples here use the `Lift` element to generate deltas with respect each period for each market.
- 
 If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
  hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
  displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge
@@ -310,6 +306,12 @@ The plot will also show the statistical distribution of the simulated prices, an
  positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
  how well the deltas are performing.
 
+
+### Lift
+
+The examples here use the `Lift` element to specify deltas with respect to each period (daily, 
+monthly, yearly) for each market across the term of the contract.
+ 
 
 ### Gas Storage
 
