@@ -48,6 +48,11 @@ has methods that support these steps: `compile()`, `simulate()` and `evaluate()`
 
 
 ## Introduction
+The examples below use the library function calc_print_plot() to evaluate contracts.
+
+```python
+from quantdsl.interfaces.calcandplot import calc
+```
 
 Simple calculations.
 
@@ -95,12 +100,13 @@ assert results.fair_value == False, results.fair_value
 
 ### Function definitions
 
-Function definitions can be used to structure complex expressions. The call args of the function definition
-can be used as names in the function definition's expressions.
+Function definitions can be used to structure complex expressions.
  
 When evaluating an expression that involves calls to function definitions, the call to the function definition is 
 firstly replaced with the expression returned by the function definition, so that a larger expression is formed.
 
+The call args of the function definition can be used as names in the function definition's expressions. The call arg 
+values will be used to evaluate the expression returned by the function.
 
 ```python
 results = calc(source_code="""
@@ -122,8 +128,8 @@ Contract1(10)
 assert results.fair_value == 11250, results.fair_value
 ```   
 
-The function body can be an if-else block, so that the expression returned depends upon the function call argument 
-values.
+The call args of the function definition can be used in an if-else block, so that different expressions can be 
+returned depending upon the function call argument values.
 
 Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
 memoised, so it is only called once with the same argument values, and the result of such a call is reused.
