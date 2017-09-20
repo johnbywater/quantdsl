@@ -291,16 +291,20 @@ assert results.fair_value.mean() < 100, results.fair_value.mean()
 
 ## Examples of usage
 
-The examples below use the library function `calc_print_plot()` to evaluate contracts.
+The examples below use the library function `calc_print_plot()` to evaluate contracts, and print and plot results.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_print_plot
 ```
 
-If you run these examples, the deltas for each market in each period will be calculated, and risk neutral hedge 
-positions will be printed for each market in each period, along with the overall fair value. A plot will be 
-displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge 
-positions.
+### Lift
+
+The examples here use the `Lift` element to generate deltas with respect each period for each market.
+ 
+If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
+ hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
+ displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge
+ positions.
 
 The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
  positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
@@ -309,9 +313,8 @@ The plot will also show the statistical distribution of the simulated prices, an
 
 ### Gas Storage
 
-An evaluation of a gas storage facility.
-
-This example uses a forward curve that reflects seasonal variations across the term of the contract. 
+An evaluation of a gas storage facility. This example uses a forward curve that reflects seasonal variations across 
+the term of the contract. 
 
 ```python
 results = calc_print_plot(
@@ -410,11 +413,8 @@ assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 ### Power Station
 
-An evaluation of a power station. It uses a market model with two correlated markets. 
-
-This time, the source code imports a power station model from the library. The source code for the power station 
-model is copied in below. 
-
+An evaluation of a power station. This time, the source code imports a power station model from the library. It uses
+ a market model with two correlated markets. The source code for the power station model is copied in below.
 
 ```python
 results = calc_print_plot(
@@ -456,8 +456,8 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
         }
     }
 )
-assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
+assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 ```
 
 ### Library of models
