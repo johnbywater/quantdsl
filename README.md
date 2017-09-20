@@ -77,11 +77,18 @@ results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
 assert results.fair_value == 4, results.fair_value
 ```
 
-Logical operations.
+Boolean operations.
 
 ```python
 assert calc("1 and 2").fair_value == True
 assert calc("0 and 2").fair_value == False
+assert calc("2 and 0").fair_value == False
+assert calc("0 and 0").fair_value == False
+
+assert calc("1 or 1").fair_value == True
+assert calc("1 or 0").fair_value == True
+assert calc("0 or 1").fair_value == True
+assert calc("0 or 0").fair_value == False
 ```
 
 Date and time values and operations.
@@ -136,8 +143,14 @@ assert results.fair_value == 11250, results.fair_value
 The call args of the function definition can be used in an if-else block, so that different expressions can be 
 returned depending upon the function call argument values.
 
+Please note, the expressions preceding the colon in the if-else block must be simple expressions involving the call 
+args and must not involve any Quant DSL stochastic elements, such as `Market`, `Choice`, `Wait`, `Settlement`,
+`Fixing`. Calls to function definitions from these expressions are currently not supported.
+
 Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
 memoised, so it is only called once with the same argument values, and the result of such a call is reused.
+
+
 
 ```python
 results = calc(source_code="""
