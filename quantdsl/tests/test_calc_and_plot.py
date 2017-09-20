@@ -16,7 +16,7 @@ class TestCalcAndPlot(TestCase):
 
         source_code = """from quantdsl.lib.storage2 import GasStorage
         
-GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
+GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
 """
 
         calc_print_plot(
