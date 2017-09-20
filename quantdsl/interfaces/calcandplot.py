@@ -132,10 +132,6 @@ class Calculate(object):
         else:
             price_process_name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
             calibration_params = {}
-        market_calibration = app.register_market_calibration(
-            price_process_name=price_process_name,
-            calibration_params=calibration_params
-        )
 
         if self.observation_date is not None:
             observation_date = datetime_from_date(dateutil.parser.parse(self.observation_date))
@@ -143,7 +139,8 @@ class Calculate(object):
             observation_date = None
         market_simulation = app.simulate(
             contract_specification,
-            market_calibration,
+            price_process_name=price_process_name,
+            calibration_params=calibration_params,
             path_count=self.path_count,
             observation_date=observation_date,
             interest_rate=self.interest_rate,

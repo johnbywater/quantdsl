@@ -29,7 +29,6 @@ from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import M
 from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
-from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 
 
@@ -186,8 +185,11 @@ class QuantDslApplication(EventSourcingApplication):
     def compile(self, source_code):
         return self.register_contract_specification(source_code=source_code)
 
-    def simulate(self, contract_specification, market_calibration, observation_date, path_count=20000,
-                 interest_rate='2.5', perturbation_factor=0.01, periodisation=None):
+    def simulate(self, contract_specification, price_process_name, calibration_params, observation_date,
+                 path_count=20000, interest_rate='2.5', perturbation_factor=0.01, periodisation=None):
+
+        market_calibration = self.register_market_calibration(price_process_name, calibration_params)
+
         simulation_requirements = set()
         self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements,
                                               periodisation)

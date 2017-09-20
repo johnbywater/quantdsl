@@ -113,11 +113,11 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             self.assertEqual(call_count, expected_call_count)
 
         # Generate the market simulation.
-        market_calibration = self.app.register_market_calibration(self.price_process_name, self.calibration_params)
         observation_date = datetime.datetime(2011, 1, 1)
         market_simulation = self.app.simulate(
             contract_specification=contract_specification,
-            market_calibration=market_calibration,
+            price_process_name=self.price_process_name,
+            calibration_params=self.calibration_params,
             observation_date=observation_date,
             path_count=self.PATH_COUNT,
             interest_rate='2.5',
