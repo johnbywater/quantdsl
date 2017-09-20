@@ -288,6 +288,38 @@ results = calc(
 assert results.fair_value.mean() < 100, results.fair_value.mean()
 ```   
 
+### Choice
+
+The `Choice` element uses the least-squares Monte Carlo approach proposed by Longstaff and 
+Schwartz (1998) to compare the conditional expected value of each alternative.
+
+```python
+results = calc(
+    source_code="""
+Choice(
+    Wait('2012-1-1', Market('GAS')),
+    Wait('2112-1-1', Market('GAS')),
+)
+""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.2],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert 70 < results.fair_value.mean() < 90, results.fair_value.mean()
+```   
+
+
 ### Lift
 
 The examples below use the `Lift` element to specify deltas with respect to each market and each period (e.g. 
@@ -465,7 +497,7 @@ assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 Here is a copy of the Quant DSL source code for the power plant model `quantdsl.lib.powerplant2`, as used in the 
 example above. There are other models in the library of models under `quantdsl.lib`. Please feel free to propose 
-additions and improvements to this library of models.
+additions or improvements.
 
 ```python
 from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
