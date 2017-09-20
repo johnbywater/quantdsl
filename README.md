@@ -290,8 +290,8 @@ assert results.fair_value.mean() < 100, results.fair_value.mean()
 
 ### Lift
 
-The examples below use the `Lift` element to specify deltas with respect to each period (daily, 
-monthly, yearly) for each market across the term of the contract.
+The examples below use the `Lift` element to specify deltas with respect to each market and each period (e.g. 
+daily, monthly, or yearly) across the term of the contract.
  
 
 ## Examples of usage
@@ -312,7 +312,7 @@ The plot will also show the statistical distribution of the simulated prices, an
  how well the deltas are performing.
 
 
-### Gas Storage
+### Gas storage
 
 An evaluation of a gas storage facility. This example uses a forward curve that reflects seasonal variations across 
 the term of the contract. 
@@ -412,7 +412,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 assert 5 < results.fair_value.mean() < 7, results.fair_value.mean()
 ```
 
-### Power Station
+### Power station
 
 An evaluation of a power station. This time, the source code imports a power station model from the library. It uses
  a market model with two correlated markets. The source code for the power station model is copied in below.
@@ -461,10 +461,11 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
 assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 ```
 
-### Library of models
+### Library of contract models
 
-Quant DSL source code for the library power plant model `quantdsl.lib.powerplant2`, as used in the example 
-above.
+Here is a copy of the Quant DSL source code for the power plant model `quantdsl.lib.powerplant2`, as used in the 
+example above. There are other models in the library of models under `quantdsl.lib`. Please feel free to propose 
+additions and improvements to this library of models.
 
 ```python
 from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
