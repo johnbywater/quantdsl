@@ -8,8 +8,8 @@ import scipy.linalg
 from scipy.linalg import LinAlgError
 
 from quantdsl.exceptions import DslError
-from quantdsl.priceprocess.base import PriceProcess
-from quantdsl.priceprocess.base import get_duration_years
+from quantdsl.priceprocess.base import PriceProcess, get_duration_years
+from quantdsl.priceprocess.forwardcurve import ForwardCurve
 
 
 class BlackScholesPriceProcess(PriceProcess):
@@ -26,26 +26,15 @@ class BlackScholesPriceProcess(PriceProcess):
         # motions, the actual historical volatility, and the last price.
         for commodity_name, brownian_motions in all_brownian_motions:
             # Get the 'last price' for this commodity.
-            param_name = '%s-LAST-PRICE' % commodity_name
-            last_price = self.get_calibration_param(param_name, calibration_params)
 
-            # Get the 'actual historical volatility' for this commodity.
-            param_name = '%s-ACTUAL-HISTORICAL-VOLATILITY' % commodity_name
-            actual_historical_volatility = self.get_calibration_param(param_name, calibration_params)
-
-            sigma = actual_historical_volatility / 100.0
+            index = calibration_params['market'].index(commodity_name)
+            sigma = calibration_params['sigma'][index]
+            curve = ForwardCurve(commodity_name, calibration_params['curve'][commodity_name])
             for fixing_date, brownian_rv in brownian_motions:
+                last_price = curve.get_price(fixing_date)
                 T = get_duration_years(observation_date, fixing_date)
                 simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
                 yield commodity_name, fixing_date, fixing_date, simulated_value
-
-    def get_calibration_param(self, param_name, calibration_params):
-        try:
-            actual_historical_volatility = calibration_params[param_name]
-        except KeyError:
-            msg = "Calibration parameter '{}' not found.".format(param_name)
-            raise KeyError(msg)
-        return actual_historical_volatility
 
     def get_brownian_motions(self, observation_date, requirements, path_count, calibration_params):
         assert isinstance(observation_date, datetime.datetime), observation_date
@@ -136,15 +125,15 @@ class BlackScholesPriceProcess(PriceProcess):
         return all_brownian_motions
 
     def get_correlation_from_calibration(self, market_calibration, name_i, name_j):
-        market_name_pair = tuple(sorted([name_i, name_j]))
-        calibration_name = "%s-%s-CORRELATION" % market_name_pair
+        index_i = market_calibration['market'].index(name_i)
+        index_j = market_calibration['market'].index(name_j)
         try:
-            correlation = market_calibration[calibration_name]
+            correlation = market_calibration['rho'][index_i][index_j]
         except KeyError as e:
             msg = "Can't find correlation between '%s' and '%s' in market calibration params: %s: %s" % (
-                market_name_pair[0],
-                market_name_pair[1],
-                market_calibration.keys(),
+                name_i,
+                name_j,
+                market_calibration,
                 e
             )
             raise DslError(msg)
@@ -153,15 +142,11 @@ class BlackScholesPriceProcess(PriceProcess):
         return correlation
 
 
-class BlackScholesVolatility(object):
-
-    def calc_actual_historical_volatility(self, market, observation_date):
-        price_history = market.getPriceHistory(observation_date=observation_date)
-        prices = scipy.array([i.value for i in price_history])
-        dates = [i.observation_date for i in price_history]
-        volatility = 100 * prices.std() / prices.mean()
-        duration = max(dates) - min(dates)
-        years = (duration.days) / 365.0 # Assumes zero seconds.
-        if years == 0:
-            raise Exception("Can't calculate volatility for price series with zero duration: %s" % (price_history))
-        return float(volatility) / math.sqrt(years)
+def calc_sigma(curve):
+    dates = scipy.array([i[0] for i in curve])
+    prices = scipy.array([i[1] for i in curve])
+    volatility = prices.std() / prices.mean()
+    duration = max(dates) - min(dates)
+    years = duration.total_seconds() / datetime.timedelta(365).total_seconds()
+    assert years > 0, "Can't calculate volatility for price series with zero days duration"
+    return float(volatility) / math.sqrt(years)

@@ -17,9 +17,6 @@ class SimulatedPriceRequirements(EventSourcedEntity):
         super(SimulatedPriceRequirements, self).__init__(**kwargs)
         self._requirements = requirements
 
-    def __getitem__(self, item):
-        return self._requirements.__getitem__(item)
-
     @property
     def requirements(self):
         return self._requirements

@@ -1,20 +1,23 @@
 import ast
+import importlib
+
 import six
 
 from quantdsl.exceptions import DslSyntaxError
+from quantdsl.semantics import FunctionDef, DslNamespace
 
 
 class DslParser(object):
 
-    def parse(self, dsl_source, filename='<unknown>', dsl_classes=None):
+    def __init__(self, dsl_classes=None):
+        if dsl_classes is None:
+            dsl_classes = {}
+        self.dsl_classes = dsl_classes
+
+    def parse(self, dsl_source, filename='<unknown>'):
         """
         Creates a DSL Module object from a DSL source text.
         """
-        self.dsl_classes = {}
-        if dsl_classes:
-            # assert isinstance(dsl_classes, dict)
-            self.dsl_classes.update(dsl_classes)
-
         if not isinstance(dsl_source, six.string_types):
             raise DslSyntaxError("Can't dsl_parse non-string object", dsl_source)
 
@@ -23,7 +26,7 @@ class DslParser(object):
             # Parse as Python source code, into a Python abstract syntax tree.
             ast_module = ast.parse(dsl_source, filename=filename, mode='exec')
         except SyntaxError as e:
-            raise DslSyntaxError("DSL source code is not valid Python code", e)
+            raise DslSyntaxError("DSL source code is not valid Python code: {}".format(dsl_source), e)
 
         # Generate Quant DSL from Python AST.
         return self.visitAstNode(ast_module)
@@ -58,8 +61,56 @@ class DslParser(object):
         Returns a DSL Module, with a list of DSL expressions as the body.
         """
         # assert isinstance(node, ast.Module)
-        body = [self.visitAstNode(n) for n in node.body]
-        return self.dsl_classes['Module'](body, node=node)
+        body = []
+
+        # Namespace for function defs in module.
+        module_namespace = DslNamespace()
+
+        for n in node.body:
+            dsl_object = self.visitAstNode(n)
+
+            if isinstance(dsl_object, FunctionDef):
+                # Put function def in module namespace.
+                module_namespace[dsl_object.name] = dsl_object
+                # Share module namespace with this function.
+                if dsl_object.module_namespace is None:
+                    dsl_object.module_namespace = module_namespace
+
+            # Include imported things.
+            if isinstance(dsl_object, list):
+                for _dsl_object in dsl_object:
+                    if isinstance(_dsl_object, FunctionDef):
+                        module_namespace[_dsl_object.name] = _dsl_object
+            else:
+                body.append(dsl_object)
+
+        return self.dsl_classes['Module'](body, module_namespace, node=node)
+
+    def visitImportFrom(self, node):
+        """
+        Visitor method for ast.ImportFrom nodes.
+
+        Returns the result of visiting the expression held by the return statement.
+        """
+        assert isinstance(node, ast.ImportFrom)
+        if node.module == 'quantdsl.semantics':
+            return []
+        from_names = [a.name for a in node.names]
+        dsl_module = self.import_python_module(node.module)
+        nodes = []
+        for node in dsl_module.body:
+            if isinstance(node, FunctionDef) and node.name in from_names:
+                nodes.append(node)
+        return nodes
+
+    def import_python_module(self, module_name):
+        nodes = []
+        module = importlib.import_module(module_name)
+        path = module.__file__.strip('c')
+        source = open(path).read()  # .py not .pyc
+        dsl_node = self.parse(source, filename=path)
+        assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
+        return dsl_node
 
     def visitReturn(self, node):
         """
@@ -77,10 +128,8 @@ class DslParser(object):
         Returns the result of visiting the contents of the expression node.
         """
         # assert isinstance(node, ast.Expr)
-        if isinstance(node.value, ast.AST):
-            return self.visitAstNode(node.value)
-        else:
-            raise DslSyntaxError
+        assert isinstance(node.value, ast.AST), type(node.value)
+        return self.visitAstNode(node.value)
 
     def visitNum(self, node):
         """
@@ -148,14 +197,10 @@ class DslParser(object):
             ast.And: self.dsl_classes['And'],
             ast.Or: self.dsl_classes['Or'],
         }
-        try:
-            dsl_class = type_map[type(node.op)]
-        except KeyError:
-            raise DslSyntaxError("Unsupported boolean operator token: %s" % node.op)
-        else:
-            values = [self.visitAstNode(v) for v in node.values]
-            args = [values]
-            return dsl_class(node=node, *args)
+        dsl_class = type_map[type(node.op)]
+        values = [self.visitAstNode(v) for v in node.values]
+        args = [values]
+        return dsl_class(node=node, *args)
 
     def visitName(self, node):
         """
