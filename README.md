@@ -109,7 +109,7 @@ results = calc(
 assert results.fair_value < 1, results.fair_value
 ```
 
-If the observation date is the same as the settlement date, there is no discounting.
+If the effective present time is the same as the settlement date, there is no discounting.
 
 ```python
 results = calc(
@@ -117,7 +117,13 @@ results = calc(
     observation_date='2111-1-1',
     interest_rate=2.5,
 )
+assert results.fair_value == 10, results.fair_value
 
+results = calc(
+    source_code="""Fixing('2111-1-1', Settlement('2111-1-1', 10))""",
+    observation_date='2011-1-1',
+    interest_rate=2.5,
+)
 assert results.fair_value == 10, results.fair_value
 ```
 
@@ -197,6 +203,25 @@ The `Wait` element combines `Settlement` and `Fixing`.
 
 results = calc(
     source_code="""Wait('2112-1-1', Market('GAS'))""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.2],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert results.fair_value.mean() < 100, results.fair_value.mean()
+
+results = calc(
+    source_code="""Settlement('2112-1-1', Fixing('2112-1-1', Market('GAS')))""",
     observation_date='2011-1-1',
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
