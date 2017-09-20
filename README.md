@@ -72,8 +72,6 @@ Logical operations.
 ```python
 assert calc("1 and 2").fair_value == True
 assert calc("0 and 2").fair_value == False
-
-
 ```
 
 Date and time values and operations.
@@ -93,8 +91,81 @@ assert results.fair_value == True, results.fair_value
 
 results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') < Date('2011-1-10')")
 assert results.fair_value == False, results.fair_value
-
 ```
+
+Underlying prices are expressed with the `Market` element. A price process is used to simulate future 
+prices.
+
+```python
+
+results = calc(
+    source_code="""Market('GAS')""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.0],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10)
+            ]
+        },
+    }
+)
+
+assert results.fair_value.mean() == 10, results.fair_value
+```
+
+The `Fixing` element is used to condition the effective present time of included expressions. In the example below, 
+the expression evaluates to the 'GAS' market price on '2112-1-1'.
+
+The forward curve is used to estimate future prices, with zero-order hold from the last known value.
+
+```python
+
+results = calc(
+    source_code="""Fixing('2112-1-1', Market('GAS'))""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.0],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert results.fair_value.mean() == 1000, results.fair_value.mean()
+```   
+
+With geometric brownian motion, there may be future price movements.
+
+```python
+
+results = calc(
+    source_code="""Fixing('2112-1-1', Max(1000, Market('GAS')))""",
+    observation_date='2011-1-1',
+    price_process={
+        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+        'market': ['GAS'],
+        'sigma': [0.2],
+        'curve': {
+            'GAS': [
+                ('2011-1-1', 10),
+                ('2111-1-1', 1000)
+            ]
+        },
+    },
+    interest_rate=2.5,
+)
+
+assert results.fair_value.mean() > 1000, results.fair_value.mean()
+```   
 
 Discounting to net present value with `Settlement`. A hundred years at 2.5% gives heavy discounting from 10 to less 
 than 1.
@@ -127,101 +198,16 @@ results = calc(
 assert results.fair_value == 10, results.fair_value
 ```
 
-Underlying prices.
+
+The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
+effective present time of the included expression, and also the value of that expression is discounted to the 
+effective present time of the including expression.
 
 ```python
 
 results = calc(
-    source_code="""Market('GAS')""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.0],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10)
-            ]
-        },
-    }
-)
-
-assert results.fair_value.mean() == 10, results.fair_value
-```
-
-The forward curve is used to estimate future prices, with zero-order hold from the last known value.
-
-```python
-
-results = calc(
-    source_code="""Fixing('2112-1-1', Market('GAS'))""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.0],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert results.fair_value.mean() == 1000, results.fair_value.mean()
-```   
-
-With non-zero geometric brownian motion, the future price may move.
-
-```python
-
-results = calc(
-    source_code="""Fixing('2112-1-1', Max(1000, Market('GAS')))""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.2],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert results.fair_value.mean() > 1000, results.fair_value.mean()
-```   
-
-The `Wait` element combines `Settlement` and `Fixing`.
-
-```python
-
-results = calc(
+    # source_code="""Settlement('2112-1-1', Fixing('2112-1-1', Market('GAS')))""",
     source_code="""Wait('2112-1-1', Market('GAS'))""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.2],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert results.fair_value.mean() < 100, results.fair_value.mean()
-
-results = calc(
-    source_code="""Settlement('2112-1-1', Fixing('2112-1-1', Market('GAS')))""",
     observation_date='2011-1-1',
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
@@ -264,11 +250,11 @@ Contract1(10)
 assert results.fair_value == 11250, results.fair_value
 ```   
 
-Each call to a function definition becomes a node on a dependecy graph. Each call is internally  
-memoised, so it is only called once with the same argument values, and the result of such a call is reused.
-
 The function body can be an if-else block, so that the expression returned depends upon the function call argument 
 values.
+
+Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
+memoised, so it is only called once with the same argument values, and the result of such a call is reused.
 
 ```python
 results = calc(source_code="""
