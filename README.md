@@ -334,7 +334,7 @@ Choice(
     interest_rate=2.5,
 )
 
-assert 70 < results.fair_value.mean() < 90, results.fair_value.mean()
+assert 70 < results.fair_value.mean() < 100, results.fair_value.mean()
 ```   
 
 
