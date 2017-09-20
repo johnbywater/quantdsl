@@ -93,6 +93,54 @@ results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') < Date('2011-1-10')")
 assert results.fair_value == False, results.fair_value
 ```
 
+### Function definitions
+
+Function definitions can be used to structure complex expressions. When evaluating an expression that involves 
+function calls, the call args are used to evaluating the function, which returns an expression that replaces the 
+function call in the expression. The expression will be evaluated with the function call arguments.
+
+```python
+results = calc(source_code="""
+def Contract1(a):
+    a * Contract2() + 1000 * Contract3(a)
+
+
+def Contract2():
+    25
+
+
+def Contract3(a):
+    a * 1.1
+
+
+Contract1(10)
+""")
+
+assert results.fair_value == 11250, results.fair_value
+```   
+
+The function body can be an if-else block, so that the expression returned depends upon the function call argument 
+values.
+
+Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
+memoised, so it is only called once with the same argument values, and the result of such a call is reused.
+
+```python
+results = calc(source_code="""
+def Fib(n):
+    if n > 1:
+        Fib(n-1) + Fib(n-2)
+    else:
+        n
+
+Fib(60)
+""")
+
+assert results.fair_value == 1548008755920, results.fair_value
+```   
+
+### Market
+
 Underlying prices are expressed with the `Market` element. A price process is used to simulate future 
 prices.
 
@@ -115,6 +163,8 @@ results = calc(
 
 assert results.fair_value.mean() == 10, results.fair_value
 ```
+
+### Fixing
 
 The `Fixing` element is used to condition the effective present time of included expressions. In the example below, 
 the expression evaluates to the 'GAS' market price on '2112-1-1'.
@@ -167,6 +217,8 @@ results = calc(
 assert results.fair_value.mean() > 1000, results.fair_value.mean()
 ```   
 
+### Settlement
+
 Discounting to net present value with `Settlement`. A hundred years at 2.5% gives heavy discounting from 10 to less 
 than 1.
 
@@ -198,6 +250,7 @@ results = calc(
 assert results.fair_value == 10, results.fair_value
 ```
 
+### Wait
 
 The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
 effective present time of the included expression, and also the value of that expression is discounted to the 
@@ -226,53 +279,15 @@ results = calc(
 assert results.fair_value.mean() < 100, results.fair_value.mean()
 ```   
 
-Function definitions can be used to structure complex expressions. When evaluating an expression that involves 
-function calls, the call args are used to evaluating the function, which returns an expression that replaces the 
-function call in the expression. The expression will be evaluated with the function call arguments.
-
-```python
-results = calc(source_code="""
-def Contract1(a):
-    a * Contract2() + 1000 * Contract3(a)
-
-
-def Contract2():
-    25
-
-
-def Contract3(a):
-    a * 1.1
-
-
-Contract1(10)
-""")
-
-assert results.fair_value == 11250, results.fair_value
-```   
-
-The function body can be an if-else block, so that the expression returned depends upon the function call argument 
-values.
-
-Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
-memoised, so it is only called once with the same argument values, and the result of such a call is reused.
-
-```python
-results = calc(source_code="""
-def Fib(n):
-    if n > 1:
-        Fib(n-1) + Fib(n-2)
-    else:
-        n
-
-Fib(60)
-""")
-
-assert results.fair_value == 1548008755920, results.fair_value
-```   
 
 ## Examples of usage
 
-The examples below use the library function `calc_print_plot()` to evaluate contracts.
+The examples below use the library function `calc_print_plot()` to evaluate contracts. If you run these examples, 
+the deltas for each market in each period are calculated, and risk neutral hedge positions are printed for each market
+ in each period, along with the overall fair value. A plot is displayed showing underlying prices, the cumulative hedge positions, and the cummulate cash position from the hedge positions.
+ The plot shows the statistical distribution of the simulated prices, and the statistical error of the hedge 
+ positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
+ how well the deltas are performing.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_print_plot
@@ -330,7 +345,7 @@ def BreachOfContract():
     -10000000000000000
 
 
-GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
 """,
 
     observation_date='2011-1-1',
@@ -376,6 +391,7 @@ GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
     }
 )
 
+assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 ```
 
 ### Power Station
@@ -390,14 +406,14 @@ results = calc_print_plot(
 
     source_code="""from quantdsl.lib.powerplant2 import PowerPlant, Running
         
-PowerPlant(Date('2011-1-1'), Date('2011-1-6'), Running())
+PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
 """,
 
     observation_date='2011-1-1',
     interest_rate=2.5,
     path_count=20000,
     perturbation_factor=0.01,
-    periodisation='monthly',
+    periodisation='daily',
 
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
@@ -406,23 +422,24 @@ PowerPlant(Date('2011-1-1'), Date('2011-1-6'), Running())
         'rho': [[1.0, 0.8], [0.8, 1.0]],
         'curve': {
             'GAS': [
-                ('2011-1-1', 13.5),
-                ('2011-2-1', 11.0),
-                ('2011-3-1', 10.0),
-                ('2011-4-1', 9.0),
-                ('2011-5-1', 7.5),
-                ('2011-6-1', 7.0),
+                ('2011-1-1', 13.0),
+                ('2012-1-1', 13.0),
+                ('2012-1-2', 13.1),
+                ('2012-1-3', 12.8),
+                ('2012-1-4', 15.9),
+                ('2012-1-5', 13.1),
             ],
             'POWER': [
-                ('2011-1-1', 13.5),
-                ('2011-2-1', 11.0),
-                ('2011-3-1', 10.0),
-                ('2011-4-1', 9.0),
-                ('2011-5-1', 7.5),
-                ('2011-6-1', 7.0),
+                ('2011-1-1', 2.5),
+                ('2012-1-1', 5.6),
+                ('2012-1-2', 5.6),
+                ('2012-1-3', 12.9),
+                ('2012-1-4', 26.9),
+                ('2012-1-5', 1.8),
             ]
         }
     }
 )
+assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 ```
