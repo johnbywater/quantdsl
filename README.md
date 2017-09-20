@@ -62,8 +62,6 @@ assert results.fair_value == 12, results.fair_value
 Other binary operations.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
-
 results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
 
 assert results.fair_value == 4, results.fair_value
@@ -72,8 +70,6 @@ assert results.fair_value == 4, results.fair_value
 Logical operations.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
-
 assert calc("1 and 2").fair_value == True
 assert calc("0 and 2").fair_value == False
 
@@ -84,8 +80,6 @@ Date and time values and operations.
 
 ```python
 import datetime
-
-from quantdsl.interfaces.calcandplot import calc
 
 
 results = calc("Date('2011-1-1')")
@@ -226,8 +220,6 @@ function calls, the call args are used to evaluating the function, which returns
 function call in the expression. The expression will be evaluated with the function call arguments.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
-
 results = calc(source_code="""
 def Contract1(a):
     a * Contract2() + 1000 * Contract3(a)
@@ -254,8 +246,6 @@ The function body can be an if-else block, so that the expression returned depen
 values.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
-
 results = calc(source_code="""
 def Fib(n):
     if n > 1:
