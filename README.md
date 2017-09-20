@@ -387,8 +387,6 @@ def American(start, end, strike, underlying, step):
         0
 ```
 
-These function definitions are included in the library, and can be imported.
-
 If the strike price is the same as the underlying, without any volatility (`sigma`) there is no value holding an 
 option.
 
@@ -502,7 +500,6 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
         'market': ['GAS'],
         'sigma': [0.5],
-        'alpha': [0.1],
         'rho': [[1.0]],
         'curve': {
             'GAS': (
@@ -589,11 +586,11 @@ assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
 
 ### Library
 
-Putting Quant DSL source code in dedicated Python files makes it much easier to develop and maintain.
+There is a small collection of Quant DSL modules in a library under `quantdsl.lib`. Putting Quant DSL source code in 
+dedicated Python files makes it much easier to develop and maintain Quant DSL function definitions in a Python IDE.
 
-Below is a copy of the Quant DSL source code for the power plant model `quantdsl.lib.powerplant2`, as used in the 
-example above. There are other Quant DSL modules in the library under `quantdsl.lib`. Please feel free to propose 
-additions or improvements.
+Below is a copy of the Quant DSL source code for the library's power plant model `quantdsl.lib.powerplant2`, as used
+ in the example above.
 
 ```python
 from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
