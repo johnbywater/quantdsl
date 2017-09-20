@@ -140,19 +140,19 @@ class QuantDslApplication(EventSourcingApplication):
     def register_call_link(self, link_id, call_id):
         return register_call_link(link_id, call_id)
 
-    def identify_simulation_requirements(self, contract_specification, observation_date, requirements):
+    def identify_simulation_requirements(self, contract_specification, observation_date, requirements, periodisation):
         assert isinstance(contract_specification, ContractSpecification), contract_specification
         assert isinstance(requirements, set)
         return identify_simulation_requirements(contract_specification.id,
                                                 self.call_requirement_repo,
                                                 self.call_link_repo,
                                                 self.call_dependencies_repo,
-                                                self.perturbation_dependencies_repo,
                                                 observation_date,
-                                                requirements)
+                                                requirements,
+                                                periodisation)
 
-    def start_contract_valuation(self, contract_specification_id, market_simulation_id):
-        return start_contract_valuation(contract_specification_id, market_simulation_id)
+    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation):
+        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
@@ -187,9 +187,10 @@ class QuantDslApplication(EventSourcingApplication):
         return self.register_contract_specification(source_code=source_code)
 
     def simulate(self, contract_specification, market_calibration, observation_date, path_count=20000,
-                 interest_rate='2.5', perturbation_factor=0.001):
+                 interest_rate='2.5', perturbation_factor=0.01, periodisation=None):
         simulation_requirements = set()
-        self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements)
+        self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements,
+                                              periodisation)
         market_simulation = self.register_market_simulation(
             market_calibration_id=market_calibration.id,
             requirements=list(simulation_requirements),
@@ -200,8 +201,8 @@ class QuantDslApplication(EventSourcingApplication):
         )
         return market_simulation
 
-    def evaluate(self, contract_specification_id, market_simulation_id):
-        return self.start_contract_valuation(contract_specification_id, market_simulation_id)
+    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
+        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
     def get_result(self, contract_valuation):
         call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)

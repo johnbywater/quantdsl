@@ -412,12 +412,6 @@ assert results.fair_value.mean() > 3, results.fair_value.mean()
 ```
 
 
-### Lift
-
-The examples below use the `Lift` element to specify deltas with respect to each market and each period (e.g. 
-daily, monthly, or yearly) across the term of the contract.
- 
-
 ## Examples of usage
 
 The examples below use the library function `calc_print_plot()` to evaluate contracts, and print and plot results.
@@ -446,23 +440,23 @@ results = calc_print_plot(
     title="Gas Storage",
     
     source_code="""
-def GasStorage(start, end, commodity_name, quantity, target, limit, step, period):
+def GasStorage(start, end, commodity_name, quantity, target, limit, step):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
             Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, target, limit, step, period),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
+                Continue(start, end, commodity_name, quantity, target, limit, step),
+                Inject(start, end, commodity_name, quantity, target, limit, step, 1),
             ))
         elif quantity >= limit:
             Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, target, limit, step, period),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
+                Continue(start, end, commodity_name, quantity, target, limit, step),
+                Inject(start, end, commodity_name, quantity, target, limit, step, -1),
             ))
         else:
             Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, target, limit, step, period),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
+                Continue(start, end, commodity_name, quantity, target, limit, step),
+                Inject(start, end, commodity_name, quantity, target, limit, step, 1),
+                Inject(start, end, commodity_name, quantity, target, limit, step, -1),
             ))
     else:
         if target < 0 or target == quantity:
@@ -472,14 +466,14 @@ def GasStorage(start, end, commodity_name, quantity, target, limit, step, period
 
 
 @inline
-def Continue(start, end, commodity_name, quantity, target, limit, step, period):
-    GasStorage(start + step, end, commodity_name, quantity, target, limit, step, period)
+def Continue(start, end, commodity_name, quantity, target, limit, step):
+    GasStorage(start + step, end, commodity_name, quantity, target, limit, step)
 
 
 @inline
-def Inject(start, end, commodity_name, quantity, target, limit, step, period, vol):
-    Continue(start, end, commodity_name, quantity + vol, target, limit, step, period) - \
-    vol * Lift(commodity_name, period, Market(commodity_name))
+def Inject(start, end, commodity_name, quantity, target, limit, step, vol):
+    Continue(start, end, commodity_name, quantity + vol, target, limit, step) - \
+    vol * Market(commodity_name)
 
 
 @inline
@@ -487,7 +481,7 @@ def BreachOfContract():
     -10000000000000000
 
 
-GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
 """,
 
     observation_date='2011-1-1',
@@ -593,7 +587,7 @@ Below is a copy of the Quant DSL source code for the library's power plant model
  in the example above.
 
 ```python
-from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
+from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline
 
 
 def PowerPlant(start, end, duration_off):
@@ -624,12 +618,12 @@ def ProfitFromRunning(duration_off):
 
 @inline
 def Power():
-    Lift('POWER', 'daily', Market('POWER'))
+    Market('POWER')
 
 
 @inline
 def Gas():
-    Lift('GAS', 'daily', Market('GAS'))
+    Market('GAS')
 
 
 @inline

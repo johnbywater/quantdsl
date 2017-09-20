@@ -81,7 +81,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             call_dependencies_repo=call_dependencies_repo,
             call_result_repo=call_result_repo,
             simulated_price_repo=simulated_price_repo,
-            simulation_requirements=simulation_requirements
+            simulation_requirements=simulation_requirements,
         )
 
         # Register the result.
@@ -132,7 +132,8 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
                 call_result_repo=call_result_repo,
                 simulated_price_repo=simulated_price_repo,
                 perturbation_dependencies_repo=perturbation_dependencies_repo,
-                simulated_price_requirements_repo=simulated_price_requirements_repo)
+                simulated_price_requirements_repo=simulated_price_requirements_repo,
+            )
         finally:
             call_evaluation_queue.task_done()
 
@@ -229,14 +230,15 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
                                                        simulated_value_dict,
                                                        perturbation_dependencies.dependencies,
                                                        dependency_results, market_simulation.path_count,
-                                                       market_simulation.perturbation_factor)
+                                                       market_simulation.perturbation_factor,
+                                                       contract_valuation.periodisation)
 
     # Return the result.
     return result_value, perturbed_values
 
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
-                      perturbation_dependencies, dependency_results, path_count, perturbation_factor):
+                      perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation):
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
@@ -245,6 +247,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
         'present_time': present_time,
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,
+        'periodisation': periodisation,
     }
 
     result_value = None
