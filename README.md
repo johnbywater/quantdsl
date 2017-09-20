@@ -288,6 +288,11 @@ results = calc(
 assert results.fair_value.mean() < 100, results.fair_value.mean()
 ```   
 
+### Lift
+
+The examples below use the `Lift` element to specify deltas with respect to each period (daily, 
+monthly, yearly) for each market across the term of the contract.
+ 
 
 ## Examples of usage
 
@@ -307,12 +312,6 @@ The plot will also show the statistical distribution of the simulated prices, an
  how well the deltas are performing.
 
 
-### Lift
-
-The examples here use the `Lift` element to specify deltas with respect to each period (daily, 
-monthly, yearly) for each market across the term of the contract.
- 
-
 ### Gas Storage
 
 An evaluation of a gas storage facility. This example uses a forward curve that reflects seasonal variations across 
@@ -327,19 +326,19 @@ def GasStorage(start, end, commodity_name, quantity, target, limit, step, period
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
             return Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, limit, step, period, target),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, 1),
+                Continue(start, end, commodity_name, quantity, target, limit, step, period),
+                Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
             ))
         elif quantity >= limit:
             return Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, limit, step, period, target),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, -1),
+                Continue(start, end, commodity_name, quantity, target, limit, step, period),
+                Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
             ))
         else:
             return Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, limit, step, period, target),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, 1),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, -1),
+                Continue(start, end, commodity_name, quantity, target, limit, step, period),
+                Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
+                Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
             ))
     else:
         if target < 0 or target == quantity:
@@ -349,13 +348,13 @@ def GasStorage(start, end, commodity_name, quantity, target, limit, step, period
 
 
 @inline
-def Continue(start, end, commodity_name, quantity, limit, step, period, target):
+def Continue(start, end, commodity_name, quantity, target, limit, step, period):
     GasStorage(start + step, end, commodity_name, quantity, target, limit, step, period)
 
 
 @inline
-def Inject(start, end, commodity_name, quantity, limit, step, period, target, vol):
-    Continue(start, end, commodity_name, quantity + vol, limit, step, period, target) - \
+def Inject(start, end, commodity_name, quantity, target, limit, step, period, vol):
+    Continue(start, end, commodity_name, quantity + vol, target, limit, step, period) - \
     vol * Lift(commodity_name, period, Market(commodity_name))
 
 
@@ -410,7 +409,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     }
 )
 
-assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
+assert 5 < results.fair_value.mean() < 7, results.fair_value.mean()
 ```
 
 ### Power Station
