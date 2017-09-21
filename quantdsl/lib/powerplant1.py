@@ -1,14 +1,14 @@
-from quantdsl.semantics import Add, Choice, Fixing, Lift, Market, Min, Mult, Wait, inline
+from quantdsl.semantics import Add, Choice, Fixing, Market, Min, Mult, Wait, inline
 
 
-def PowerPlant(start, end, commodity, cold, step, periodisation):
+def PowerPlant(start, end, commodity, cold, step):
     if (start < end):
         Wait(start, Choice(
             Add(
-                PowerPlant(start + step, end, commodity, Running(), step, periodisation),
-                ProfitFromRunning(start, commodity, periodisation, cold)
+                PowerPlant(start + step, end, commodity, Running(), step),
+                ProfitFromRunning(start, commodity, cold)
             ),
-            PowerPlant(start + step, end, commodity, Stopped(cold), step, periodisation),
+            PowerPlant(start + step, end, commodity, Stopped(cold), step),
         ))
     else:
         return 0
@@ -25,10 +25,10 @@ def Stopped(cold):
 
 
 @inline
-def ProfitFromRunning(start, commodity, periodisation, cold):
-    return Mult((1 - cold / 10), Fixing(start, Burn(commodity, periodisation)))
+def ProfitFromRunning(start, commodity, cold):
+    return Mult((1 - cold / 10), Fixing(start, Burn(commodity)))
 
 
 @inline
-def Burn(commodity, periodisation):
-    return Lift(commodity, periodisation, Market(commodity))
+def Burn(commodity):
+    return Market(commodity)

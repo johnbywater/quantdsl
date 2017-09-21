@@ -33,7 +33,7 @@ def calc_print_plot(title, source_code, observation_date, periodisation, interes
                     perturbation_factor, price_process, supress_plot=False):
 
     results = calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor,
-                           price_process)
+                           price_process, periodisation)
 
     if results.periods and not supress_plot and not os.getenv('SUPRESS_PLOT'):
         plot_periods(
@@ -47,7 +47,8 @@ def calc_print_plot(title, source_code, observation_date, periodisation, interes
     return results
 
 
-def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process):
+def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
+               periodisation):
     results = calc(
         source_code=source_code,
         interest_rate=interest_rate,
@@ -55,20 +56,22 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
         observation_date=observation_date,
         perturbation_factor=perturbation_factor,
         price_process=price_process,
+        periodisation=periodisation,
     )
     print_results(results, path_count)
     return results
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None):
-    with Calculate(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process) as \
-            cmd:
+         price_process=None, periodisation=None):
+    with Calculate(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
+                   periodisation) as cmd:
         return cmd.run()
 
 
 class Calculate(object):
-    def __init__(self, source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process):
+    def __init__(self, source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
+                 periodisation):
         self.result_values_computed_count = 0
         self.call_result_id = None
         self.is_completed = Event()
@@ -81,6 +84,7 @@ class Calculate(object):
         self.path_count = path_count
         self.perturbation_factor = perturbation_factor
         self.price_process = price_process
+        self.periodisation = periodisation
         self._run_once = False
 
     def __enter__(self):
@@ -144,6 +148,7 @@ class Calculate(object):
             observation_date=observation_date,
             interest_rate=self.interest_rate,
             perturbation_factor=self.perturbation_factor,
+            periodisation=self.periodisation,
         )
 
         call_costs = app.calc_call_costs(contract_specification.id)

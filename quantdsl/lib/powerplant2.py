@@ -1,4 +1,4 @@
-from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
+from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline
 
 
 def PowerPlant(start, end, duration_off):
@@ -29,12 +29,12 @@ def ProfitFromRunning(duration_off):
 
 @inline
 def Power():
-    Lift('POWER', 'daily', Market('POWER'))
+    Market('POWER')
 
 
 @inline
 def Gas():
-    Lift('GAS', 'daily', Market('GAS'))
+    Market('GAS')
 
 
 @inline
