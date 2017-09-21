@@ -30,8 +30,8 @@ class Results(object):
         self.periods = periods
 
 
-def calc_print_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
-                    perturbation_factor, price_process, supress_plot=False,
+def calc_print_plot(title, source_code, observation_date, periodisation=None, interest_rate=0, path_count=20000,
+                    perturbation_factor=0.01, price_process=None, supress_plot=False,
                     max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
 
     # Calculate and print the results.
