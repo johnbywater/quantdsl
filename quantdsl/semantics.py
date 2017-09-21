@@ -11,6 +11,7 @@ import scipy
 import scipy.linalg
 import six
 from dateutil.relativedelta import relativedelta
+from eventsourcing.domain.model.events import publish
 from scipy import ndarray
 
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
@@ -656,7 +657,9 @@ class FunctionDef(DslObject):
             return self.call_cache[call_cache_key]
 
         if pending_call_stack and not is_destacking and not 'inline' in self.decorator_names:
-            # Just stack the call expression and return a stub.
+            # Don't actually apply anything now, just stack the call expression
+            # and return a stub. This is why apply() appears to be called twice,
+            # in FunctionCall.reduce() and generate_stubbed_calls()
 
             # Create a new stub - the stub ID is the name of the return value of the function call..
             stub_id = create_uuid4()

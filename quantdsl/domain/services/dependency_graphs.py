@@ -14,7 +14,7 @@ from quantdsl.exceptions import DslSyntaxError
 from quantdsl.semantics import DslExpression, DslNamespace, FunctionDef, Module, PendingCall, Stub
 
 
-def generate_dependency_graph(contract_specification, call_dependencies_repo, call_dependents_repo, call_leafs_repo,
+def generate_dependency_graph(contract_specification, call_dependencies_repo, call_dependents_repo,
                               call_requirement_repo):
     assert isinstance(contract_specification, ContractSpecification)
     dsl_module = dsl_parse(dsl_source=contract_specification.source_code)
@@ -29,14 +29,19 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     all_dependents = defaultdict(list)
 
     # Generate stubbed call from the parsed DSL module object.
-    for stub in generate_stubbed_calls(contract_specification.id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
+    for stub in generate_stubbed_calls(contract_specification.id, dsl_expr, dsl_globals, dsl_locals):
         # assert isinstance(stub, StubbedCall)
 
         # Register the call requirements.
         call_id = stub.call_id
         dsl_source = str(stub.dsl_expr)
         effective_present_time = stub.effective_present_time
-        call_requirement = register_call_requirement(call_id, dsl_source, effective_present_time)
+        call_requirement = register_call_requirement(
+            call_id=call_id,
+            dsl_source=dsl_source,
+            effective_present_time=effective_present_time,
+            contract_specification_id=contract_specification.id,
+        )
 
         # Hold onto the dsl_expr, helps in "single process" modes....
         call_requirement._dsl_expr = stub.dsl_expr
@@ -117,7 +122,7 @@ def generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependenc
                 # collection so that we can see if anything remains unremoved (indicates cyclical dependencies).
 
 
-def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_locals):
+def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
     # Create a stack of discovered calls to function defs.
     # - since we are basically doing a breadth-first search, the pending call queue
     #   will be the max width of the graph, so it might sometimes be useful to
@@ -157,7 +162,7 @@ def generate_stubbed_calls(root_stub_id, dsl_module, dsl_expr, dsl_globals, dsl_
         stubbed_expr = function_def.apply(pending_call.stacked_globals,
                                           pending_call.effective_present_time,
                                           pending_call_stack=pending_call_stack,
-                                          is_destacking=True,
+                                          is_destacking=True,  # Maybe just don't pass in the pending call stack?
                                           **pending_call.stacked_locals)
 
         # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.

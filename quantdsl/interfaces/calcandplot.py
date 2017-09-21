@@ -30,10 +30,17 @@ class Results(object):
 
 
 def calc_print_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
-                    perturbation_factor, price_process, supress_plot=False):
+                    perturbation_factor, price_process, supress_plot=False, max_dependency_graph_size=10000):
 
-    results = calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor,
-                           price_process, periodisation)
+    results = calc_print(source_code,
+         max_dependency_graph_size=max_dependency_graph_size,
+         observation_date=observation_date,
+         interest_rate=interest_rate,
+         path_count=path_count,
+         perturbation_factor=perturbation_factor,
+         price_process=price_process,
+         periodisation=periodisation,
+     )
 
     if results.periods and not supress_plot and not os.getenv('SUPRESS_PLOT'):
         plot_periods(
@@ -48,7 +55,7 @@ def calc_print_plot(title, source_code, observation_date, periodisation, interes
 
 
 def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-               periodisation):
+               periodisation, max_dependency_graph_size=10000):
     results = calc(
         source_code=source_code,
         interest_rate=interest_rate,
@@ -57,27 +64,35 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
         perturbation_factor=perturbation_factor,
         price_process=price_process,
         periodisation=periodisation,
+        max_dependency_graph_size=max_dependency_graph_size,
     )
     print_results(results, path_count)
     return results
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None, periodisation=None):
-    with Calculate(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-                   periodisation) as cmd:
+         price_process=None, periodisation=None, max_dependency_graph_size=10000):
+
+    cmd = Calculate(
+        source_code=source_code,
+        observation_date=observation_date,
+        interest_rate=interest_rate,
+        path_count=path_count,
+        perturbation_factor=perturbation_factor,
+        price_process=price_process,
+        periodisation=periodisation,
+        max_dependency_graph_size=max_dependency_graph_size,
+    )
+    with cmd:
         return cmd.run()
 
 
 class Calculate(object):
-    def __init__(self, source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-                 periodisation):
+    def __init__(self, source_code, max_dependency_graph_size, observation_date, interest_rate, path_count,
+                 perturbation_factor, price_process, periodisation):
         self.result_values_computed_count = 0
         self.call_result_id = None
         self.is_completed = Event()
-        subscribe(self.is_result_value_computed, self.count_result_values_computed)
-        subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
-
         self.source_code = source_code
         self.observation_date = observation_date
         self.interest_rate = interest_rate
@@ -85,7 +100,10 @@ class Calculate(object):
         self.perturbation_factor = perturbation_factor
         self.price_process = price_process
         self.periodisation = periodisation
+        self.max_dependency_graph_size = max_dependency_graph_size
         self._run_once = False
+        subscribe(self.is_result_value_computed, self.count_result_values_computed)
+        subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
     def __enter__(self):
         return self
@@ -100,8 +118,9 @@ class Calculate(object):
     def run(self):
         assert not self._run_once, "Already run once"
         self._run_once = True
-        with QuantDslApplicationWithMultithreadingAndPythonObjects() as app:
 
+        with QuantDslApplicationWithMultithreadingAndPythonObjects(
+                max_dependency_graph_size=self.max_dependency_graph_size) as app:
             start_compile = datetime.datetime.now()
             contract_specification = app.compile(self.source_code)
             end_compile = datetime.datetime.now()

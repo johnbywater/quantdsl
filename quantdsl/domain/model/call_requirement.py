@@ -13,10 +13,11 @@ class CallRequirement(EventSourcedEntity):
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
-    def __init__(self, dsl_source, effective_present_time, **kwargs):
+    def __init__(self, dsl_source, effective_present_time, contract_specification_id, **kwargs):
         super(CallRequirement, self).__init__(**kwargs)
         self._dsl_source = dsl_source
         self._effective_present_time = effective_present_time
+        self._contract_specification_id = contract_specification_id
         self._dsl_expr = None
 
     @property
@@ -27,12 +28,17 @@ class CallRequirement(EventSourcedEntity):
     def effective_present_time(self):
         return self._effective_present_time
 
+    @property
+    def contract_specification_id(self):
+        return self._contract_specification_id
 
-def register_call_requirement(call_id, dsl_source, effective_present_time):
+
+def register_call_requirement(call_id, dsl_source, effective_present_time, contract_specification_id):
     created_event = CallRequirement.Created(
         entity_id=call_id,
         dsl_source=dsl_source,
-        effective_present_time=effective_present_time
+        effective_present_time=effective_present_time,
+        contract_specification_id=contract_specification_id
     )
     call_requirement = CallRequirement.mutator(event=created_event)
     publish(created_event)
