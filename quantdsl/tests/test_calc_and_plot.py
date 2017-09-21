@@ -185,7 +185,7 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
                 timeout=0.001,
             )
 
-    def test_timeout(self):
+    def test_dependency_graph_size_limit(self):
         source_code = """
 from quantdsl.lib.storage2 import GasStorage        
 GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
