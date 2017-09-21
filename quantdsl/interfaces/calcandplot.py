@@ -15,6 +15,7 @@ from eventsourcing.domain.model.events import subscribe, unsubscribe
 from matplotlib import dates as mdates, pylab as plt
 from numpy import cumsum, zeros
 
+from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
@@ -30,7 +31,8 @@ class Results(object):
 
 
 def calc_print_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
-                    perturbation_factor, price_process, supress_plot=False, max_dependency_graph_size=10000):
+                    perturbation_factor, price_process, supress_plot=False,
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
 
     # Calculate and print the results.
     results = calc_print(source_code,
@@ -57,7 +59,7 @@ def calc_print_plot(title, source_code, observation_date, periodisation, interes
 
 
 def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-               periodisation, max_dependency_graph_size=10000):
+               periodisation, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
 
     # Calculate the results.
     results = calc(
@@ -77,7 +79,7 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None, periodisation=None, max_dependency_graph_size=10000):
+         price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
 
     cmd = Calculate(
         source_code=source_code,
@@ -95,7 +97,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-                 price_process=None, periodisation=None, max_dependency_graph_size=10000):
+                 price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
         self.source_code = source_code
         self.observation_date = observation_date
         self.interest_rate = interest_rate

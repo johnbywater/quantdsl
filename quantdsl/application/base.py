@@ -31,6 +31,8 @@ from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_re
     SimulatedPriceRequirementsRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 
+DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
+
 
 class QuantDslApplication(EventSourcingApplication):
     """
@@ -49,7 +51,8 @@ class QuantDslApplication(EventSourcingApplication):
     Evaluate contract given call dependency graph and market simulation.
     """
 
-    def __init__(self, call_evaluation_queue=None, max_dependency_graph_size=10000, *args, **kwargs):
+    def __init__(self, call_evaluation_queue=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, *args,
+                 **kwargs):
         super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
