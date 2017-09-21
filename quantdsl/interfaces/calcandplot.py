@@ -114,7 +114,8 @@ class Calculate(object):
         self.periodisation = periodisation
         self.max_dependency_graph_size = max_dependency_graph_size
         self._run_once = False
-        subscribe(self.is_result_value_computed, self.print_progress)
+        subscribe(self.is_result_value_computed, self.track_progress)
+        subscribe(self.is_result_value_computed, self.check_is_timed_out)
         subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
     def __enter__(self):
@@ -124,10 +125,9 @@ class Calculate(object):
         self.close()
 
     def close(self):
-        unsubscribe(self.is_result_value_computed, self.print_progress)
+        unsubscribe(self.is_result_value_computed, self.track_progress)
+        unsubscribe(self.is_result_value_computed, self.check_is_timed_out)
         unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
-
-
 
     def calculate(self):
         self.result_values_computed_count = 0
@@ -142,8 +142,8 @@ class Calculate(object):
             timeout_thread.start()
 
         # Compile.
-        # with QuantDslApplicationWithMultithreadingAndPythonObjects(
-        with QuantDslApplicationWithPythonObjects(
+        with QuantDslApplicationWithMultithreadingAndPythonObjects(
+        # with QuantDslApplicationWithPythonObjects(
                 max_dependency_graph_size=self.max_dependency_graph_size) as app:
             start_compile = datetime.datetime.now()
             contract_specification = app.compile(self.source_code)
@@ -188,12 +188,10 @@ class Calculate(object):
                 periodisation=self.periodisation,
             )
 
-            self.check_is_timed_out()
-
             # Wait for the result.
             self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
             if not self.root_result_id in app.call_result_repo:
-                while not self.is_completed.is_set():
+                while not self.is_completed.wait(1):
                     self.check_is_timed_out()
 
             # Todo: Separate this, not all users want print statements.
@@ -316,7 +314,9 @@ class Calculate(object):
     def is_result_value_computed(self, event):
         return isinstance(event, ResultValueComputed)
 
-    def print_progress(self, event):
+    def track_progress(self, event):
+        self.check_is_timed_out()
+
         self.times.append(datetime.datetime.now())
         if len(self.times) > 0.5 * self.total_cost:
             self.times.popleft()
@@ -349,9 +349,10 @@ class Calculate(object):
         sleep(self.timeout)
         self.is_timed_out.set()
 
-    def check_is_timed_out(self):
+    def check_is_timed_out(self, *_):
         if self.is_timed_out.is_set():
             raise TimeoutError('Timeout after {} seconds'.format(self.timeout))
+
 
 def print_results(results, path_count):
     print("")
