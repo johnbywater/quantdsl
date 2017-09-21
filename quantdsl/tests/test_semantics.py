@@ -50,12 +50,20 @@ class TestDslObject(TestCase):
 
 class TestString(TestCase):
     def test_value(self):
-        obj = String('a')
-        self.assertEqual(obj.value, 'a')
+        obj_a = String('a')
+        obj_b = String('b')
 
-        obj = String('b')
-        self.assertEqual(obj.value, 'b')
+        # Check the value attribute.
+        self.assertEqual(obj_a.value, 'a')
+        self.assertEqual(obj_b.value, 'b')
 
+        # Check object equality.
+        self.assertEqual(obj_b, String('b'))
+
+        # Check object inequality.
+        self.assertNotEqual(obj_a, obj_b)
+
+        # Check errors.
         with self.assertRaises(DslSyntaxError):
             String()
         with self.assertRaises(DslSyntaxError):
