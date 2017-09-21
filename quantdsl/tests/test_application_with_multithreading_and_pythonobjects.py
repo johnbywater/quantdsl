@@ -5,5 +5,5 @@ from quantdsl.tests.test_application import TestCase, ContractValuationTests
 
 class TestApplicationWithPythonObjectsAndMultithreading(TestCase, ContractValuationTests):
 
-    def setup_application(self):
-        self.app = QuantDslApplicationWithMultithreadingAndPythonObjects()
+    def setup_application(self, **kwargs):
+        self.app = QuantDslApplicationWithMultithreadingAndPythonObjects(**kwargs)

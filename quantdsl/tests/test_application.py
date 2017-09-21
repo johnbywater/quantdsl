@@ -23,6 +23,7 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
     NUMBER_MARKETS = 2
     NUMBER_WORKERS = 20
     PATH_COUNT = 2000
+    MAX_DEPENDENCY_GRAPH_SIZE = 200
 
     def setUp(self):
         if not self.skip_assert_event_handers_empty:
@@ -31,7 +32,7 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
 
         scipy.random.seed(1354802735)
 
-        self.setup_application()
+        self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
 
     def tearDown(self):
         if self.app is not None:
@@ -40,8 +41,8 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
             assert_event_handlers_empty()
             # super(ContractValuationTestCase, self).tearDown()
 
-    def setup_application(self):
-        self.app = QuantDslApplicationWithPythonObjects(max_dependency_graph_size=200)
+    def setup_application(self, **kwargs):
+        self.app = QuantDslApplicationWithPythonObjects(**kwargs)
 
 
 class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
@@ -412,7 +413,7 @@ mul(3, 3)
 def Option(date, strike, x, y):
     return Wait(date, Choice(x - strike, y))
 
-Option(Date('2012-01-01'), 9, Underlying(Market('NBP')), 0)
+Option(Date('2012-01-01'), 9, Market('NBP'), 0)
 """
         self.assert_contract_value(specification, 2.4557, expected_call_count=2)
 
@@ -831,9 +832,9 @@ EverIncreasing(1)
 
 class ContractValuationTests(
     SingleTests,
-    # ExperimentalTests,
-    # SpecialTests,
-    # ExpressionTests,
-    # FunctionTests,
-    # LongerTests
+    ExperimentalTests,
+    SpecialTests,
+    ExpressionTests,
+    FunctionTests,
+    LongerTests
 ): pass

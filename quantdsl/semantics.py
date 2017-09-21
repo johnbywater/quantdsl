@@ -513,22 +513,16 @@ class Name(DslExpression):
 
         value = self.evaluate(**combined_namespace)
         if isinstance(value, datetime.date):
-            return Date(value, node=self.node)
-        elif isinstance(value, DslObject):
-            return value
+            value = Date(value, node=self.node)
         elif isinstance(value, six.integer_types + (float, ndarray)):
-            return Number(value, node=self.node)
+            value = Number(value, node=self.node)
         elif isinstance(value, six.string_types):
-            return String(value, node=self.node)
+            value = String(value, node=self.node)
         elif isinstance(value, datetime.timedelta):
-            return TimeDelta(value, node=self.node)
+            value = TimeDelta(value, node=self.node)
         elif isinstance(value, relativedelta):
-            return TimeDelta(value, node=self.node)
-        # elif isinstance(value, (SynchronizedArray, Synchronized)):
-        #     return Number(numpy_from_sharedmem(value), node=self.node)
-        else:
-            raise DslSyntaxError("expected number, string, date, time delta, or DSL object when reducing name '%s'"
-                                 "" % self.name, repr(value), node=self.node)
+            value = TimeDelta(value, node=self.node)
+        return value
 
     def evaluate(self, **kwds):
         try:
