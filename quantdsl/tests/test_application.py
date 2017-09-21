@@ -13,6 +13,7 @@ from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.exceptions import CallLimitError
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -22,6 +23,7 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
     NUMBER_MARKETS = 2
     NUMBER_WORKERS = 20
     PATH_COUNT = 2000
+    MAX_DEPENDENCY_GRAPH_SIZE = 200
 
     def setUp(self):
         if not self.skip_assert_event_handers_empty:
@@ -30,7 +32,7 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
 
         scipy.random.seed(1354802735)
 
-        self.setup_application()
+        self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
 
     def tearDown(self):
         if self.app is not None:
@@ -39,8 +41,8 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
             assert_event_handlers_empty()
             # super(ContractValuationTestCase, self).tearDown()
 
-    def setup_application(self):
-        self.app = QuantDslApplicationWithPythonObjects()
+    def setup_application(self, **kwargs):
+        self.app = QuantDslApplicationWithPythonObjects(**kwargs)
 
 
 class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
@@ -113,11 +115,11 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             self.assertEqual(call_count, expected_call_count)
 
         # Generate the market simulation.
-        market_calibration = self.app.register_market_calibration(self.price_process_name, self.calibration_params)
         observation_date = datetime.datetime(2011, 1, 1)
         market_simulation = self.app.simulate(
             contract_specification=contract_specification,
-            market_calibration=market_calibration,
+            price_process_name=self.price_process_name,
+            calibration_params=self.calibration_params,
             observation_date=observation_date,
             path_count=self.PATH_COUNT,
             interest_rate='2.5',
@@ -411,7 +413,7 @@ mul(3, 3)
 def Option(date, strike, x, y):
     return Wait(date, Choice(x - strike, y))
 
-Option(Date('2012-01-01'), 9, Underlying(Market('NBP')), 0)
+Option(Date('2012-01-01'), 9, Market('NBP'), 0)
 """
         self.assert_contract_value(specification, 2.4557, expected_call_count=2)
 
@@ -681,10 +683,9 @@ def Swing(start_date, end_date, quantity):
 Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
 """
         self.assert_contract_value(specification, 29.9575, {
-            ('NBP', 2011, 2): 1.0,
-            ('NBP', 2011, 3): 1.0,
-            ('NBP', 2011, 4): 1.0,
-        }, expected_call_count=11)
+            'NBP-2011-2': 1.0,
+            'NBP-2011-3': 1.0,
+        }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):
         specification = """ForwardMarket('NBP', '2011-1-1')"""
@@ -786,29 +787,47 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
 
 
 class SingleTests(ContractValuationTestCase):
-    def test_value_swing_option_with_forward_markets(self):
+    def test_limit_dependency_graph_size(self):
         specification = """
-def Swing(start_date, end_date, quantity):
-    if (quantity != 0) and (start_date < end_date):
-        return Settlement(start_date, Fixing(start_date,
-            Choice(
-                Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + \
-                    ForwardMarket('NBP', start_date),
-                Swing(start_date + TimeDelta('1m'), end_date, quantity)
-            )
-        ))
-    else:
-        return 0
+def EverIncreasing(n):
+    return Incr(n)
+    
+def Incr(n):
+    EverIncreasing(n+1)
 
-Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
+EverIncreasing(1)
 """
-        self.assert_contract_value(specification, 29.9575, {
-            'NBP-2011-1': 0.9939,
-            'NBP-2011-3': 1.0,
-            # ('NBP', 2011, 4): 1.0,
-        },
-                                   expected_call_count=11,
-                                   periodisation='monthly')
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
+
+    def test_limit_dependency_graph_size_inlined_sub(self):
+        specification = """
+def EverIncreasing(n):
+    return Incr(n)
+    
+@inline
+def Incr(n):
+    EverIncreasing(n+1)
+
+EverIncreasing(1)
+"""
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
+
+    def test_limit_dependency_graph_size_inlined_both(self):
+        specification = """
+@inline
+def EverIncreasing(n):
+    return Incr(n)
+    
+@inline
+def Incr(n):
+    EverIncreasing(n+1)
+
+EverIncreasing(1)
+"""
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
 
 
 class ContractValuationTests(

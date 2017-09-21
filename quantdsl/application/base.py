@@ -29,8 +29,9 @@ from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import M
 from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
-from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
+
+DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
 
 class QuantDslApplication(EventSourcingApplication):
@@ -50,7 +51,8 @@ class QuantDslApplication(EventSourcingApplication):
     Evaluate contract given call dependency graph and market simulation.
     """
 
-    def __init__(self, call_evaluation_queue=None, *args, **kwargs):
+    def __init__(self, call_evaluation_queue=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, *args,
+                 **kwargs):
         super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
@@ -70,6 +72,7 @@ class QuantDslApplication(EventSourcingApplication):
         # self.call_result_repo = CallResultRepo(event_store=self.event_store, use_cache=True)
         self.call_result_repo = {}
         self.call_evaluation_queue = call_evaluation_queue
+        self.max_dependency_graph_size = max_dependency_graph_size
 
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
@@ -82,6 +85,7 @@ class QuantDslApplication(EventSourcingApplication):
             call_dependents_repo=self.call_dependents_repo,
             call_leafs_repo=self.call_leafs_repo,
             call_requirement_repo=self.call_requirement_repo,
+            max_dependency_graph_size=self.max_dependency_graph_size,
         )
         self.evaluation_subscriber = EvaluationSubscriber(
             contract_valuation_repo=self.contract_valuation_repo,
@@ -186,8 +190,11 @@ class QuantDslApplication(EventSourcingApplication):
     def compile(self, source_code):
         return self.register_contract_specification(source_code=source_code)
 
-    def simulate(self, contract_specification, market_calibration, observation_date, path_count=20000,
-                 interest_rate='2.5', perturbation_factor=0.01, periodisation=None):
+    def simulate(self, contract_specification, price_process_name, calibration_params, observation_date,
+                 path_count=20000, interest_rate='2.5', perturbation_factor=0.01, periodisation=None):
+
+        market_calibration = self.register_market_calibration(price_process_name, calibration_params)
+
         simulation_requirements = set()
         self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements,
                                               periodisation)

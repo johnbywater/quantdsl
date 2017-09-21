@@ -15,6 +15,7 @@ from eventsourcing.domain.model.events import subscribe, unsubscribe
 from matplotlib import dates as mdates, pylab as plt
 from numpy import cumsum, zeros
 
+from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
@@ -29,12 +30,22 @@ class Results(object):
         self.periods = periods
 
 
-def calc_print_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
-                    perturbation_factor, price_process, supress_plot=False):
+def calc_print_plot(title, source_code, observation_date, periodisation=None, interest_rate=0, path_count=20000,
+                    perturbation_factor=0.01, price_process=None, supress_plot=False,
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
 
-    results = calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor,
-                           price_process, periodisation)
+    # Calculate and print the results.
+    results = calc_print(source_code,
+         max_dependency_graph_size=max_dependency_graph_size,
+         observation_date=observation_date,
+         interest_rate=interest_rate,
+         path_count=path_count,
+         perturbation_factor=perturbation_factor,
+         price_process=price_process,
+         periodisation=periodisation,
+     )
 
+    # Plot the results.
     if results.periods and not supress_plot and not os.getenv('SUPRESS_PLOT'):
         plot_periods(
             periods=results.periods,
@@ -48,7 +59,9 @@ def calc_print_plot(title, source_code, observation_date, periodisation, interes
 
 
 def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-               periodisation):
+               periodisation, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
+
+    # Calculate the results.
     results = calc(
         source_code=source_code,
         interest_rate=interest_rate,
@@ -57,27 +70,34 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
         perturbation_factor=perturbation_factor,
         price_process=price_process,
         periodisation=periodisation,
+        max_dependency_graph_size=max_dependency_graph_size,
     )
+
+    # Print the results.
     print_results(results, path_count)
     return results
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None, periodisation=None):
-    with Calculate(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-                   periodisation) as cmd:
+         price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
+
+    cmd = Calculate(
+        source_code=source_code,
+        observation_date=observation_date,
+        interest_rate=interest_rate,
+        path_count=path_count,
+        perturbation_factor=perturbation_factor,
+        price_process=price_process,
+        periodisation=periodisation,
+        max_dependency_graph_size=max_dependency_graph_size,
+    )
+    with cmd:
         return cmd.run()
 
 
 class Calculate(object):
-    def __init__(self, source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-                 periodisation):
-        self.result_values_computed_count = 0
-        self.call_result_id = None
-        self.is_completed = Event()
-        subscribe(self.is_result_value_computed, self.count_result_values_computed)
-        subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
-
+    def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
+                 price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
         self.source_code = source_code
         self.observation_date = observation_date
         self.interest_rate = interest_rate
@@ -85,7 +105,10 @@ class Calculate(object):
         self.perturbation_factor = perturbation_factor
         self.price_process = price_process
         self.periodisation = periodisation
+        self.max_dependency_graph_size = max_dependency_graph_size
         self._run_once = False
+        subscribe(self.is_result_value_computed, self.count_result_values_computed)
+        subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
     def __enter__(self):
         return self
@@ -98,66 +121,72 @@ class Calculate(object):
         unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
     def run(self):
-        assert not self._run_once, "Already run once"
-        self._run_once = True
-        with QuantDslApplicationWithMultithreadingAndPythonObjects() as app:
+        self.result_values_computed_count = 0
+        self.root_result_id = None
+        self.is_completed = Event()
+        self.times = collections.deque()
 
+        # Compile.
+        with QuantDslApplicationWithMultithreadingAndPythonObjects(
+                max_dependency_graph_size=self.max_dependency_graph_size) as app:
             start_compile = datetime.datetime.now()
             contract_specification = app.compile(self.source_code)
             end_compile = datetime.datetime.now()
+            # Todo: Separate this, not all users want print statements.
             print("Compilation in {}s".format((end_compile - start_compile).total_seconds()))
 
+            # Get simulation args.
+            if self.price_process is not None:
+                price_process_name = self.price_process['name']
+                calibration_params = {k: v for k, v in self.price_process.items() if k != 'name'}
+            else:
+                price_process_name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
+                calibration_params = {}
+
+            if self.observation_date is not None:
+                observation_date = datetime_from_date(dateutil.parser.parse(self.observation_date))
+            else:
+                observation_date = None
+
+            # Simulate the market prices.
+            market_simulation = app.simulate(
+                contract_specification,
+                price_process_name=price_process_name,
+                calibration_params=calibration_params,
+                path_count=self.path_count,
+                observation_date=observation_date,
+                interest_rate=self.interest_rate,
+                perturbation_factor=self.perturbation_factor,
+                periodisation=self.periodisation,
+            )
+
+            # Estimate the cost of the evaluation (to show progress).
+            call_costs = app.calc_call_costs(contract_specification.id)
+            self.total_cost = sum(call_costs.values())
+
+            # Evaluate the contract specification.
             start_calc = datetime.datetime.now()
+            evaluation = app.evaluate(
+                contract_specification_id=contract_specification.id,
+                market_simulation_id=market_simulation.id,
+                periodisation=self.periodisation,
+            )
 
-            evaluation, market_simulation = self.calc_results(app, contract_specification)
-
-            self.call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
-
-            while self.call_result_id not in app.call_result_repo:
+            # Wait for the result.
+            self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
+            while self.root_result_id not in app.call_result_repo:
                 if self.is_completed.wait(timeout=2):
                     break
 
-            results = self.read_results(app, evaluation, market_simulation)
-
+            # Todo: Separate this, not all users want print statements.
             end_calc = datetime.datetime.now()
             print("")
             print("Results in {}s".format((end_calc - start_calc).total_seconds()))
 
+            # Read the results.
+            results = self.read_results(app, evaluation, market_simulation)
+
         return results
-
-    def calc_results(self, app, contract_specification):
-        if self.price_process is not None:
-            price_process_name = self.price_process['name']
-            calibration_params = {k: v for k, v in self.price_process.items() if k != 'name'}
-        else:
-            price_process_name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
-            calibration_params = {}
-        market_calibration = app.register_market_calibration(
-            price_process_name=price_process_name,
-            calibration_params=calibration_params
-        )
-
-        if self.observation_date is not None:
-            observation_date = datetime_from_date(dateutil.parser.parse(self.observation_date))
-        else:
-            observation_date = None
-        market_simulation = app.simulate(
-            contract_specification,
-            market_calibration,
-            path_count=self.path_count,
-            observation_date=observation_date,
-            interest_rate=self.interest_rate,
-            perturbation_factor=self.perturbation_factor,
-            periodisation=self.periodisation,
-        )
-
-        call_costs = app.calc_call_costs(contract_specification.id)
-        self.total_cost = sum(call_costs.values())
-
-        self.times = collections.deque()
-
-        evaluation = app.evaluate(contract_specification.id, market_simulation.id)
-        return evaluation, market_simulation
 
     def read_results(self, app, evaluation, market_simulation):
         assert isinstance(evaluation, ContractValuation)
@@ -294,7 +323,7 @@ class Calculate(object):
         sys.stdout.flush()
 
     def is_evaluation_complete(self, event):
-        return isinstance(event, CallResult.Created) and event.entity_id == self.call_result_id
+        return isinstance(event, CallResult.Created) and event.entity_id == self.root_result_id
 
     def on_evaluation_complete(self, _):
         self.is_completed.set()
@@ -391,17 +420,12 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         cash_in_mean[date] += period['cash_in_mean']
         cash_in_stderr[date] += period['cash_in_stderr']
 
-    # [cash_in[p['date']].append(p['cash_in_mean']) for p in _periods]
-
     cum_cash_mean = cumsum([cash_in_mean[date] for date in dates])
     cum_cash_stderr = cumsum([cash_in_stderr[date] for date in dates])
-    # cum_cash_mean = [p['cum_cash_mean'] for p in periods]
-    # cum_cash_stderr = [p['cum_cash_stderr'] for p in periods]
     cum_cash_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
     cum_cash_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
 
     profit_plot.plot(dates, cum_cash_plus, '0.75', dates, cum_cash_minus, '0.75', dates, cum_cash_mean, '0.25')
-    # profit_plot.plot(dates, cum_cash_mean, '0.25')
 
     f.autofmt_xdate(rotation=60)
 

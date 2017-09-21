@@ -11,6 +11,7 @@ import scipy
 import scipy.linalg
 import six
 from dateutil.relativedelta import relativedelta
+from eventsourcing.domain.model.events import publish
 from scipy import ndarray
 
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
@@ -262,13 +263,8 @@ class TimeDelta(DslConstant):
             params = dict((name, int(param)) for (name, param) in six.iteritems(parts) if param)
             if not params:
                 raise DslSyntaxError('invalid "time delta" string', duration_str, node=self.node)
-            return relativedelta(**params)
-        elif isinstance(value, datetime.timedelta):
-            return value
-        elif isinstance(value, relativedelta):
-            return value
-        else:
-            raise DslSystemError("shouldn't get here", value, node=self.node)
+            value = relativedelta(**params)
+        return value
 
 
 class UnaryOp(DslExpression):
@@ -517,22 +513,16 @@ class Name(DslExpression):
 
         value = self.evaluate(**combined_namespace)
         if isinstance(value, datetime.date):
-            return Date(value, node=self.node)
-        elif isinstance(value, DslObject):
-            return value
+            value = Date(value, node=self.node)
         elif isinstance(value, six.integer_types + (float, ndarray)):
-            return Number(value, node=self.node)
+            value = Number(value, node=self.node)
         elif isinstance(value, six.string_types):
-            return String(value, node=self.node)
+            value = String(value, node=self.node)
         elif isinstance(value, datetime.timedelta):
-            return TimeDelta(value, node=self.node)
+            value = TimeDelta(value, node=self.node)
         elif isinstance(value, relativedelta):
-            return TimeDelta(value, node=self.node)
-        # elif isinstance(value, (SynchronizedArray, Synchronized)):
-        #     return Number(numpy_from_sharedmem(value), node=self.node)
-        else:
-            raise DslSyntaxError("expected number, string, date, time delta, or DSL object when reducing name '%s'"
-                                 "" % self.name, repr(value), node=self.node)
+            value = TimeDelta(value, node=self.node)
+        return value
 
     def evaluate(self, **kwds):
         try:
@@ -656,7 +646,9 @@ class FunctionDef(DslObject):
             return self.call_cache[call_cache_key]
 
         if pending_call_stack and not is_destacking and not 'inline' in self.decorator_names:
-            # Just stack the call expression and return a stub.
+            # Don't actually apply anything now, just stack the call expression
+            # and return a stub. This is why apply() appears to be called twice,
+            # in FunctionCall.reduce() and generate_stubbed_calls()
 
             # Create a new stub - the stub ID is the name of the return value of the function call..
             stub_id = create_uuid4()
@@ -675,9 +667,7 @@ class FunctionDef(DslObject):
             # once the stacked function call has been evaluated.
             dsl_expr = dsl_stub
         else:
-            # Todo: Make sure the expression can be selected with the dsl_locals?
-            # - ie the conditional expressions should be functions only of call arg
-            # values that can be fully evaluated without evaluating contractual DSL objects.
+            # Select expression from body.
             selected_expression = self.select_expression(self.body, dsl_locals)
 
             # Add this function to the dslNamespace (just in case it's called by itself).
@@ -704,9 +694,10 @@ class FunctionDef(DslObject):
         # the test and accordingly select body or orelse expressions. Repeat
         # this method with the selected expression (supports if-elif-elif-else).
         # Otherwise just return the DSL express as the selected expression.
-
         if isinstance(dsl_expr, BaseIf):
             # Todo: Implement a check that this test expression can be evaluated? Or handle case when it can't?
+            # - ie the conditioning expression of if statements should be functions only of call arg
+            # values that can be fully evaluated without evaluating stochastic elements.
             # Todo: Also allow user defined functions that just do dates or numbers in test expression.
             # it doesn't have or expand into DSL elements that are the functions of time (Wait, Choice, Market, etc).
             if dsl_expr.test.evaluate(**call_arg_namespace):
@@ -787,10 +778,7 @@ class FunctionCall(DslExpression):
         for callArgExpr, callArgDef in zip(self.callArgExprs, functionDef.callArgs):
             # Skip if it's a DSL object that needs to be evaluated later with market data simulation.
             # Todo: Think about and improve the way these levels are separated.
-            if not isinstance(callArgExpr, DslObject):
-                # It's a simple value - pass through, not much else to do.
-                callArgValue = callArgExpr
-            else:
+            if isinstance(callArgExpr, DslObject):
                 # Substitute names, etc.
                 callArgExpr = callArgExpr.reduce(dsl_locals, dsl_globals, effective_present_time,
                                                  pending_call_stack=pending_call_stack)
@@ -805,6 +793,10 @@ class FunctionCall(DslExpression):
                     # assert isinstance(callArgExpr, DslExpression)
                     # It's a sum of two constants, or something like that - evaluate the full expression.
                     callArgValue = callArgExpr.evaluate()
+            else:
+                # It's a simple value - pass through, not much else to do.
+                callArgValue = callArgExpr
+
 
             # Add the call arg value to the new call arg namespace.
             newDslLocals[callArgDef.name] = callArgValue
