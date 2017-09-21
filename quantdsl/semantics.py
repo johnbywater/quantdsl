@@ -675,9 +675,7 @@ class FunctionDef(DslObject):
             # once the stacked function call has been evaluated.
             dsl_expr = dsl_stub
         else:
-            # Todo: Make sure the expression can be selected with the dsl_locals?
-            # - ie the conditional expressions should be functions only of call arg
-            # values that can be fully evaluated without evaluating contractual DSL objects.
+            # Select expression from body.
             selected_expression = self.select_expression(self.body, dsl_locals)
 
             # Add this function to the dslNamespace (just in case it's called by itself).
@@ -704,9 +702,10 @@ class FunctionDef(DslObject):
         # the test and accordingly select body or orelse expressions. Repeat
         # this method with the selected expression (supports if-elif-elif-else).
         # Otherwise just return the DSL express as the selected expression.
-
         if isinstance(dsl_expr, BaseIf):
             # Todo: Implement a check that this test expression can be evaluated? Or handle case when it can't?
+            # - ie the conditioning expression of if statements should be functions only of call arg
+            # values that can be fully evaluated without evaluating stochastic elements.
             # Todo: Also allow user defined functions that just do dates or numbers in test expression.
             # it doesn't have or expand into DSL elements that are the functions of time (Wait, Choice, Market, etc).
             if dsl_expr.test.evaluate(**call_arg_namespace):
@@ -787,10 +786,7 @@ class FunctionCall(DslExpression):
         for callArgExpr, callArgDef in zip(self.callArgExprs, functionDef.callArgs):
             # Skip if it's a DSL object that needs to be evaluated later with market data simulation.
             # Todo: Think about and improve the way these levels are separated.
-            if not isinstance(callArgExpr, DslObject):
-                # It's a simple value - pass through, not much else to do.
-                callArgValue = callArgExpr
-            else:
+            if isinstance(callArgExpr, DslObject):
                 # Substitute names, etc.
                 callArgExpr = callArgExpr.reduce(dsl_locals, dsl_globals, effective_present_time,
                                                  pending_call_stack=pending_call_stack)
@@ -805,6 +801,10 @@ class FunctionCall(DslExpression):
                     # assert isinstance(callArgExpr, DslExpression)
                     # It's a sum of two constants, or something like that - evaluate the full expression.
                     callArgValue = callArgExpr.evaluate()
+            else:
+                # It's a simple value - pass through, not much else to do.
+                callArgValue = callArgExpr
+
 
             # Add the call arg value to the new call arg namespace.
             newDslLocals[callArgDef.name] = callArgValue

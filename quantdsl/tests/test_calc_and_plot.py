@@ -14,12 +14,13 @@ class TestCalcAndPlot(TestCase):
 
     def test(self):
 
-        source_code = """from quantdsl.lib.storage2 import GasStorage
-        
-GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
+        source_code = """
+from quantdsl.lib.storage2 import GasStorage
+       
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
 """
 
-        calc_print_plot(
+        results = calc_print_plot(
             title="Gas Storage",
             source_code=source_code,
             observation_date='2011-1-1',
@@ -64,3 +65,5 @@ GasStorage(Date('2011-6-1'), Date('2011-9-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
             },
             supress_plot=True,
         )
+
+        self.assertAlmostEqual(results.fair_value.mean(), 6, places=0)
