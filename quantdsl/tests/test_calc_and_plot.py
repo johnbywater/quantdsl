@@ -182,7 +182,8 @@ GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
                         )
                     }
                 },
-                timeout=0.001,
+                periodisation='monthly',
+                timeout=.5,
             )
 
     def test_dependency_graph_size_limit(self):

@@ -19,10 +19,13 @@ from numpy import cumsum, zeros
 from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
-from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
+from quantdsl.domain.model.call_dependents import CallDependents
+from quantdsl.domain.model.call_link import CallLink
+from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.domain.model.simulated_price_requirements import SimulatedPriceRequirements
 from quantdsl.exceptions import TimeoutError
 from quantdsl.priceprocess.base import datetime_from_date
 
@@ -113,10 +116,9 @@ class Calculate(object):
         self.price_process = price_process
         self.periodisation = periodisation
         self.max_dependency_graph_size = max_dependency_graph_size
-        self._run_once = False
-        subscribe(self.is_result_value_computed, self.track_progress)
-        subscribe(self.is_result_value_computed, self.check_is_timed_out)
-        subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
+        subscribe(self.is_result_value_computed, self.print_progress)
+        subscribe(self.is_calculating, self.check_is_timed_out)
+        subscribe(self.is_evaluation_complete, self.set_is_finished)
 
     def __enter__(self):
         return self
@@ -125,25 +127,25 @@ class Calculate(object):
         self.close()
 
     def close(self):
-        unsubscribe(self.is_result_value_computed, self.track_progress)
+        unsubscribe(self.is_result_value_computed, self.print_progress)
         unsubscribe(self.is_result_value_computed, self.check_is_timed_out)
-        unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
+        unsubscribe(self.is_calculating, self.check_is_timed_out)
+        unsubscribe(self.is_evaluation_complete, self.set_is_finished)
 
     def calculate(self):
         self.result_values_computed_count = 0
         self.root_result_id = None
         self.is_timed_out = Event()
-        self.is_completed = Event()
+        self.is_finished = Event()
         self.times = collections.deque()
 
         if self.timeout:
-            timeout_thread = Thread(target=self.wait_then_set_is_timed_out())
+            timeout_thread = Thread(target=self.wait_then_set_is_timed_out)
             timeout_thread.setDaemon(True)
             timeout_thread.start()
 
         # Compile.
         with QuantDslApplicationWithMultithreadingAndPythonObjects(
-        # with QuantDslApplicationWithPythonObjects(
                 max_dependency_graph_size=self.max_dependency_graph_size) as app:
             start_compile = datetime.datetime.now()
             contract_specification = app.compile(self.source_code)
@@ -191,8 +193,9 @@ class Calculate(object):
             # Wait for the result.
             self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
             if not self.root_result_id in app.call_result_repo:
-                while not self.is_completed.wait(1):
+                while not self.is_finished.wait():
                     self.check_is_timed_out()
+                self.check_is_timed_out()
 
             # Todo: Separate this, not all users want print statements.
             end_calc = datetime.datetime.now()
@@ -311,11 +314,41 @@ class Calculate(object):
 
         return Results(fair_value, periods)
 
+    def is_calculating(self, event):
+        return isinstance(event, (
+            ResultValueComputed,
+            CallRequirement.Created,
+            CallLink.Created,
+            CallDependents.Created,
+            SimulatedPriceRequirements.Created,
+        ))
+
     def is_result_value_computed(self, event):
         return isinstance(event, ResultValueComputed)
 
-    def track_progress(self, event):
-        self.check_is_timed_out()
+    def is_evaluation_complete(self, event):
+        return isinstance(event, CallResult.Created) and event.entity_id == self.root_result_id
+
+    def wait_then_set_is_timed_out(self):
+        sleep(self.timeout)
+        self.set_is_timed_out()
+
+    def set_is_timed_out(self):
+        self.is_timed_out.set()
+        self.set_is_finished()
+
+    def check_is_timed_out(self, event=None):
+        if self.is_timed_out.is_set():
+            msg = 'Timeout after {} seconds'.format(self.timeout)
+            if event:
+                msg += ', after a {} event'.format(type(event).__qualname__)
+            raise TimeoutError(msg)
+
+    def set_is_finished(self, *_):
+        self.is_finished.set()
+
+    def print_progress(self, event):
+        self.check_is_timed_out(event)
 
         self.times.append(datetime.datetime.now())
         if len(self.times) > 0.5 * self.total_cost:
@@ -338,20 +371,6 @@ class Calculate(object):
             )
         )
         sys.stdout.flush()
-
-    def is_evaluation_complete(self, event):
-        return isinstance(event, CallResult.Created) and event.entity_id == self.root_result_id
-
-    def on_evaluation_complete(self, _):
-        self.is_completed.set()
-
-    def wait_then_set_is_timed_out(self):
-        sleep(self.timeout)
-        self.is_timed_out.set()
-
-    def check_is_timed_out(self, *_):
-        if self.is_timed_out.is_set():
-            raise TimeoutError('Timeout after {} seconds'.format(self.timeout))
 
 
 def print_results(results, path_count):
