@@ -62,7 +62,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
                     )
                 }
             },
-            # supress_plot=True,
+            supress_plot=True,
         )
 
         self.assertAlmostEqual(results.fair_value.mean(), 6, places=0)
@@ -116,7 +116,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
                     )
                 }
             },
-            # supress_plot=True,
+            supress_plot=True,
         )
 
         self.assertAlmostEqual(results.fair_value.mean(), 6, places=0)
