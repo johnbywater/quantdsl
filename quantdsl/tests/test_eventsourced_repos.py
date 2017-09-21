@@ -12,10 +12,10 @@ from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id, register_simulated_price
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.tests.test_application import TestCase
+from quantdsl.tests.test_application import ApplicationTestCase
 
 
-class TestEventSourcedRepos(TestCase):
+class TestEventSourcedRepos(ApplicationTestCase):
     def test_register_market_calibration(self):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
         calibration_params = {'param1': 10, 'param2': 20}

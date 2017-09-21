@@ -21,6 +21,7 @@ from quantdsl.application.with_multithreading_and_python_objects import \
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.exceptions import TimeoutError
 from quantdsl.priceprocess.base import datetime_from_date
 
 
@@ -30,20 +31,20 @@ class Results(object):
         self.periods = periods
 
 
-def calc_print_plot(title, source_code, observation_date, periodisation=None, interest_rate=0, path_count=20000,
-                    perturbation_factor=0.01, price_process=None, supress_plot=False,
-                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
-
+def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
+                    path_count=20000, perturbation_factor=0.01, price_process=None, supress_plot=False,
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None):
     # Calculate and print the results.
     results = calc_print(source_code,
-         max_dependency_graph_size=max_dependency_graph_size,
-         observation_date=observation_date,
-         interest_rate=interest_rate,
-         path_count=path_count,
-         perturbation_factor=perturbation_factor,
-         price_process=price_process,
-         periodisation=periodisation,
-     )
+                         max_dependency_graph_size=max_dependency_graph_size,
+                         observation_date=observation_date,
+                         interest_rate=interest_rate,
+                         path_count=path_count,
+                         perturbation_factor=perturbation_factor,
+                         price_process=price_process,
+                         periodisation=periodisation,
+                         timeout=timeout,
+                         )
 
     # Plot the results.
     if results.periods and not supress_plot and not os.getenv('SUPRESS_PLOT'):
@@ -58,9 +59,9 @@ def calc_print_plot(title, source_code, observation_date, periodisation=None, in
     return results
 
 
-def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-               periodisation, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
-
+def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
+               price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+               timeout=None):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -71,6 +72,7 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
         price_process=price_process,
         periodisation=periodisation,
         max_dependency_graph_size=max_dependency_graph_size,
+        timeout=timeout,
     )
 
     # Print the results.
@@ -79,8 +81,8 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
-
+         price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+         timeout=None):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -90,14 +92,17 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
         price_process=price_process,
         periodisation=periodisation,
         max_dependency_graph_size=max_dependency_graph_size,
+        timeout=timeout,
     )
     with cmd:
-        return cmd.run()
+        return cmd.calculate()
 
 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-                 price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE):
+                 price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+                 timeout=None):
+        self.timeout = timeout
         self.source_code = source_code
         self.observation_date = observation_date
         self.interest_rate = interest_rate
@@ -107,7 +112,7 @@ class Calculate(object):
         self.periodisation = periodisation
         self.max_dependency_graph_size = max_dependency_graph_size
         self._run_once = False
-        subscribe(self.is_result_value_computed, self.count_result_values_computed)
+        subscribe(self.is_result_value_computed, self.print_progress)
         subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
     def __enter__(self):
@@ -117,10 +122,10 @@ class Calculate(object):
         self.close()
 
     def close(self):
-        unsubscribe(self.is_result_value_computed, self.count_result_values_computed)
+        unsubscribe(self.is_result_value_computed, self.print_progress)
         unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
-    def run(self):
+    def calculate(self):
         self.result_values_computed_count = 0
         self.root_result_id = None
         self.is_completed = Event()
@@ -174,9 +179,8 @@ class Calculate(object):
 
             # Wait for the result.
             self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
-            while self.root_result_id not in app.call_result_repo:
-                if self.is_completed.wait(timeout=2):
-                    break
+            if not self.is_completed.wait(timeout=self.timeout):
+                raise TimeoutError('Timed out after {} seconds'.format(self.timeout))
 
             # Todo: Separate this, not all users want print statements.
             end_calc = datetime.datetime.now()
@@ -246,7 +250,6 @@ class Calculate(object):
                     # 'total_unit_stderr': total_units_stderr,
                 })
 
-
             elif len(perturbed_name_split) > 2:
                 year = int(perturbed_name_split[1])
                 month = int(perturbed_name_split[2])
@@ -299,7 +302,7 @@ class Calculate(object):
     def is_result_value_computed(self, event):
         return isinstance(event, ResultValueComputed)
 
-    def count_result_values_computed(self, event):
+    def print_progress(self, event):
         self.times.append(datetime.datetime.now())
         if len(self.times) > 0.5 * self.total_cost:
             self.times.popleft()

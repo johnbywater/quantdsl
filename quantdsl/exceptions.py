@@ -42,5 +42,17 @@ class DslSystemError(DslError):
     """
 
 
-class CallLimitError(DslError):
+class DslCompileError(DslError):
+    pass
+
+
+class CallLimitError(DslCompileError):
+    pass
+
+
+class RecursionDepthError(DslCompileError):
+    pass
+
+
+class TimeoutError(DslError):
     pass

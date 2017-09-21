@@ -1,7 +1,7 @@
-from quantdsl.tests.test_application import ContractValuationTestCase, TestCase
+from quantdsl.tests.test_application import ApplicationTestCase
 
 
-class ExpressionTests(ContractValuationTestCase, TestCase):
+class ExpressionTests(ApplicationTestCase):
     def test_european1(self):
         specification = """
 from quantdsl.lib.european1 import European

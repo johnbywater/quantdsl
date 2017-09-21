@@ -1,11 +1,9 @@
 import datetime
 import unittest
-from abc import ABCMeta
 from time import sleep
 
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
-from six import with_metaclass
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_result import CallResult
@@ -13,11 +11,11 @@ from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
-from quantdsl.exceptions import CallLimitError
+from quantdsl.exceptions import CallLimitError, RecursionDepthError
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
-class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
+class ApplicationTestCase(unittest.TestCase):
     skip_assert_event_handers_empty = False
     NUMBER_DAYS = 5
     NUMBER_MARKETS = 2
@@ -25,35 +23,6 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
     PATH_COUNT = 2000
     MAX_DEPENDENCY_GRAPH_SIZE = 200
 
-    def setUp(self):
-        if not self.skip_assert_event_handers_empty:
-            assert_event_handlers_empty()
-        # super(ContractValuationTestCase, self).setUp()
-
-        scipy.random.seed(1354802735)
-
-        self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
-
-    def tearDown(self):
-        if self.app is not None:
-            self.app.close()
-        if not self.skip_assert_event_handers_empty:
-            assert_event_handlers_empty()
-            # super(ContractValuationTestCase, self).tearDown()
-
-    def setup_application(self, **kwargs):
-        self.app = QuantDslApplicationWithPythonObjects(**kwargs)
-
-
-class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
-    def setUp(self):
-        super(TestCase, self).setUp()
-
-    def tearDown(self):
-        super(TestCase, self).tearDown()
-
-
-class ContractValuationTestCase(ApplicationTestCaseMixin):
     price_process_name = DEFAULT_PRICE_PROCESS_NAME
     calibration_params = {
         'market': ['#1', '#2', 'NBP', 'TTF', 'SPARKSPREAD'],
@@ -82,25 +51,25 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             [0.0, 0.0, 0.4, 1.0, 0.0],
             [0.0, 0.0, 0.0, 0.0, 1.0],
         ],
-        # '#1-LAST-PRICE': 10,
-        # '#2-LAST-PRICE': 10,
-        # '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
-        # '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
-        # '#1-#2-CORRELATION': 0.0,
-        # 'NBP-LAST-PRICE': 10,
-        # 'TTF-LAST-PRICE': 11,
-        # 'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
-        # 'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
-        # 'NBP-TTF-CORRELATION': 0.4,
-        # 'NBP-2011-01-LAST-PRICE': 10,
-        # 'NBP-2011-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
-        # 'NBP-2012-01-LAST-PRICE': 10,
-        # 'NBP-2012-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
-        # 'NBP-2012-01-NBP-2012-02-CORRELATION': 0.4,
-        # 'NBP-2012-02-NBP-2012-03-CORRELATION': 0.4,
-        # 'SPARKSPREAD-LAST-PRICE': 1,
-        # 'SPARKSPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
     }
+
+    def setUp(self):
+        if not self.skip_assert_event_handers_empty:
+            assert_event_handlers_empty()
+
+        scipy.random.seed(1354802735)
+
+        self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
+
+    def tearDown(self):
+        if self.app is not None:
+            self.app.close()
+        if not self.skip_assert_event_handers_empty:
+            assert_event_handlers_empty()
+            # super(ContractValuationTestCase, self).tearDown()
+
+    def setup_application(self, **kwargs):
+        self.app = QuantDslApplicationWithPythonObjects(**kwargs)
 
     def assert_contract_value(self, specification, expected_value, expected_deltas=None,
                               expected_call_count=None, periodisation=None):
@@ -200,7 +169,7 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         sleep(interval)
 
 
-class ExpressionTests(ContractValuationTestCase):
+class ExpressionTests(ApplicationTestCase):
     def test_generate_valuation_addition(self):
         self.assert_contract_value("""1 + 2""", 3)
         self.assert_contract_value("""2 + 4""", 6)
@@ -381,7 +350,7 @@ Max(
         self.assert_contract_value(specification, -0.01, expected_deltas={'#1': 0.00}, periodisation='alltime')
 
 
-class FunctionTests(ContractValuationTestCase):
+class FunctionTests(ApplicationTestCase):
     def test_functional_fibonacci_numbers(self):
         fib_tmpl = """
 def fib(n): return fib(n-1) + fib(n-2) if n > 1 else n
@@ -466,10 +435,11 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.20756, {'NBP': 3.02076}, expected_call_count=15)
+        self.assert_contract_value(specification, 30.20756, {'NBP': 3.02076}, expected_call_count=15,
+                                   periodisation='alltime')
 
 
-class LongerTests(ContractValuationTestCase):
+class LongerTests(ApplicationTestCase):
     def test_value_swing_option(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
@@ -521,10 +491,15 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
         self.assert_contract_value(specification, 11.57, expected_call_count=37)
 
 
-class SpecialTests(ContractValuationTestCase):
+class SpecialTests(ApplicationTestCase):
     def test_simple_expression_with_market(self):
         dsl = "Market('NBP') + 2 * Market('TTF')"
-        self.assert_contract_value(dsl, 32, {('NBP', 2011, 1): 1, ('TTF', 2011, 1): 2}, expected_call_count=1)
+        self.assert_contract_value(dsl,
+                                   expected_value=32,
+                                   expected_deltas={'NBP-2011-1': 1, 'TTF-2011-1': 2},
+                                   expected_call_count=1,
+                                   periodisation='monthly'
+                                   )
 
     def test_simple_function_with_market(self):
         dsl = """
@@ -599,7 +574,7 @@ Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#2'), 2) * 2
                                    )
 
 
-class ExperimentalTests(ContractValuationTestCase):
+class ExperimentalTests(ApplicationTestCase):
     def test_value_swing_option_with_fixing_on_market(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
@@ -786,55 +761,26 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
         self.assert_contract_value(specification, 0.0123, {}, expected_call_count=6)
 
 
-class SingleTests(ContractValuationTestCase):
-    def test_limit_dependency_graph_size(self):
+class SingleTests(ApplicationTestCase):
+    def test_limit_dependency_graph_size_recursive_noninlined(self):
+        # Test programs that don't halt are limited by the max dependency graph size.
         specification = """
-def EverIncreasing(n):
-    return Incr(n)
+def Func(n):
+    return Func(n+1)
     
-def Incr(n):
-    EverIncreasing(n+1)
-
-EverIncreasing(1)
+Func(1)
 """
         with self.assertRaises(CallLimitError):
             self.assert_contract_value(specification, None)
 
-    def test_limit_dependency_graph_size_inlined_sub(self):
-        specification = """
-def EverIncreasing(n):
-    return Incr(n)
-    
-@inline
-def Incr(n):
-    EverIncreasing(n+1)
-
-EverIncreasing(1)
-"""
-        with self.assertRaises(CallLimitError):
-            self.assert_contract_value(specification, None)
-
-    def test_limit_dependency_graph_size_inlined_both(self):
+    def test_limit_dependency_graph_size_recursive_inlined(self):
+        # Test the Python maximum recursion depth is handled.
         specification = """
 @inline
-def EverIncreasing(n):
-    return Incr(n)
-    
-@inline
-def Incr(n):
-    EverIncreasing(n+1)
+def Func(n):
+    return Func(n+1)
 
-EverIncreasing(1)
+Func(1)
 """
-        with self.assertRaises(CallLimitError):
+        with self.assertRaises(RecursionDepthError):
             self.assert_contract_value(specification, None)
-
-
-class ContractValuationTests(
-    SingleTests,
-    ExperimentalTests,
-    SpecialTests,
-    ExpressionTests,
-    FunctionTests,
-    LongerTests
-): pass
