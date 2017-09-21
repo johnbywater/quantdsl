@@ -263,13 +263,8 @@ class TimeDelta(DslConstant):
             params = dict((name, int(param)) for (name, param) in six.iteritems(parts) if param)
             if not params:
                 raise DslSyntaxError('invalid "time delta" string', duration_str, node=self.node)
-            return relativedelta(**params)
-        elif isinstance(value, datetime.timedelta):
-            return value
-        elif isinstance(value, relativedelta):
-            return value
-        else:
-            raise DslSystemError("shouldn't get here", value, node=self.node)
+            value = relativedelta(**params)
+        return value
 
 
 class UnaryOp(DslExpression):
