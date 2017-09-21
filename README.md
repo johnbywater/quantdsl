@@ -641,3 +641,8 @@ def Tomorrow(today):
     today + TimeDelta('1d')
 
 ```
+
+## Acknowledgments
+
+The *Quant DSL* language was partly inspired by the paper *[Composing contracts: an adventure in financial engineering (functional pearl)](http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph, to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees") module. We have also been encourged by members of the [London Financial Python User Group](https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL* expression syntax and semantics were first presented.
+

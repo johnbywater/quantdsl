@@ -13,6 +13,7 @@ from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.exceptions import CallLimitError
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -40,7 +41,7 @@ class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
             # super(ContractValuationTestCase, self).tearDown()
 
     def setup_application(self):
-        self.app = QuantDslApplicationWithPythonObjects()
+        self.app = QuantDslApplicationWithPythonObjects(max_dependency_graph_size=200)
 
 
 class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
@@ -681,10 +682,9 @@ def Swing(start_date, end_date, quantity):
 Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
 """
         self.assert_contract_value(specification, 29.9575, {
-            ('NBP', 2011, 2): 1.0,
-            ('NBP', 2011, 3): 1.0,
-            ('NBP', 2011, 4): 1.0,
-        }, expected_call_count=11)
+            'NBP-2011-2': 1.0,
+            'NBP-2011-3': 1.0,
+        }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):
         specification = """ForwardMarket('NBP', '2011-1-1')"""
@@ -786,36 +786,54 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
 
 
 class SingleTests(ContractValuationTestCase):
-    def test_value_swing_option_with_forward_markets(self):
+    def test_limit_dependency_graph_size(self):
         specification = """
-def Swing(start_date, end_date, quantity):
-    if (quantity != 0) and (start_date < end_date):
-        return Settlement(start_date, Fixing(start_date,
-            Choice(
-                Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + \
-                    ForwardMarket('NBP', start_date),
-                Swing(start_date + TimeDelta('1m'), end_date, quantity)
-            )
-        ))
-    else:
-        return 0
+def EverIncreasing(n):
+    return Incr(n)
+    
+def Incr(n):
+    EverIncreasing(n+1)
 
-Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
+EverIncreasing(1)
 """
-        self.assert_contract_value(specification, 29.9575, {
-            'NBP-2011-1': 0.9939,
-            'NBP-2011-3': 1.0,
-            # ('NBP', 2011, 4): 1.0,
-        },
-                                   expected_call_count=11,
-                                   periodisation='monthly')
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
+
+    def test_limit_dependency_graph_size_inlined_sub(self):
+        specification = """
+def EverIncreasing(n):
+    return Incr(n)
+    
+@inline
+def Incr(n):
+    EverIncreasing(n+1)
+
+EverIncreasing(1)
+"""
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
+
+    def test_limit_dependency_graph_size_inlined_both(self):
+        specification = """
+@inline
+def EverIncreasing(n):
+    return Incr(n)
+    
+@inline
+def Incr(n):
+    EverIncreasing(n+1)
+
+EverIncreasing(1)
+"""
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
 
 
 class ContractValuationTests(
     SingleTests,
-    ExperimentalTests,
-    SpecialTests,
-    ExpressionTests,
-    FunctionTests,
-    LongerTests
+    # ExperimentalTests,
+    # SpecialTests,
+    # ExpressionTests,
+    # FunctionTests,
+    # LongerTests
 ): pass

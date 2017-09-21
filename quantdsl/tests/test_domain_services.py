@@ -63,7 +63,6 @@ double(1 + 1)
             contract_specification=contract_specification,
             call_dependencies_repo=self.call_dependencies_repo,
             call_dependents_repo=self.call_dependents_repo,
-            call_leafs_repo=self.call_leafs_repo,
             call_requirement_repo=self.call_requirement_repo,
         )
 

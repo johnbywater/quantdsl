@@ -30,11 +30,18 @@ class Results(object):
 
 
 def calc_print_plot(title, source_code, observation_date, periodisation, interest_rate, path_count,
-                    perturbation_factor, price_process, supress_plot=False):
+                    perturbation_factor, price_process, supress_plot=False, max_dependency_graph_size=10000):
 
     # Calculate and print the results.
-    results = calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor,
-                         price_process, periodisation)
+    results = calc_print(source_code,
+         max_dependency_graph_size=max_dependency_graph_size,
+         observation_date=observation_date,
+         interest_rate=interest_rate,
+         path_count=path_count,
+         perturbation_factor=perturbation_factor,
+         price_process=price_process,
+         periodisation=periodisation,
+     )
 
     # Plot the results.
     if results.periods and not supress_plot and not os.getenv('SUPRESS_PLOT'):
@@ -50,7 +57,7 @@ def calc_print_plot(title, source_code, observation_date, periodisation, interes
 
 
 def calc_print(source_code, observation_date, interest_rate, path_count, perturbation_factor, price_process,
-               periodisation):
+               periodisation, max_dependency_graph_size=10000):
 
     # Calculate the results.
     results = calc(
@@ -61,6 +68,7 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
         perturbation_factor=perturbation_factor,
         price_process=price_process,
         periodisation=periodisation,
+        max_dependency_graph_size=max_dependency_graph_size,
     )
 
     # Print the results.
@@ -68,14 +76,26 @@ def calc_print(source_code, observation_date, interest_rate, path_count, perturb
     return results
 
 
-def calc(*args, **kwargs):
-    with Calculate(*args, **kwargs) as cmd:
+def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
+         price_process=None, periodisation=None, max_dependency_graph_size=10000):
+
+    cmd = Calculate(
+        source_code=source_code,
+        observation_date=observation_date,
+        interest_rate=interest_rate,
+        path_count=path_count,
+        perturbation_factor=perturbation_factor,
+        price_process=price_process,
+        periodisation=periodisation,
+        max_dependency_graph_size=max_dependency_graph_size,
+    )
+    with cmd:
         return cmd.run()
 
 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-                 price_process=None, periodisation=None):
+                 price_process=None, periodisation=None, max_dependency_graph_size=10000):
         self.source_code = source_code
         self.observation_date = observation_date
         self.interest_rate = interest_rate
@@ -83,10 +103,8 @@ class Calculate(object):
         self.perturbation_factor = perturbation_factor
         self.price_process = price_process
         self.periodisation = periodisation
-        self.result_values_computed_count = 0
-        self.root_result_id = None
-        self.is_completed = Event()
-        self.times = collections.deque()
+        self.max_dependency_graph_size = max_dependency_graph_size
+        self._run_once = False
         subscribe(self.is_result_value_computed, self.count_result_values_computed)
         subscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
@@ -106,9 +124,9 @@ class Calculate(object):
         self.is_completed = Event()
         self.times = collections.deque()
 
-        with QuantDslApplicationWithMultithreadingAndPythonObjects() as app:
-
-            # Compile.
+        # Compile.
+        with QuantDslApplicationWithMultithreadingAndPythonObjects(
+                max_dependency_graph_size=self.max_dependency_graph_size) as app:
             start_compile = datetime.datetime.now()
             contract_specification = app.compile(self.source_code)
             end_compile = datetime.datetime.now()

@@ -40,3 +40,7 @@ class DslSystemError(DslError):
     """
     Exception class for DSL system errors.
     """
+
+
+class CallLimitError(DslError):
+    pass
