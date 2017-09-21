@@ -7,7 +7,8 @@ import math
 import os
 import sys
 from collections import defaultdict
-from threading import Event
+from threading import Event, Thread
+from time import sleep
 
 import dateutil.parser
 import numpy
@@ -18,6 +19,7 @@ from numpy import cumsum, zeros
 from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
+from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
@@ -125,14 +127,23 @@ class Calculate(object):
         unsubscribe(self.is_result_value_computed, self.print_progress)
         unsubscribe(self.is_evaluation_complete, self.on_evaluation_complete)
 
+
+
     def calculate(self):
         self.result_values_computed_count = 0
         self.root_result_id = None
+        self.is_timed_out = Event()
         self.is_completed = Event()
         self.times = collections.deque()
 
+        if self.timeout:
+            timeout_thread = Thread(target=self.wait_then_set_is_timed_out())
+            timeout_thread.setDaemon(True)
+            timeout_thread.start()
+
         # Compile.
-        with QuantDslApplicationWithMultithreadingAndPythonObjects(
+        # with QuantDslApplicationWithMultithreadingAndPythonObjects(
+        with QuantDslApplicationWithPythonObjects(
                 max_dependency_graph_size=self.max_dependency_graph_size) as app:
             start_compile = datetime.datetime.now()
             contract_specification = app.compile(self.source_code)
@@ -177,10 +188,13 @@ class Calculate(object):
                 periodisation=self.periodisation,
             )
 
+            self.check_is_timed_out()
+
             # Wait for the result.
             self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
-            if not self.is_completed.wait(timeout=self.timeout):
-                raise TimeoutError('Timed out after {} seconds'.format(self.timeout))
+            if not self.root_result_id in app.call_result_repo:
+                while not self.is_completed.is_set():
+                    self.check_is_timed_out()
 
             # Todo: Separate this, not all users want print statements.
             end_calc = datetime.datetime.now()
@@ -331,6 +345,13 @@ class Calculate(object):
     def on_evaluation_complete(self, _):
         self.is_completed.set()
 
+    def wait_then_set_is_timed_out(self):
+        sleep(self.timeout)
+        self.is_timed_out.set()
+
+    def check_is_timed_out(self):
+        if self.is_timed_out.is_set():
+            raise TimeoutError('Timeout after {} seconds'.format(self.timeout))
 
 def print_results(results, path_count):
     print("")
