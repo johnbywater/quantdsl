@@ -307,6 +307,17 @@ class TestMax(TestCase):
         obj = Max(Number(array([3, 2, 1])), Number(array([1, 2, 3])))
         self.assertEqual(list(obj.evaluate()), list(array([3, 2, 3])))
 
+        # Swap args.
+        obj = Max(Number(array([1, 2, 3])), Number(1))
+        self.assertEqual(list(obj.evaluate()), list(array([1, 2, 3])))
+
+        obj = Max(Number(array([1, 2, 3])), Number(2))
+        self.assertEqual(list(obj.evaluate()), list(array([2, 2, 3])))
+
+        obj = Max(Number(array([1, 2, 3])), Number(array([3, 2, 1])))
+        self.assertEqual(list(obj.evaluate()), list(array([3, 2, 3])))
+
+
 
 class TestName(TestCase):
     def test_evaluate(self):
