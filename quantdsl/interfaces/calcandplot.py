@@ -300,6 +300,7 @@ class Calculate(object):
         unsubscribe(self.is_call_requirement_created, self.print_compilation_progress)
         unsubscribe(self.is_calculating, self.check_is_timed_out)
         unsubscribe(self.is_evaluation_complete, self.set_is_finished)
+        unsubscribe(self.is_result_value_computed, self.inc_result_value_computed_count)
         unsubscribe(self.is_result_value_computed, self.print_evaluation_progress)
         unsubscribe(self.is_call_result_created, self.inc_call_result_count)
         unsubscribe(self.is_call_result_created, self.print_evaluation_progress)
