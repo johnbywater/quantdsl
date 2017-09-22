@@ -14,7 +14,6 @@ import dateutil.parser
 import numpy
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 from matplotlib import dates as mdates, pylab as plt
-from numpy import cumsum, zeros
 
 from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.with_multithreading_and_python_objects import \
@@ -117,7 +116,7 @@ class Calculate(object):
         self.max_dependency_graph_size = max_dependency_graph_size
 
     def calculate(self):
-        self.result_values_computed_count = 0
+        self.node_evaluations_count = 0
         self.root_result_id = None
         self.is_timed_out = Event()
         self.timeout_msg = ''
@@ -126,6 +125,7 @@ class Calculate(object):
         self.started_evaluating = None
         self.times = collections.deque()
         self.call_result_count = 0
+        self.call_requirement_count = 1
 
         if self.timeout:
             timeout_thread = Thread(target=self.wait_then_set_is_timed_out)
@@ -146,7 +146,8 @@ class Calculate(object):
                 contract_specification = app.compile(self.source_code)
                 end_compile = datetime.datetime.now()
                 # Todo: Separate this, not all users want print statements.
-                print("Compilation in {}s".format((end_compile - start_compile).total_seconds()))
+                print("")  # Get a new line after the compilation progress.
+                print("Compilation in {:.3f}s".format((end_compile - start_compile).total_seconds()))
 
                 # Get simulation args.
                 if self.price_process is not None:
@@ -162,6 +163,7 @@ class Calculate(object):
                     observation_date = None
 
                 # Simulate the market prices.
+                start_simulate = datetime.datetime.now()
                 market_simulation = app.simulate(
                     contract_specification,
                     price_process_name=price_process_name,
@@ -172,11 +174,17 @@ class Calculate(object):
                     perturbation_factor=self.perturbation_factor,
                     periodisation=self.periodisation,
                 )
+                end_simulate = datetime.datetime.now()
+                # Todo: Separate this, not all users want print statements.
+                print("Simulation in {:.3f}s".format((end_simulate - start_simulate).total_seconds()))
 
                 # Estimate the cost of the evaluation (to show progress).
+                # Todo: Improve the call cost estimation, perhaps by running over the depenendency graph and coding
+                # each DSL class to know how long it will take relative to others.
                 call_costs = app.calc_call_costs(contract_specification.id)
-                self.total_cost = sum(call_costs.values())
-                self.total_calls = len(call_costs)
+                self.node_evaluations_num_expected = sum(call_costs.values())
+                print("Starting {} node evaluations, please wait...".format(self.node_evaluations_num_expected))
+                self.expected_num_call_requirements = len(call_costs)
 
                 # Evaluate the contract specification.
                 start_calc = datetime.datetime.now()
@@ -197,7 +205,7 @@ class Calculate(object):
                 # Todo: Separate this, not all users want print statements.
                 end_calc = datetime.datetime.now()
                 print("")
-                print("Results in {}s".format((end_calc - start_calc).total_seconds()))
+                print("Evaluation in {:.3f}s".format((end_calc - start_calc).total_seconds()))
 
                 # Read the results.
                 results = self.read_results(app, evaluation, market_simulation)
@@ -280,16 +288,31 @@ class Calculate(object):
         return Results(fair_value, periods)
 
     def subscribe(self):
+        subscribe(self.is_call_requirement_created, self.print_compilation_progress)
         subscribe(self.is_calculating, self.check_is_timed_out)
         subscribe(self.is_evaluation_complete, self.set_is_finished)
-        subscribe(self.is_result_value_computed, self.print_progress)
+        subscribe(self.is_result_value_computed, self.inc_result_value_computed_count)
+        subscribe(self.is_result_value_computed, self.print_evaluation_progress)
         subscribe(self.is_call_result_created, self.inc_call_result_count)
+        subscribe(self.is_call_result_created, self.print_evaluation_progress)
 
     def unsubscribe(self):
+        unsubscribe(self.is_call_requirement_created, self.print_compilation_progress)
         unsubscribe(self.is_calculating, self.check_is_timed_out)
         unsubscribe(self.is_evaluation_complete, self.set_is_finished)
-        unsubscribe(self.is_result_value_computed, self.print_progress)
+        unsubscribe(self.is_result_value_computed, self.print_evaluation_progress)
         unsubscribe(self.is_call_result_created, self.inc_call_result_count)
+        unsubscribe(self.is_call_result_created, self.print_evaluation_progress)
+
+    @staticmethod
+    def is_call_requirement_created(event):
+        return isinstance(event, CallRequirement.Created)
+
+    def print_compilation_progress(self, event):
+        msg = "\rCompiled {} nodes ".format(self.call_requirement_count)
+        self.call_requirement_count += 1
+        sys.stdout.write(msg)
+        sys.stdout.flush()
 
     @staticmethod
     def is_calculating(event):
@@ -322,29 +345,39 @@ class Calculate(object):
     def is_result_value_computed(event):
         return isinstance(event, ResultValueComputed)
 
-    def print_progress(self, event):
+    def inc_result_value_computed_count(self, _):
+        self.node_evaluations_count += 1
+
+    def print_evaluation_progress(self, event):
         self.check_is_timed_out(event)
 
         self.times.append(datetime.datetime.now())
-        if len(self.times) > max(0.5 * self.total_cost, 100):
+        if len(self.times) > max(0.5 * self.node_evaluations_num_expected, 100):
             self.times.popleft()
         if len(self.times) > 1:
             duration = self.times[-1] - self.times[0]
             rate = len(self.times) / duration.total_seconds()
         else:
             rate = 0.001
-        eta = (self.total_cost - self.result_values_computed_count) / rate
+        eta = (self.node_evaluations_num_expected - self.node_evaluations_count) / rate
         seconds_running = (datetime.datetime.now() - self.started).total_seconds()
         seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
-        assert isinstance(event, ResultValueComputed)
-        self.result_values_computed_count += 1
-        msg = "\r{:.2f}% complete ({}/{} nodes) {:.2f} evals/s running {:.0f}s eta {:.0f}s".format(
-            (100.0 * self.result_values_computed_count) / self.total_cost,
-            self.call_result_count,
-            self.total_calls,
+
+        msg = (
+            "\r"
+            "{}/{} "
+            "{:.2f}% complete "
+            "{:.2f} eval/s "
+            "running {:.0f}s "
+            "eta {:.0f}s").format(
+                self.node_evaluations_count,
+                self.node_evaluations_num_expected,
+            (100.0 * self.node_evaluations_count) / self.node_evaluations_num_expected,
             rate,
-            seconds_running,
-            eta)
+                seconds_running,
+                eta,
+            )
+
         if self.timeout:
             msg += ' timeout in {:.0f}s'.format(self.timeout - seconds_running)
         sys.stdout.write(msg)
@@ -418,6 +451,8 @@ def print_results(results, path_count):
 
         net_cash_in_mean = net_cash_in.mean()
         net_cash_in_stderr = net_cash_in.std() / sqrt_path_count
+
+        print()
         print("Net cash: {:.2f} ± {:.2f}".format(net_cash_in_mean, 3 * net_cash_in_stderr))
         print()
     print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
@@ -478,23 +513,27 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
                 pos += cum_pos[-1]
             cum_pos.append(pos)
         cum_pos_mean = [p.mean() for p in cum_pos]
-        cum_pos_stderr = [p.std() / math.sqrt(path_count) for p in cum_pos]
-        cum_pos_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
-        cum_pos_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
+        cum_pos_std = [p.std() for p in cum_pos]
+        cum_pos_stderr = [p / math.sqrt(path_count) for p in cum_pos_std]
+        cum_pos_std_plus = list(numpy.array(cum_pos_mean) + 1 * numpy.array(cum_pos_std))
+        cum_pos_std_minus = list(numpy.array(cum_pos_mean) - 1 * numpy.array(cum_pos_std))
+        cum_pos_stderr_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
+        cum_pos_stderr_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
 
         pos_plot = subplots[len(names) + i]
         pos_plot.set_title('Position - {}'.format(name))
 
         pos_plot.plot(
-            dates, cum_pos_plus, '0.75',
-            dates, cum_pos_minus, '0.75',
-            dates, cum_pos_mean, '0.25',
+            dates, cum_pos_std_plus, '0.85',
+            dates, cum_pos_std_minus, '0.85',
+            dates, cum_pos_stderr_plus, '0.5',
+            dates, cum_pos_stderr_minus, '0.5',
+            dates, cum_pos_mean, '0.1',
         )
 
-        ymin = min(0, min(cum_pos_minus)) - 1
-        ymax = max(0, max(cum_pos_plus)) + 1
+        ymin = min(0, min(cum_pos_std_minus)) - 1
+        ymax = max(0, max(cum_pos_std_plus)) + 1
         pos_plot.set_ylim([ymin, ymax])
-
 
     profit_plot = subplots[-1]
     profit_plot.set_title('Profit')
@@ -524,11 +563,11 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
     cum_cash_stderr_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
 
     profit_plot.plot(
-        # dates, cum_cash_std_plus, '0.8',
-        # dates, cum_cash_std_minus, '0.8',
+        dates, cum_cash_std_plus, '0.8',
+        dates, cum_cash_std_minus, '0.8',
         dates, cum_cash_stderr_plus, '0.5',
         dates, cum_cash_stderr_minus, '0.5',
-        dates, cum_cash_mean, '0.15'
+        dates, cum_cash_mean, '0.1'
     )
 
     f.autofmt_xdate(rotation=60)
