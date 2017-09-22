@@ -37,7 +37,7 @@ class Results(object):
 
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, supress_plot=False,
-                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None):
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None, verbose=False):
     # Calculate and print the results.
     results = calc_print(source_code,
                          max_dependency_graph_size=max_dependency_graph_size,
@@ -48,6 +48,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
                          price_process=price_process,
                          periodisation=periodisation,
                          timeout=timeout,
+                         verbose=verbose,
                          )
 
     # Plot the results.
@@ -65,7 +66,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
 
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None):
+               timeout=None, verbose=False):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -77,6 +78,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
         periodisation=periodisation,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
+        verbose=verbose,
     )
 
     # Print the results.
@@ -86,7 +88,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
          price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None):
+         timeout=None, verbose=False):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -97,6 +99,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
         periodisation=periodisation,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
+        verbose=verbose,
     )
     return cmd.calculate()
 
@@ -104,7 +107,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None):
+                 timeout=None, verbose=False):
         self.timeout = timeout
         self.source_code = source_code
         self.observation_date = observation_date
@@ -114,6 +117,7 @@ class Calculate(object):
         self.price_process = price_process
         self.periodisation = periodisation
         self.max_dependency_graph_size = max_dependency_graph_size
+        self.verbose = verbose
 
     def calculate(self):
         self.node_evaluations_count = 0
@@ -145,9 +149,10 @@ class Calculate(object):
                 start_compile = datetime.datetime.now()
                 contract_specification = app.compile(self.source_code)
                 end_compile = datetime.datetime.now()
-                # Todo: Separate this, not all users want print statements.
-                print("")  # Get a new line after the compilation progress.
-                print("Compilation in {:.3f}s".format((end_compile - start_compile).total_seconds()))
+                if self.verbose:
+                    # Todo: Separate this, not all users want print statements.
+                    print("")  # Get a new line after the compilation progress.
+                    print("Compilation in {:.3f}s".format((end_compile - start_compile).total_seconds()))
 
                 # Get simulation args.
                 if self.price_process is not None:
@@ -175,15 +180,17 @@ class Calculate(object):
                     periodisation=self.periodisation,
                 )
                 end_simulate = datetime.datetime.now()
-                # Todo: Separate this, not all users want print statements.
-                print("Simulation in {:.3f}s".format((end_simulate - start_simulate).total_seconds()))
+                if self.verbose:
+                    # Todo: Separate this, not all users want print statements.
+                    print("Simulation in {:.3f}s".format((end_simulate - start_simulate).total_seconds()))
 
                 # Estimate the cost of the evaluation (to show progress).
                 # Todo: Improve the call cost estimation, perhaps by running over the depenendency graph and coding
                 # each DSL class to know how long it will take relative to others.
                 call_costs = app.calc_call_costs(contract_specification.id)
                 self.node_evaluations_num_expected = sum(call_costs.values())
-                print("Starting {} node evaluations, please wait...".format(self.node_evaluations_num_expected))
+                if self.verbose:
+                    print("Starting {} node evaluations, please wait...".format(self.node_evaluations_num_expected))
                 self.expected_num_call_requirements = len(call_costs)
 
                 # Evaluate the contract specification.
@@ -204,8 +211,9 @@ class Calculate(object):
 
                 # Todo: Separate this, not all users want print statements.
                 end_calc = datetime.datetime.now()
-                print("")
-                print("Evaluation in {:.3f}s".format((end_calc - start_calc).total_seconds()))
+                if self.verbose:
+                    print("")
+                    print("Evaluation in {:.3f}s".format((end_calc - start_calc).total_seconds()))
 
                 # Read the results.
                 results = self.read_results(app, evaluation, market_simulation)
@@ -310,10 +318,11 @@ class Calculate(object):
         return isinstance(event, CallRequirement.Created)
 
     def print_compilation_progress(self, event):
-        msg = "\rCompiled {} nodes ".format(self.call_requirement_count)
-        self.call_requirement_count += 1
-        sys.stdout.write(msg)
-        sys.stdout.flush()
+        if self.verbose:
+            msg = "\rCompiled {} nodes ".format(self.call_requirement_count)
+            self.call_requirement_count += 1
+            sys.stdout.write(msg)
+            sys.stdout.flush()
 
     @staticmethod
     def is_calculating(event):
@@ -352,47 +361,48 @@ class Calculate(object):
     def print_evaluation_progress(self, event):
         self.check_is_timed_out(event)
 
-        self.times.append(datetime.datetime.now())
-        if len(self.times) > max(0.5 * self.node_evaluations_num_expected, 100):
-            self.times.popleft()
-        if len(self.times) > 1:
-            duration = self.times[-1] - self.times[0]
-            rate = len(self.times) / duration.total_seconds()
-        else:
-            rate = 0.001
-        eta = (self.node_evaluations_num_expected - self.node_evaluations_count) / rate
-        seconds_running = (datetime.datetime.now() - self.started).total_seconds()
-        seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
+        if self.verbose:
+            self.times.append(datetime.datetime.now())
+            if len(self.times) > max(0.5 * self.node_evaluations_num_expected, 100):
+                self.times.popleft()
+            if len(self.times) > 1:
+                duration = self.times[-1] - self.times[0]
+                rate = len(self.times) / duration.total_seconds()
+            else:
+                rate = 0.001
+            eta = (self.node_evaluations_num_expected - self.node_evaluations_count) / rate
+            seconds_running = (datetime.datetime.now() - self.started).total_seconds()
+            seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
 
-        msg = (
-            "\r"
-            "{}/{} "
-            "{:.2f}% complete "
-            "{:.2f} eval/s "
-            "running {:.0f}s "
-            "eta {:.0f}s").format(
-                self.node_evaluations_count,
-                self.node_evaluations_num_expected,
-            (100.0 * self.node_evaluations_count) / self.node_evaluations_num_expected,
-            rate,
-                seconds_running,
-                eta,
-            )
+            msg = (
+                "\r"
+                "{}/{} "
+                "{:.2f}% complete "
+                "{:.2f} eval/s "
+                "running {:.0f}s "
+                "eta {:.0f}s").format(
+                    self.node_evaluations_count,
+                    self.node_evaluations_num_expected,
+                (100.0 * self.node_evaluations_count) / self.node_evaluations_num_expected,
+                rate,
+                    seconds_running,
+                    eta,
+                )
 
-        if self.timeout:
-            msg += ' timeout in {:.0f}s'.format(self.timeout - seconds_running)
-        sys.stdout.write(msg)
-        sys.stdout.flush()
+            if self.timeout:
+                msg += ' timeout in {:.0f}s'.format(self.timeout - seconds_running)
+            sys.stdout.write(msg)
+            sys.stdout.flush()
 
-        # Abort if there isn't enough time left.
-        if self.timeout:
-            out_of_time = self.timeout < seconds_running + eta
-            if out_of_time and seconds_evaluating > 15 and eta > 2:
-                msg = ('eta still {:.0f}s after {:.0f}s, so '
-                       'aborting in anticipation of {:.0f}s timeout'
-                       ).format(eta, seconds_running, self.timeout)
-                self.set_is_timed_out(msg)
-                raise Exception(msg)
+            # Abort if there isn't enough time left.
+            if self.timeout:
+                out_of_time = self.timeout < seconds_running + eta
+                if out_of_time and seconds_evaluating > 15 and eta > 2:
+                    msg = ('eta still {:.0f}s after {:.0f}s, so '
+                           'aborting in anticipation of {:.0f}s timeout'
+                           ).format(eta, seconds_running, self.timeout)
+                    self.set_is_timed_out(msg)
+                    raise Exception(msg)
 
     def wait_then_set_is_timed_out(self):
         sleep(self.timeout)
