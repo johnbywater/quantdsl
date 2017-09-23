@@ -52,6 +52,8 @@ from the depedency graph, and a calibrated price process. During evaluation, nod
  memory usage is mostly constant during evaluation. For the delta calculations, nodes are selectively 
  re-evaluated with perturbed values, according to the periods and markets they involve.
 
+## Introduction
+
 The examples below use the library function `calc()` to evaluate Quant DSL source code. `calc()` uses the methods 
 of the `QuantDslApplication` described above.
 
@@ -59,22 +61,20 @@ of the `QuantDslApplication` described above.
 from quantdsl.interfaces.calcandplot import calc
 ```
 
-## Introduction
-
-Simple calculations.
+Simple numerical operations.
 
 ```python
 results = calc("2 + 3 * 4 - 10 / 5")
 
-assert results.fair_value == 12, results.fair_value
+assert results.fair_value == 12
 ```
 
-Other binary operations.
+Other numerical operations.
 
 ```python
 results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
 
-assert results.fair_value == 4, results.fair_value
+assert results.fair_value == 4
 ```
 
 Boolean operations.
@@ -91,23 +91,23 @@ assert calc("0 or 1").fair_value == True
 assert calc("0 or 0").fair_value == False
 ```
 
-Date and time values and operations.
+Date and time values.
 
 ```python
 import datetime
 
 
 results = calc("Date('2011-1-1')")
-assert results.fair_value == datetime.datetime(2011, 1, 1), results.fair_value
+assert results.fair_value == datetime.datetime(2011, 1, 1)
 
 results = calc("Date('2011-1-10') - Date('2011-1-1')")
-assert results.fair_value == datetime.timedelta(days=9), results.fair_value
+assert results.fair_value == datetime.timedelta(days=9)
 
 results = calc("Date('2011-1-1') + 5 * TimeDelta('1d') < Date('2011-1-10')")
-assert results.fair_value == True, results.fair_value
+assert results.fair_value == True
 
 results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') < Date('2011-1-10')")
-assert results.fair_value == False, results.fair_value
+assert results.fair_value == False
 ```
 
 ### Function definitions
@@ -138,7 +138,7 @@ def Contract3(a):
 Contract1(10)
 """)
 
-assert results.fair_value == 11250, results.fair_value
+assert results.fair_value == 11250
 ```   
 
 The call args of the function definition can be used in an if-else block, so that different expressions can be 
@@ -164,7 +164,7 @@ def Fib(n):
 Fib(60)
 """)
 
-assert results.fair_value == 1548008755920, results.fair_value
+assert results.fair_value == 1548008755920
 ```   
 
 ### Market
@@ -188,7 +188,7 @@ results = calc("Market('GAS')",
     }
 )
 
-assert results.fair_value.mean() == 10, results.fair_value
+assert results.fair_value.mean() == 10
 ```
 
 ### Fixing
@@ -216,12 +216,29 @@ results = calc("Fixing('2112-1-1', Market('GAS'))",
     interest_rate=2.5,
 )
 
-assert results.fair_value.mean() == 1000, results.fair_value.mean()
+assert results.fair_value.mean() == 1000
 ```   
 
 With geometric brownian motion, there may be future price movements.
 
 ```python
+
+import scipy
+
+# Setting the random seed to make the results in the examples repeatable.
+scipy.random.seed(1234)
+
+def assert_equal(a, b):
+    a_round = round(a, 3)
+    b_round = round(b, 3)
+    assert a_round == b_round, (a_round, b_round, a_round - b_round)
+
+def assert_almost_equal(a, b):
+    diff = abs(a - b)
+    avg = max(1, (a + b) / 2)
+    tol = 0.05 * avg
+    assert diff < tol, (a, b, diff, tol)
+    print(a, b, diff, tol)
 
 results = calc("Fixing('2112-1-1', Max(1000, Market('GAS')))",
     observation_date='2011-1-1',
@@ -237,9 +254,10 @@ results = calc("Fixing('2112-1-1', Max(1000, Market('GAS')))",
         },
     },
     interest_rate=2.5,
+    # path_count=80000,
 )
 
-assert results.fair_value.mean() > 1000, results.fair_value.mean()
+assert_almost_equal(1594.44, results.fair_value.mean())
 ```   
 
 ### Settlement
@@ -253,7 +271,7 @@ results = calc("Settlement('2111-1-1', 10)",
     interest_rate=2.5,
 )
 
-assert results.fair_value < 1, results.fair_value
+assert_equal(0.82, results.fair_value)
 ```
 
 If the effective present time is the same as the settlement date, there is no discounting.
@@ -263,13 +281,13 @@ results = calc("Settlement('2111-1-1', 10)",
     observation_date='2111-1-1',
     interest_rate=2.5,
 )
-assert results.fair_value == 10, results.fair_value
+assert_equal(10.0, results.fair_value)
 
 results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
     observation_date='2011-1-1',
     interest_rate=2.5,
 )
-assert results.fair_value == 10, results.fair_value
+assert results.fair_value == 10.0
 ```
 
 ### Wait
@@ -279,7 +297,6 @@ effective present time of the included expression, and also the value of that ex
 effective present time of the including expression.
 
 ```python
-
 results = calc("Wait('2112-1-1', Market('GAS'))",
     observation_date='2011-1-1',
     price_process={
@@ -296,7 +313,7 @@ results = calc("Wait('2112-1-1', Market('GAS'))",
     interest_rate=2.5,
 )
 
-assert results.fair_value.mean() < 100, results.fair_value.mean()
+assert_almost_equal(76.493, results.fair_value.mean())
 ```   
 
 ### Choice
@@ -324,9 +341,10 @@ Choice(
         },
     },
     interest_rate=2.5,
+    # path_count=10000000
 )
 
-assert 70 < results.fair_value.mean() < 100, results.fair_value.mean()
+assert_almost_equal(87.658, results.fair_value.mean())
 ```   
 
 ### European and american options
@@ -363,32 +381,128 @@ def American(start, end, strike, underlying, step):
         0
 ```
 
-If the strike price is the same as the underlying, without any volatility (`sigma`) there is no value holding an 
-option.
+The following function will make it easy to recalculate the value of a european option.
 
 ```python
-results = calc("""from quantdsl.lib.american1 import American
-
-American(Date('2011-1-1'), Date('2011-1-10'), 10, Market('GAS'), TimeDelta('1d'))
-""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.0],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-            ]
+def calc_european(spot, strike, sigma):
+    source_code = """
+from quantdsl.lib.european1 import European    
+European(Date('2012-1-10'), {strike}, Market('GAS'))
+    """.format(strike=strike)
+    
+    results = calc(
+        source_code=source_code,
+        observation_date='2011-1-1',
+        price_process={
+            'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+            'market': ['GAS'],
+            'sigma': [sigma],
+            'curve': {
+                'GAS': [
+                    ('2011-1-1', spot),
+                ]
+            },
         },
-    },
-    interest_rate=2.5,
-)
-assert results.fair_value.mean() == 0, results.fair_value.mean()
+        interest_rate=0,
+        # path_count=2000000,
+    )
+    return results.fair_value.mean()
+    
+    
+```
+
+If the strike price is the same as the underlying, without any volatility (`sigma` is `0.0`) the value of holding
+ such an option is zero.
+
+```python
+assert_equal(0.0, calc_european(10, 10, 0))
+```
+
+If the strike price is less than the underlying, without any volatility (`sigma` is `0.0`) the value of holding such
+ an option is the difference between the strike and the underlying.
+
+```python
+assert_equal(2.0, calc_european(10, 8, 0))
+```
+
+If the strike price is greater than the underlying, without any volatility (`sigma` is `0.0`) the value of holding such
+ an option is zero.
+
+```python
+assert_equal(0, calc_european(10, 12, 0.0))
 ```
 
 If the strike price is the same as the underlying, with some volatility in the price of the underlying (`sigma`) there
  is some value in the option.
+
+```python
+assert_almost_equal(3.522, calc_european(10, 10, 0.9))
+```
+
+If the strike price is less than the underlying, with some volatility in the price of the underlying (`sigma`) there
+ is more value in the option than without volatility.
+
+```python
+assert_almost_equal(4.252, calc_european(10, 8, 0.9))
+```
+
+If the strike price is greater than the underlying, with some volatility in the price of the underlying (`sigma`) there
+ is still a little bit of value in the option than without volatility.
+
+```python
+assert_almost_equal(2.935, calc_european(10, 12, 0.9))
+```
+
+Compare with results from Black Scholes formula for European options.
+
+```python
+from scipy.stats import norm
+import math
+
+def european_blackscholes(spot, strike, sigma):
+
+    S = float(spot) # spot price
+    K = float(strike) # strike price
+    r = 0.0 # annual risk free rate / 100
+    t = 1.0  # duration (years)
+    sigma = max(0.00000001, sigma) # annual historical volatility / 100
+    
+    sigma_squared_t = sigma**2.0 * t
+    sigma_root_t = sigma * math.sqrt(t)
+    try:
+        math.log(S / K)
+    except:
+        raise Exception((S, K))
+    d1 = (math.log(S / K) + t * r + 0.5 * sigma_squared_t) / sigma_root_t
+    d2 = d1 - sigma_root_t
+    Nd1 = norm(0, 1).cdf(d1)
+    Nd2 = norm(0, 1).cdf(d2)
+    e_to_minus_rt = math.exp(-1.0 * r * t)
+    # Put option.
+    # optionValue = (1-Nd2)*K*e_to_minus_rt - (1-Nd1)*S
+    # Call option.
+    return Nd1 * S - Nd2 * K * e_to_minus_rt
+
+spot = 10
+strike = 11
+sigma = 0
+assert_almost_equal(
+    european_blackscholes(spot, strike, sigma),
+    calc_european(spot, strike, sigma)
+)
+
+spot = 10
+for strike in [9, 10, 11]:
+    for sigma in [0, 0.1, 0.2, 0.3]:
+        print(spot, strike, sigma)
+        assert_almost_equal(
+            european_blackscholes(spot, strike, sigma),
+            calc_european(spot, strike, sigma)
+        )
+
+```
+
+The american option can be evaluated in the same way.
 
 ```python
 results = calc("""from quantdsl.lib.american1 import American
@@ -408,9 +522,8 @@ American(Date('2012-1-1'), Date('2012-1-10'), 10, Market('GAS'), TimeDelta('1d')
     },
     interest_rate=2.5,
 )
-assert results.fair_value.mean() > 3, results.fair_value.mean()
+assert_almost_equal(3.69, results.fair_value.mean())
 ```
-
 
 ## Examples of usage
 
@@ -486,8 +599,8 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 
     observation_date='2011-1-1',
     interest_rate=2.5,
-    path_count=20000,
-    perturbation_factor=0.01,
+    # path_count=20000,
+    # perturbation_factor=0.01,
     periodisation='monthly',
 
     price_process={
@@ -526,7 +639,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     }
 )
 
-assert 5 < results.fair_value.mean() < 7, results.fair_value.mean()
+assert_almost_equal(6.15, results.fair_value.mean())
 ```
 
 ### Power station
@@ -545,8 +658,8 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
 
     observation_date='2011-1-1',
     interest_rate=2.5,
-    path_count=20000,
-    perturbation_factor=0.01,
+    # path_count=20000,
+    # perturbation_factor=0.01,
     periodisation='daily',
 
     price_process={
@@ -575,7 +688,7 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
     }
 )
 
-assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
+assert_almost_equal(9.077, results.fair_value.mean())
 ```
 
 ### Library
@@ -644,5 +757,14 @@ def Tomorrow(today):
 
 ## Acknowledgments
 
-The *Quant DSL* language was partly inspired by the paper *[Composing contracts: an adventure in financial engineering (functional pearl)](http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph, to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees") module. We have also been encourged by members of the [London Financial Python User Group](https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL* expression syntax and semantics were first presented.
+The *Quant DSL* language was partly inspired by the paper
+*[Composing contracts: an adventure in financial engineering (functional pearl)](
+http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm
+)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph,
+to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by
+Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots
+of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees")
+module. We have also been encourged by members of the [London Financial Python User Group](
+https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL*
+expression syntax and semantics were first presented.
 
