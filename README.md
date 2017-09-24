@@ -290,8 +290,9 @@ results = calc("Settlement('2111-1-1', 1000.0)",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 3) == 81.950, results.fair_value
-raise Exception()
+# assert round(results.fair_value, 3) == 84.647, results.fair_value
+assert round(results.fair_value, 3) == 82.085, results.fair_value
+
 ```
 
 If the effective present time of the `Settlement` is the same as the settlement date, there is no discounting.
@@ -301,7 +302,7 @@ results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
     observation_date='2011-1-1',
     interest_rate=2.5,
 )
-assert_equal(results.fair_value, 10.0)
+assert results.fair_value == 10.0
 ```
 
 Similarly, if the `interest_rate` is `0.0`, there is no discounting.
@@ -311,9 +312,8 @@ results = calc("Settlement('2111-1-1', 10)",
     observation_date='2011-1-1',
     interest_rate=0,
 )
-assert_equal(results.fair_value, 10.0)
+assert results.fair_value == 10.0
 ```
-
 
 ### Fixing
 

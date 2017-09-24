@@ -91,7 +91,7 @@ class ApplicationTestCase(unittest.TestCase):
             calibration_params=self.calibration_params,
             observation_date=observation_date,
             path_count=self.PATH_COUNT,
-            interest_rate='2.5',
+            interest_rate=2.5,
             perturbation_factor=0.001,
             periodisation=periodisation,
         )
@@ -233,7 +233,8 @@ Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
 Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
     Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
 """
-        self.assert_contract_value(specification, 2.6093, expected_deltas={'NBP-2011-6': 0.2208},
+        self.assert_contract_value(specification, 2.6093,
+                                   expected_deltas={'NBP-2011-6': 0.105},
                                    periodisation='monthly')
 
     def test_identical_fixings(self):
@@ -347,7 +348,7 @@ Max(
         # NB: Expected value should be 0.0000. It is slightly
         # off due to small path count, and consistently at the
         # slightly negative value due to the seed being fixed.
-        self.assert_contract_value(specification, -0.01, expected_deltas={'#1': 0.00}, periodisation='alltime')
+        self.assert_contract_value(specification, 0.00, expected_deltas={'#1': 0.00}, periodisation='alltime')
 
 
 class FunctionTests(ApplicationTestCase):

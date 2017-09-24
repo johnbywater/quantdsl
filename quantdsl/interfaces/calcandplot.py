@@ -37,7 +37,8 @@ class Results(object):
 
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, supress_plot=False,
-                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None, verbose=False):
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None, verbose=False,
+                    approximate_discounting=False):
     # Calculate and print the results.
     results = calc_print(source_code,
                          max_dependency_graph_size=max_dependency_graph_size,
@@ -49,6 +50,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
                          periodisation=periodisation,
                          timeout=timeout,
                          verbose=verbose,
+                         approximate_discounting=approximate_discounting,
                          )
 
     # Plot the results.
@@ -66,7 +68,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
 
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None, verbose=False):
+               timeout=None, verbose=False, approximate_discounting=False):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -79,6 +81,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
+        approximate_discounting=approximate_discounting,
     )
 
     # Print the results.
@@ -88,7 +91,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
          price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None, verbose=False):
+         timeout=None, verbose=False, approximate_discounting=False):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -100,6 +103,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
+        approximate_discounting=approximate_discounting,
     )
     return cmd.calculate()
 
@@ -107,17 +111,22 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None, verbose=False):
+                 timeout=None, verbose=False, approximate_discounting=False):
         self.timeout = timeout
         self.source_code = source_code
         self.observation_date = observation_date
         self.interest_rate = interest_rate
         self.path_count = path_count
         self.perturbation_factor = perturbation_factor
+        # Todo: Optional double or single sided deltas.
+        # self.double_sided_deltas = double_sided_deltas
         self.price_process = price_process
         self.periodisation = periodisation
+        self.approximate_discounting = approximate_discounting
         self.max_dependency_graph_size = max_dependency_graph_size
         self.verbose = verbose
+        # Todo: Repetitions - number of times the computation will be repeated (multiprocessing).
+        # self.repetitions = repetitions
 
     def calculate(self):
         self.node_evaluations_count = 0
@@ -200,6 +209,7 @@ class Calculate(object):
                     contract_specification_id=contract_specification.id,
                     market_simulation_id=market_simulation.id,
                     periodisation=self.periodisation,
+                    approximate_discounting=self.approximate_discounting,
                 )
 
                 # Wait for the result.

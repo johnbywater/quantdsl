@@ -182,7 +182,11 @@ class DslExpression(DslObject):
     def discount(self, value, date, **kwds):
         r = float(kwds['interest_rate']) / 100
         T = get_duration_years(kwds['present_time'], date)
-        return value * math.exp(- r * T)
+        # Todo: Support proper discounting (it's 16% slower).
+        if True or kwds['approximate_discounting']:
+            return value * math.exp(- r * T)
+        else:
+            return value / (1 + r) ** T
 
 
 class DslConstant(DslExpression):

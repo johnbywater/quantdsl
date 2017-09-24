@@ -155,8 +155,10 @@ class QuantDslApplication(EventSourcingApplication):
                                                 requirements,
                                                 periodisation)
 
-    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation):
-        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
+    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation,
+                                 approximate_discounting):
+        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
+                                        approximate_discounting)
 
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
@@ -208,8 +210,9 @@ class QuantDslApplication(EventSourcingApplication):
         )
         return market_simulation
 
-    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
-        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
+    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None,
+                 approximate_discounting=False):
+        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation, approximate_discounting)
 
     def get_result(self, contract_valuation):
         call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)

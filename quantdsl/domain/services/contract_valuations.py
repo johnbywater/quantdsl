@@ -231,14 +231,17 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
                                                        perturbation_dependencies.dependencies,
                                                        dependency_results, market_simulation.path_count,
                                                        market_simulation.perturbation_factor,
-                                                       contract_valuation.periodisation)
+                                                       contract_valuation.periodisation,
+                                                       contract_valuation.approximate_discounting,
+                                                       )
 
     # Return the result.
     return result_value, perturbed_values
 
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
-                      perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation):
+                      perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation,
+                      approximate_discounting):
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
@@ -248,6 +251,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,
         'periodisation': periodisation,
+        'approximate_discounting': approximate_discounting,
     }
 
     result_value = None

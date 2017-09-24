@@ -3,6 +3,7 @@ from __future__ import division
 import datetime
 from abc import ABCMeta, abstractmethod
 import six
+from dateutil.relativedelta import relativedelta
 
 DAYS_PER_YEAR = 365
 SECONDS_PER_DAY = 86400
@@ -29,10 +30,12 @@ class PriceProcess(six.with_metaclass(ABCMeta)):
 
 def get_duration_years(start_date, end_date, days_per_year=DAYS_PER_YEAR):
     try:
-        time_delta = datetime_from_date(end_date) - datetime_from_date(start_date)
+        r = relativedelta(end_date, start_date)
+        # time_delta = datetime_from_date(end_date) - datetime_from_date(start_date)
     except TypeError as inst:
         raise TypeError("%s: start: %s end: %s" % (inst, start_date, end_date))
-    return time_delta.total_seconds() / float(days_per_year * SECONDS_PER_DAY)
+    else:
+        return r.years + r.months / 12.0 + (r.days + r.hours / 24) / float(days_per_year)
 
 
 def datetime_from_date(observation_date):
