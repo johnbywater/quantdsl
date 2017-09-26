@@ -139,11 +139,7 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
     # Of course if the module's expression doesn't have a function call, there
     # will just be one expression on the stack of "stubbed" expressions, and it will
     # not have any stubs, and there will be no pending calls on the pending call stack.
-    stubbed_expr = dsl_expr.reduce(
-        dsl_locals,
-        DslNamespace(dsl_globals),
-        pending_call_stack=pending_call_stack
-    )
+    stubbed_expr = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals), pending_call_stack=pending_call_stack)
 
     dependencies = list_stub_dependencies(stubbed_expr)
     yield StubbedCall(root_stub_id, stubbed_expr, None, dependencies)

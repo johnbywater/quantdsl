@@ -376,7 +376,55 @@ def mul(a, b):
     a if b == 1 else add(a, mul(a, b - 1))
 mul(3, 3)
     """
-        self.assert_contract_value(dsl_source, 9, expected_call_count=6)
+        self.assert_contract_value(dsl_source, 9, expected_call_count=4)
+
+    def test_call_arg_is_function_call(self):
+        dsl_source = """
+def add(a, b):
+    a + b
+
+add(add(3, 4), add(2, add(3, 4)))
+    """
+        self.assert_contract_value(dsl_source, 16, expected_call_count=2)
+
+    def test_function_call_as_call_arg_gets_correct_effective_present_time_when_inlined(self):
+        dsl_source = """
+def MyFixing(end, underlying):
+    return Fixing(end, underlying)
+
+@inline
+def Discount(start):
+    Settlement(start, 1)
+
+MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
+"""
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
+
+    def test_function_call_as_call_arg_gets_correct_effective_present_time_when_not_inlined(self):
+        dsl_source = """
+def MyFixing(end, underlying):
+    return Fixing(end, underlying)
+
+def Discount(start):
+    Settlement(start, 1)
+
+MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
+"""
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
+
+    def test_function_as_call_arg(self):
+        # Novelty here is passing a function as a
+        # call arg, and then calling the arg name.
+        dsl_source = """
+def MyWait(start, end, func):
+    return Fixing(end, func(start))
+
+def Discount(start):
+    Settlement(start, 1)
+
+MyWait(Date('2011-01-01'), Date('2012-01-01'), Discount)
+    """
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
 
     def test_functional_derivative_option_definition(self):
         specification = """
@@ -400,6 +448,61 @@ European(Date('2012-01-01'), 9, Market('NBP'))
         self.assert_contract_value(specification, 2.4557, {'NBP': 0.6743}, expected_call_count=3,
                                    periodisation='alltime')
 
+    def test_functional_european_stock_option_definition(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+def EuropeanStock(start, end, strike, name):
+    return European(end, strike, Settlement(start, 1) * ForwardMarket(start, name))
+
+EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
+"""
+        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
+                                   periodisation='alltime')
+
+    def test_functional_european_stock_option_definition_with_stock_market_def_inlined(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+def EuropeanStock(start, end, strike, name):
+    return European(end, strike, StockMarket(start, name))
+
+@inline
+def StockMarket(start, name):
+    Settlement(start, 1) * ForwardMarket(start, name)
+
+EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
+"""
+        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
+                                   periodisation='alltime')
+
+    def _test_functional_european_stock_option_definition_with_stock_market_def_non_inlined(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+def EuropeanStock(start, end, strike, name):
+    return European(end, strike, StockMarket(start, name))
+
+def StockMarket(start, name):
+    Settlement(start, 1) * ForwardMarket(start, name)
+
+EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
+"""
+        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=5,
+                                   periodisation='alltime')
+
     def test_generate_valuation_american_option(self):
         american_option_tmpl = """
 def American(starts, ends, strike, underlying):
@@ -410,7 +513,6 @@ def American(starts, ends, strike, underlying):
     else:
         Option(starts, strike, underlying, 0)
 
-@inline
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
@@ -421,7 +523,7 @@ American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)
             'ends': '2011-01-04',
             'strike': 9,
             'underlying': '#1'
-        }, 1.1874, {'#1': 1.0185}, expected_call_count=4, periodisation='alltime')
+        }, 1.1874, {'#1': 1.0185}, expected_call_count=5, periodisation='alltime')
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -650,7 +752,7 @@ Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Market('NBP'), 1)
 def Swing(start_date, end_date, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Settlement(start_date, Fixing(start_date, Choice(
-            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket('NBP', start_date),
+            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket(start_date, 'NBP'),
             Swing(start_date + TimeDelta('1m'), end_date, quantity)
         )))
     else:
@@ -664,7 +766,7 @@ Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
         }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):
-        specification = """ForwardMarket('NBP', '2011-1-1')"""
+        specification = """ForwardMarket('2011-1-2', 'NBP')"""
         self.assert_contract_value(specification, 10.00, {'NBP': 1.0}, expected_call_count=1, periodisation='alltime')
 
     def test_gas_storage_option(self):
@@ -697,7 +799,7 @@ def Continue(start, end, commodity_name, quantity, limit, step):
 @inline
 def Inject(start, end, commodity_name, quantity, limit, step, vol):
     Continue(start, end, commodity_name, quantity + vol, limit, step) - \
-    Settlement(start, vol * ForwardMarket(commodity_name, start))
+    Settlement(start, vol * ForwardMarket(start, commodity_name))
 
 GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quantity)s, %(limit)s, TimeDelta('1m'))
 """

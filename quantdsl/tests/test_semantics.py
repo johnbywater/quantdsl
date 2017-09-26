@@ -6,7 +6,7 @@ from scipy import array
 
 from quantdsl.exceptions import DslNameError, DslSyntaxError
 from quantdsl.semantics import Add, And, Date, Div, DslNamespace, DslObject, Max, Min, Mult, Name, Number, Or, \
-    String, Sub, TimeDelta
+    String, Sub, TimeDelta, Pow
 
 
 class Subclass(DslObject):
@@ -259,6 +259,17 @@ class TestMul(TestCase):
         obj = Mult(Number(2.1), String('a'))
         with self.assertRaises(DslSyntaxError):
             obj.evaluate()
+
+
+class TestPow(TestCase):
+    def test_evaluate(self):
+        obj = Pow(Number(2), Number(2))
+        self.assertEqual(obj.evaluate(), 4)
+
+        obj = Pow(Number(2.0), String('a'))
+        with self.assertRaises(DslSyntaxError):
+            obj.evaluate()
+
 
 
 class TestDiv(TestCase):

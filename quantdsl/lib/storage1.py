@@ -36,4 +36,4 @@ def Continue(start, end, commodity_name, quantity, limit, step):
 @inline
 def Inject(start, end, commodity_name, quantity, limit, step, vol):
     Continue(start, end, commodity_name, quantity + vol, limit, step) - \
-    Settlement(start, vol * ForwardMarket(commodity_name, start))
+    Settlement(start, vol * ForwardMarket(start, commodity_name))

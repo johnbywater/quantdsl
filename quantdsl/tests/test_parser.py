@@ -688,8 +688,9 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
     # Prepare the result.
     import scipy
     if isinstance(value, scipy.ndarray):
-        mean = value.mean()
-        stderr = value.std() / math.sqrt(path_count)
+        value_ = scipy.ndarray(value)
+        mean = value_.mean()
+        stderr = value_.std() / math.sqrt(len(value_))
         return {
             'mean': mean,
             'stderr': stderr
