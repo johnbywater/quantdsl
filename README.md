@@ -21,9 +21,9 @@ Please register any [issues on GitHub](https://github.com/johnbywater/quantdsl/i
 
 ## Overview
 
-Quant DSL is a functional programming language for modelling derivative instruments.
+Quant DSL is domain specific language for quantitative analytics in finance and trading.
 
-At the heart of Quant DSL is a set of elements - e.g. *Settlement*, *Fixing*, *Choice*, *Market* - which encapsulate 
+At the heart of Quant DSL is a set of elements - *Settlement*, *Fixing*, *Choice*, *Market* - which encapsulate 
 maths used in finance and trading. The elements of the language can be freely composed into expressions
 of value. User defined functions generate extensive dependency graphs that effectively model and evaluate exotic
 derivatives.
@@ -32,17 +32,18 @@ The syntax of Quant DSL expressions has been
 [formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
 the semantic model is supported with mathematical proofs.
 
-This package is an implementation of the Quant DSL in Python. 
-
 ## Implementation
 
-In addition to the Quant DSL expressions, to ease construction of Quant DSL expressions, function definition
-statements `def` are supported. And the `import` statement is supported, to allow function definitions to be used
-from a library (see below).
+This package is an implementation of the Quant DSL in Python. 
 
-Steps for evaluating a contract include: specification of a model of a contract; calibration of a stochastic process
-for the underlying prices; simulation using the price process of future prices underlying the contract; and evaluation
-of the contract model against the simulation.
+In addition to the Quant DSL expressions, function definition
+statements `def` are supported, to allow expressions to be generated
+concisely. The `import` statement is also supported, to allow Quant DSL function 
+definitions to be used and maintained as normal Python code.
+
+The work of a quantitative analyst includes: modelling the value of a derivative;
+calibrating a stochastic process for the underlying prices; simulating future prices
+of the underlyings; and evaluating of the model of the derivative against the simulation.
 
 The library provides an application class `QuantDslApplication` which has methods that support these steps:
 `compile()`, `simulate()` and `evaluate()`. During compilation of the specification source code, the application 
@@ -171,6 +172,7 @@ Market('GAS')
 ```python
 Market('POWER')
 ```
+
 When a `Market` element is evaluated, it selects an estimated price from a simulation
  of market prices. Selecting an estimated price from the simulation requires a name
  of a market, a fixing date when the price would be agreed, and a delivery date when
@@ -281,7 +283,7 @@ results = calc("Market('GAS')",
 assert len(results.fair_value) == 80000
 ```
 
-Since `sigma` (above) is `0.0`, there is zero stochastic evolution of the forward curve, so the standard 
+Since `sigma` (above) is `0.0`, there is no stochastic evolution of the forward curve, so the standard 
 deviation of the result value is zero.
 
 ```python
@@ -526,11 +528,11 @@ def EuropeanPut(date, strike, underlying):
 ```
 
 A European stock option can be expressed as a `EuropeanOption`, with the `underlying` being the spot price at the 
-start of the contract, observed at the option expiry time `end`, with discounting forward from `start` to `end`.
+start of the contract, discounted forward from `start`, and observed at the option expiry time `end`.
 
 ```python
 def EuropeanStockOption(start, end, strike, stock):
-    EuropeanOption(end, strike, Settlement(start, 1) * ForwardMarket(start, stock))
+    EuropeanOption(end, strike, Settlement(start, ForwardMarket(start, stock)))
 ```
 
 The results from this function definition compare well with the well-known Black-Scholes stock option formulae across a 
