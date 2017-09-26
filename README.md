@@ -406,6 +406,20 @@ assert results.fair_value.mean() != 1000
 assert results.fair_value.std() != 0
 ```   
 
+### Wait
+
+The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
+effective present time of the included expression, and also the value of that expression is discounted to the 
+present time effective when evaluating the `Wait` element.
+
+```python
+results = calc("Wait('2111-1-1', Market('GAS'))",
+    observation_date='2011-1-1',
+    price_process=price_process,
+    interest_rate=2.5,
+)
+```
+
 Aside: Before continuing with the stochastic examples below, setting the random seed helps make test results 
 repeatable. And to help keep things readable, some "helper" functions are defined: `assert_equal` and 
 `assert_almost_equal`.
@@ -428,21 +442,13 @@ def assert_almost_equal(a, b):
     assert diff < tol, (a, b, diff, tol)
 ```
 
-### Wait
-
-The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
-effective present time of the included expression, and also the value of that expression is discounted to the 
-present time effective when evaluating the `Wait` element.
+Now we can check the value of the `Wait` expression above reflects the later value in the forward `curve` and 
+discounting over the period to create a present value of less than `100`.
 
 ```python
-results = calc("Wait('2111-1-1', Market('GAS'))",
-    observation_date='2011-1-1',
-    price_process=price_process,
-    interest_rate=2.5,
-)
-
 assert_almost_equal(82.044, results.fair_value.mean())
 ```   
+
 
 ### Choice
 
@@ -479,7 +485,7 @@ results = calc(source_code,
     interest_rate=10,
 )
 assert_almost_equal(9.048, results.fair_value.mean())
-```   
+```
 
 ### European and American options
 
@@ -498,15 +504,15 @@ A European option can then be expressed simply as an `Option` with zero alternat
 def EuropeanOption(date, strike, underlying):
     Option(date, strike, underlying, 0)
 ```
-An American option is similar: it is an option to exercise at a given strike price on the start date, with the 
-alternative being an American option starting on the next date - and so on until the end date when the alternative is
- zero.
+The `AmericanOption` below is similar to the `EuropeanOption`: it is an option to exercise at a given strike price on 
+the start date, with the alternative being an `AmericanOption` starting on the next date - and so on until the end 
+date when the alternative is zero.
 
 ```python
-def American(start, end, strike, underlying, step):
+def AmericanOption(start, end, strike, underlying, step):
     if start <= end:
         Option(start, strike, underlying,
-            American(start + step, end, strike, underlying, step)
+            AmericanOption(start + step, end, strike, underlying, step)
         )
     else:
         0
@@ -605,17 +611,15 @@ assert_almost_equal(4.252, calc_european(spot=10, strike=8, sigma=0.9, rate=0))
 ```
 
 If the strike price is greater than the underlying, with some volatility in the price of the underlying (`sigma`) there
- is still a little bit of value in the option than without volatility.
+ is still a little bit of value in the option.
 
 ```python
 assert_almost_equal(2.935, calc_european(spot=10, strike=12, sigma=0.9, rate=0))
 ```
 
-These results can be compared with results from the Black-Scholes analytic formula for European options.
+These results compare well with results from the Black-Scholes analytic formula for European stock options.
 
-Todo: Use Black 76 instead of Black Scholes: https://www.glynholton.com/notes/black_1976/
-
-Todo: Figure out what the European stock option would look like in Quant DSL.
+Todo: Use Black 76 instead of Black Scholes? https://www.glynholton.com/notes/black_1976/ 
 
 
 ```python
@@ -658,9 +662,6 @@ The examples below use the library function `calc_print_plot()` to calculate, pr
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_print_plot
-
-
-
 ```
 
 If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
