@@ -344,7 +344,7 @@ assert results.fair_value == 10.0
 ```
 
 However with a non-zero `interest_rate` of `2.5` percent per year, the value of `1000` in `'2111-1-1'` 
-has a present value of less than 100 in `2011-1-1`.
+has a present value of less than `100` in `'2011-1-1'`.
 
 ```python
 results = calc("Settlement('2111-1-1', 1000.0)",
@@ -483,12 +483,11 @@ assert_almost_equal(9.048, results.fair_value.mean())
 
 ### European and American options
 
-In general, an option can be expressed as waiting to choose between the 
-difference between an the value of an underlying expression and a strike expression,
+In general, an option can be expressed as waiting to choose between, on one hand, the 
+difference between the value of an underlying expression and a strike expression,
 and, on the other hand, an alternative expression.
 
 ```python
-
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 ```
@@ -500,7 +499,7 @@ def EuropeanOption(date, strike, underlying):
     Option(date, strike, underlying, 0)
 ```
 An American option is similar: it is an option to exercise at a given strike price on the start date, with the 
-alternative being an american option starting on the next date - and so on until the end date when the alternative is
+alternative being an American option starting on the next date - and so on until the end date when the alternative is
  zero.
 
 ```python
