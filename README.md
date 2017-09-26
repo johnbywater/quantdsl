@@ -115,30 +115,20 @@ assert results.fair_value == False
 Function definitions can be used to structure complex expressions.
  
 When evaluating an expression that involves calls to function definitions, the call to the function definition is 
-firstly replaced with the expression 
-ed by the function definition, so that a larger expression is formed.
+effectively replaced with the expression returned by the function definition, so that a larger expression is formed.
 
 The call args of the function definition can be used as names in the function definition's expressions. The call arg 
 values will be used to evaluate the expression returned by the function.
 
 ```python
 results = calc("""
-def Contract1(a):
-    a * Contract2() + 1000 * Contract3(a)
+def Function(a):
+    2 * a
 
-
-def Contract2():
-    25
-
-
-def Contract3(a):
-    a * 1.1
-
-
-Contract1(10)
+Function(10)
 """)
 
-assert results.fair_value == 11250
+assert results.fair_value == 20
 ```   
 
 The call args of the function definition can be used in an if-else block, so that different expressions can be 
@@ -170,13 +160,7 @@ assert results.fair_value == 1548008755920
 
 ### Market
 
-Underlying prices can be included in an expression with the `Market` element.
-
-When a `Market` element is evaluated, it uses the given name and a date to select an estimated price from a simulation
- of market prices. The name (e.g. `'GAS'` or `'POWER'`) is included in the `Market` element. The date is the "effective 
- present time" of its evaluation (initially the `observation_date`, see below). The effective present time of a 
- `Market` element implies both the fixing date (when the price will be agreed) the delivery date (when the goods 
- will be delivered), and so the `Market` element effectively estimates spot prices that can be agreed in the future.
+The `Market` element effectively estimates spot prices that could be agreed in the future.
 
 ```python
 from quantdsl.semantics import Market
@@ -187,9 +171,17 @@ Market('GAS')
 ```python
 Market('POWER')
 ```
+When a `Market` element is evaluated, it selects an estimated price from a simulation
+ of market prices. Selecting an estimated price from the simulation requires a name
+ of a market, a fixing date when the price would be agreed, and a delivery date when
+ the goods would be delivered.
+ 
+Both the fixing date and the delivery date are set by the "effective present time"
+when the element is evaluated (see below). 
+The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` above).
 
-Because a `Market` element depends for evaluation on a price simulation, it cannot be evaluated unless a price 
-process is also configured. The price simulation uses the price process to estimate future prices.
+Because a `Market` element depends a price simulation, it cannot be evaluated unless a price process is also 
+configured.
 
 ```python
 price_process = {
@@ -214,7 +206,7 @@ price_process = {
 ```
 
 In this example, the library's one-factor multi-market Black Scholes price process `BlackScholesPriceProcess` is 
-used to provide correlated geometric Brownian motions.
+used to generate correlated geometric Brownian motions.
 
 The calibration parameters required by this price process are `'market'`, a list of market names; and 
 `'sigma'`, a list of annualised historical volatilities (expressed as a fraction of 1, rather than as a 
@@ -552,10 +544,13 @@ def Option(date, strike, underlying, alternative):
 def EuropeanOption(date, strike, underlying):
     Option(date, strike, underlying, 0)
    
-def EuropeanStockOption(start, end, strike, stock):
-    EuropeanOption(end, strike, Settlement(start, 1) * ForwardMarket(start, stock))
+def StockMarket(start, stock):
+    Settlement(start, ForwardMarket(start, stock)) 
     
-EuropeanStockOption(Date('2011-1-1'), Date('2012-1-1'), {strike}, 'GAS')
+def EuropeanStockOption(start, end, strike, stock):
+    EuropeanOption(end, strike, StockMarket(start, stock))
+
+EuropeanStockOption(Date('2011-1-1'), Date('2012-1-1'), {strike}, 'ACME')
     """.format(strike=strike)
     
     results = calc(
@@ -563,10 +558,10 @@ EuropeanStockOption(Date('2011-1-1'), Date('2012-1-1'), {strike}, 'GAS')
         observation_date='2011-1-1',
         price_process={
             'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-            'market': ['GAS'],
+            'market': ['ACME'],
             'sigma': [sigma],
             'curve': {
-                'GAS': [
+                'ACME': [
                     ('2011-1-1', spot),
                 ]
             },
