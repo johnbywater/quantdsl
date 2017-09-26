@@ -13,7 +13,6 @@ from time import sleep
 import dateutil.parser
 import numpy
 from eventsourcing.domain.model.events import subscribe, unsubscribe
-from matplotlib import dates as mdates, pylab as plt
 
 from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.with_multithreading_and_python_objects import \
@@ -480,6 +479,8 @@ def print_results(results, path_count):
 
 
 def plot_periods(periods, title, periodisation, interest_rate, path_count, perturbation_factor):
+    from matplotlib import dates as mdates, pylab as plt
+
     names = set([p['commodity'].split('-')[0] for p in periods])
 
     f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
