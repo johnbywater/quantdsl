@@ -33,6 +33,7 @@ setup(
         'blist',
         'importlib',
         'matplotlib',
+        'numexpr'
     ],
 
     scripts=[],

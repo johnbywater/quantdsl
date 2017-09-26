@@ -10,3 +10,4 @@ pytz
 blist
 importlib
 matplotlib
+numexpr
