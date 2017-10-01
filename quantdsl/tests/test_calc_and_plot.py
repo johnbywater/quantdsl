@@ -167,7 +167,7 @@ from quantdsl.lib.storage2 import GasStorage
 GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
 """
 
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(SystemExit):
             calc_print(
                 source_code=source_code,
                 observation_date='2011-1-1',

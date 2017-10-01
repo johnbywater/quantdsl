@@ -1,18 +1,23 @@
-from multiprocessing.pool import Pool
-
 from eventsourcing.domain.model.events import publish
 
 from quantdsl.domain.model.call_dependencies import CallDependencies
-from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, CallResultRepository, ResultValueComputed, \
     make_call_result_id, register_call_result
 from quantdsl.domain.model.contract_valuation import ContractValuation
-from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.domain.services.parser import dsl_parse
-from quantdsl.semantics import DslNamespace, Module
+from quantdsl.semantics import DslNamespace
+from eventsourcing.domain.model.events import publish
+
+from quantdsl.domain.model.call_dependencies import CallDependencies
+from quantdsl.domain.model.call_result import CallResult, CallResultRepository, ResultValueComputed, \
+    make_call_result_id, register_call_result
+from quantdsl.domain.model.contract_valuation import ContractValuation
+from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
+from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.domain.services.call_links import regenerate_execution_order
+from quantdsl.semantics import DslNamespace
 
 
 def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo,
@@ -115,7 +120,7 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
 def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, call_requirement_repo,
                              market_simulation_repo, call_dependencies_repo, call_result_repo, simulated_price_repo,
-                             call_dependents_repo, perturbation_dependencies_repo, simulated_price_requirements_repo):
+                             perturbation_dependencies_repo, simulated_price_requirements_repo):
     while True:
         item = call_evaluation_queue.get()
         try:
@@ -271,13 +276,14 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
                 dependency_value = dependency_result_value
             dependency_values[stub_id] = dependency_value
 
+        # Prepare the namespace with the values the expression depends on.
         dsl_locals = DslNamespace(dependency_values)
 
-        # Compile the parsed expr using the namespace to give something that can be evaluated.
-        dsl_expr_reduced = dsl_expr.reduce(dsl_locals=dsl_locals, dsl_globals=DslNamespace())
-        # assert isinstance(dsl_expr, DslExpression), dsl_expr
+        # Substitute Name elements, to give something that can be evaluated.
+        dsl_expr_resolved = dsl_expr.substitute_names(dsl_locals)
 
-        expr_value = dsl_expr_reduced.evaluate(**evaluation_kwds)
+        # Evaluate the expression.
+        expr_value = dsl_expr_resolved.evaluate(**evaluation_kwds)
         if perturbation is None:
             assert result_value is None
             result_value = expr_value

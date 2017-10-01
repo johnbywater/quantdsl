@@ -1,4 +1,6 @@
 from collections import namedtuple
+
+import datetime
 from eventsourcing.domain.model.entity import EventSourcedEntity, EntityRepository
 from eventsourcing.domain.model.events import publish
 
@@ -34,6 +36,7 @@ class CallRequirement(EventSourcedEntity):
 
 
 def register_call_requirement(call_id, dsl_source, effective_present_time, contract_specification_id):
+    assert isinstance(effective_present_time, (datetime.date, type(None))), effective_present_time
     created_event = CallRequirement.Created(
         entity_id=call_id,
         dsl_source=dsl_source,

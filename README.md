@@ -135,15 +135,11 @@ assert results.fair_value == 20
 The call args of the function definition can be used in an if-else block, so that different expressions can be 
 returned depending upon the function call argument values.
 
-Please note, the test expressions preceding the colon in the if-else block must be simple expressions involving the 
-call args and must not involve any Quant DSL stochastic elements introduces below, such as `Market`, `Choice`, `Wait`, 
-`Settlement`, `Fixing`. Also, calls to function definitions from test expressions in if statements are currently not 
-supported.
-
-Each function call becomes a node on a dependency graph. Each call is internally memoised, so if a function is 
-called many times with the same argument values (and at the same effective present time), the function is only 
-evaluated once, and the result is memoised and reused. This allows branched calculations to recombine efficienctly. 
-For example, the following Finboncci function definition will evaluate in linear time (proportional to `n`).
+Each function call becomes a node on a dependency graph. For efficiency, each call is internally memoised, so if a 
+function is called many times with the same argument values (and at the same effective present time), the function 
+is only evaluated once, and the result is memoised and reused. This allows branched calculations to recombine 
+efficienctly. For example, the following Finboncci function definition will evaluate in linear time (proportional to
+ `n`).
 
 ```python
 results = calc("""
@@ -158,6 +154,11 @@ Fib(60)
 
 assert results.fair_value == 1548008755920
 ```   
+
+Please note, the test expressions (the expressions preceding the colons in the if-else block) must be simple 
+expressions involving the call args, and must not involve any Quant DSL stochastic elements introduced below, such 
+as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in if 
+statements is supported, but the function definitions must not contain any of the stochastic elements.
 
 ### Market
 

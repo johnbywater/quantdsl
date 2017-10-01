@@ -1,6 +1,5 @@
 import datetime
 import unittest
-from time import sleep
 
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
@@ -11,7 +10,8 @@ from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
-from quantdsl.exceptions import CallLimitError, RecursionDepthError
+from quantdsl.exceptions import CallLimitError, RecursionDepthError, DslCompareArgsError, DslBinOpArgsError, \
+    DslTestExpressionCannotBeEvaluated
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -21,7 +21,7 @@ class ApplicationTestCase(unittest.TestCase):
     NUMBER_MARKETS = 2
     NUMBER_WORKERS = 20
     PATH_COUNT = 2000
-    MAX_DEPENDENCY_GRAPH_SIZE = 200
+    MAX_DEPENDENCY_GRAPH_SIZE = 2000
 
     price_process_name = DEFAULT_PRICE_PROCESS_NAME
     calibration_params = {
@@ -71,7 +71,7 @@ class ApplicationTestCase(unittest.TestCase):
     def setup_application(self, **kwargs):
         self.app = QuantDslApplicationWithPythonObjects(**kwargs)
 
-    def assert_contract_value(self, specification, expected_value, expected_deltas=None,
+    def assert_contract_value(self, specification, expected_value=None, expected_deltas=None,
                               expected_call_count=None, periodisation=None):
 
         # Register the specification (creates call dependency graph).
@@ -106,9 +106,16 @@ class ApplicationTestCase(unittest.TestCase):
 
         main_result = self.get_result(contract_valuation)
 
+        if expected_value is None:
+            return
+
         # Check the call result.
         assert isinstance(main_result, CallResult)
-        self.assertAlmostEqual(self.scalar(main_result.result_value), expected_value, places=2)
+        actual_value = self.scalar(main_result.result_value)
+        if isinstance(actual_value, float):
+            self.assertAlmostEqual(actual_value, expected_value, places=2)
+        else:
+            self.assertEqual(actual_value, expected_value)
 
         if expected_deltas is None:
             return
@@ -150,23 +157,7 @@ class ApplicationTestCase(unittest.TestCase):
         return contract_value
 
     def get_result(self, contract_valuation):
-        assert isinstance(contract_valuation, ContractValuation)
-        call_costs = self.app.calc_call_costs(contract_valuation.contract_specification_id)
-        total_cost = sum(call_costs.values())
-
-        patience = max(total_cost, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 1000)  # Guesses.
-        while True:
-            try:
-                return self.app.get_result(contract_valuation)
-            except:
-                interval = 0.1
-                self.sleep(interval)
-                patience -= interval
-                if not patience:
-                    self.fail("Timeout whilst waiting for result")
-
-    def sleep(self, interval):
-        sleep(interval)
+        return self.app.get_result(contract_valuation)
 
 
 class ExpressionTests(ApplicationTestCase):
@@ -211,6 +202,7 @@ class ExpressionTests(ApplicationTestCase):
     def test_max(self):
         specification = "Fixing(Date('2011-01-01'), Max(Market('#1'), Market('#2')))"
         self.assert_contract_value(specification, 10.0000)
+
         specification = "Fixing(Date('2012-01-01'), Max(Market('#1'), Market('#2')))"
         self.assert_contract_value(specification, 13.0250)
 
@@ -345,47 +337,334 @@ Max(
     1.0
 )
 """
-        # NB: Expected value should be 0.0000. It is slightly
-        # off due to small path count, and consistently at the
-        # slightly negative value due to the seed being fixed.
         self.assert_contract_value(specification, 0.00, expected_deltas={'#1': 0.00}, periodisation='alltime')
 
 
-class FunctionTests(ApplicationTestCase):
-    def test_functional_fibonacci_numbers(self):
-        fib_tmpl = """
-def fib(n): return fib(n-1) + fib(n-2) if n > 1 else n
-fib(%d)
-"""
-        # self.assert_contract_value(fib_tmpl % 0, 0, expected_call_count=2)
-        # self.assert_contract_value(fib_tmpl % 1, 1, expected_call_count=2)
-        # self.assert_contract_value(fib_tmpl % 2, 1, expected_call_count=4)
-        # self.assert_contract_value(fib_tmpl % 3, 2, expected_call_count=5)
-        self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=6)
-        # self.assert_contract_value(fib_tmpl % 5, 5, expected_call_count=7)
-        # self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
-        # self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
-        # self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
 
+class FunctionTests(ApplicationTestCase):
     def test_two_defs(self):
         dsl_source = """
-def add(a, b):
-    a + b
+def f1():
+    1
 
-def mul(a, b):
-    a if b == 1 else add(a, mul(a, b - 1))
-mul(3, 3)
-    """
-        self.assert_contract_value(dsl_source, 9, expected_call_count=4)
+def f2():
+    2
 
-    def test_call_arg_is_function_call(self):
+f1() + f2()
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=3)
+
+    def test_function_call_in_function_body(self):
         dsl_source = """
-def add(a, b):
-    a + b
+def f1():
+    1 + f2()
 
-add(add(3, 4), add(2, add(3, 4)))
+def f2():
+    2
+
+f1()
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=3)
+
+    def test_function_call_in_function_call_arg(self):
+        dsl_source = """
+def f1(x):
+    1 + x
+
+def f2():
+    2
+    
+f1(f2())
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=2)
+
+    def test_function_call_in_function_call_in_function_call_arg(self):
+        dsl_source = """
+def f1(x):
+    1 + x
+
+def f2(x):
+    2 + x + Market('NBP') + f4()
+
+def f3():
+    Market('NBP') + f4()
+    
+def f4():
+    1
+    
+def f5():
+    Market('NBP')
+
+f1(f2(Market('NBP')))
+"""
+        self.assert_contract_value(dsl_source, expected_call_count=4)
+
+    def test_function_name_in_function_call_arg(self):
+        dsl_source = """
+def f1(f):
+    1 + f()
+
+def f2():
+    2
+
+f1(f2)
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=3)
+
+    def test_ifstatement_test_expression_gets_function_that_can_be_evaluated(self):
+        code = """
+def f1(x):
+    100 if x else -100
+
+def f2(x):
+    x * 3
+
+f1(f2(%s))
+"""
+        self.assert_contract_value(code % 1, 100)
+        self.assert_contract_value(code % 0, -100)
+
+    def test_ifstatement_test_expression_has_function_call_that_can_be_evaluated_in_compare(self):
+        code = """
+def f1(x):
+    100 if f2(x) > 0 else -100
+
+def f2(x):
+    x
+
+f1(%s)
+"""
+        self.assert_contract_value(code % 1, 100)
+        self.assert_contract_value(code % -1, -100)
+
+    def test_ifstatement_test_expression_gets_function_call_that_can_be_evaluated(self):
+        code = """
+def f1(x):
+    100 if f2(x) > 0 else -100
+
+def f2(x):
+    x
+
+f1(f2(%s))
+"""
+        self.assert_contract_value(code % 1, 100)
+        self.assert_contract_value(code % -1, -100)
+
+    def test_ifstatement_test_expression_gets_function_call_that_cannot_be_evaluated(self):
+        code = """
+def f1(x):
+    100 if x > 0 else -100
+
+def f2(x):
+    x * Choice(1, 2)
+
+f1(f2(%s))
+"""
+        with self.assertRaises(DslTestExpressionCannotBeEvaluated):
+            self.assert_contract_value(code % 1)
+
+    def test_if_test_expression_has_nested_function_calls_and_gets_nested_function_calls(self):
+        code = """
+def f1(x):
+    1 if f6(f4(f3(x))) else 0
+
+def f2(x):
+    x
+
+def f3(x):
+    x
+
+def f4(x):
+    x
+
+def f5(x):
+    x
+
+def f6(x):
+    x
+
+f1(f5(f2(%s)))
+"""
+        # Not sure how this works, but it seems to!
+        self.assert_contract_value(code % 1, 1)
+        self.assert_contract_value(code % 0, 0)
+
+    def test_call_cache_simple_function(self):
+        code = """
+def f(x):
+    x
+"""
+        self.assert_contract_value(code + "f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(1) + f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(1))", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(f(1)))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(1)))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(f(1))))", expected_call_count=1)
+
+    def test_call_cache_inlined_function(self):
+        code = """
+@inline
+def f(x):
+    x
+"""
+        self.assert_contract_value(code + "f(1)", expected_call_count=1)
+        self.assert_contract_value(code + "f(1) + f(1)", expected_call_count=1)
+        self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(1))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1)))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(1)))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(f(1))))", expected_call_count=1)
+
+    def test_call_cache_recombine_branches_integer_args(self):
+        code = """
+def f(x, t):
+    if t <= 0:
+        x
+    else:
+        if x <= 0:
+            Max(f(x, t-1), f(x+1, t-1))
+        else:
+            Max(f(x-1, t-1), f(x, t-1))
+            
+f(0, %s)
+"""
+        self.assert_contract_value(code % 0, 0, expected_call_count=2)
+        self.assert_contract_value(code % 1, 1, expected_call_count=4)
+        self.assert_contract_value(code % 2, 1, expected_call_count=6)
+        self.assert_contract_value(code % 3, 1, expected_call_count=8)
+        self.assert_contract_value(code % 4, 1, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_function_call_arg(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y
+    else:
+        if x <= 0:
+            Max(f1(x, y, t-1), f1(x+1, y, t-1))
+        else:
+            Max(f1(x-1, y, t-1), f1(x, y, t-1))
+        
+def f2(x):
+    x
+        
+f1(0, f2(1), %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_inlined_function_call_arg(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y
+    else:
+        if x <= 0:
+            Max(f1(x, y, t-1), f1(x+1, y, t-1))
+        else:
+            Max(f1(x-1, y, t-1), f1(x, y, t-1))
+        
+@inline
+def f2(x):
+    x
+        
+f1(0, f2(1), %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_inlined_function_call_arg_refactored(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y
+    else:
+        if x <= 0:
+            up(x, y, t)
+        else:
+            down(x, y, t)
+        
+@inline
+def f2(x):
+    x
+        
+@inline
+def up(x, y, t):
+    Max(f1(x, y, t-1), f1(x+1, y, t-1))
+
+@inline
+def down(x, y, t):
+    Max(f1(x-1, y, t-1), f1(x, y, t-1))
+
+f1(0, f2(1), %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_timedelta_arg(self):
+        # calls, time deltas).
+        code = """
+def f1(t, x):
+    if t <= 0:
+        x
+    else:
+        Max(1 + f1(f2(t), x), f1(f2(t), x+1)) 
+
+@inline
+def f2(t):
+    t-1  
+      
+f1(%s, 1)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 3, expected_call_count=7)
+        self.assert_contract_value(code % 3, 4, expected_call_count=11)
+        self.assert_contract_value(code % 4, 5, expected_call_count=16)
+
+    def test_functional_fibonacci_numbers(self):
+        fib_tmpl = """
+def fib(n):
+    fib(n-1) + fib(n-2) if n > 1 else n
+
+fib(%s)
+"""
+        self.assert_contract_value(fib_tmpl % 0, 0, expected_call_count=2)
+        self.assert_contract_value(fib_tmpl % 1, 1, expected_call_count=2)
+        self.assert_contract_value(fib_tmpl % 2, 1, expected_call_count=4)
+        self.assert_contract_value(fib_tmpl % 3, 2, expected_call_count=5)
+        self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=6)
+        self.assert_contract_value(fib_tmpl % 5, 5, expected_call_count=7)
+        self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
+        self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
+        # self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
+
+        def test_add(self):
+            fib_tmpl = """
+    TimeDelta('1d') + %s
     """
-        self.assert_contract_value(dsl_source, 16, expected_call_count=2)
+            self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=None)
+
+    def test_compare_args_error(self):
+        code = "TimeDelta('1d') > 1"
+        with self.assertRaises(DslCompareArgsError):
+            self.assert_contract_value(code)
+
+    def test_bin_op_args_error(self):
+        code = "TimeDelta('1d') + 1"
+        with self.assertRaises(DslBinOpArgsError):
+            self.assert_contract_value(code)
 
     def test_function_call_as_call_arg_gets_correct_effective_present_time_when_inlined(self):
         dsl_source = """
@@ -398,7 +677,7 @@ def Discount(start):
 
 MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
 """
-        self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=2)
 
     def test_function_call_as_call_arg_gets_correct_effective_present_time_when_not_inlined(self):
         dsl_source = """
@@ -412,7 +691,7 @@ MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
 """
         self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
 
-    def test_function_as_call_arg(self):
+    def test_function_as_call_arg_gets_correct_effective_present_time(self):
         # Novelty here is passing a function as a
         # call arg, and then calling the arg name.
         dsl_source = """
@@ -484,7 +763,7 @@ EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
         self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
                                    periodisation='alltime')
 
-    def _test_functional_european_stock_option_definition_with_stock_market_def_non_inlined(self):
+    def test_functional_european_stock_option_definition_with_stock_market_def_non_inlined(self):
         specification = """
 def Option(date, strike, underlying, alternative):
     return Wait(date, Choice(underlying - strike, alternative))
@@ -503,15 +782,15 @@ EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
         self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=5,
                                    periodisation='alltime')
 
-    def test_generate_valuation_american_option(self):
+    def test_generate_valuation_american_option_with_market(self):
         american_option_tmpl = """
 def American(starts, ends, strike, underlying):
-    if starts < ends:
+    if starts <= ends:
         Option(starts, strike, underlying,
             American(starts + TimeDelta('1d'), ends, strike, underlying)
         )
     else:
-        Option(starts, strike, underlying, 0)
+        0
 
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
@@ -519,11 +798,117 @@ def Option(date, strike, underlying, alternative):
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)s'))
 """
         self.assert_contract_value(american_option_tmpl % {
-            'starts': '2011-01-02',
-            'ends': '2011-01-04',
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
             'strike': 9,
-            'underlying': '#1'
-        }, 1.1874, {'#1': 1.0185}, expected_call_count=5, periodisation='alltime')
+            'underlying': 'NBP'
+        }, 5.353, {'NBP': 1.425}, expected_call_count=734, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_stock_market(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            # 'ends': '2011-01-04',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        # }, 1.1874, {'#1': 1.0185}, expected_call_count=None, periodisation='alltime')
+        }, 5.534, {'NBP': 1.443}, expected_call_count=1100, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_inlined_stockmarket_def(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+@inline
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        }, 5.534, {'NBP': 1.443}, expected_call_count=734, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_inlined_option_def(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+@inline
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        }, 5.534, {'NBP': 1.443}, expected_call_count=734, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_inlined_stockmarket_and_option_def(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+@inline
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+@inline
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        }, 5.534, {'NBP': 1.443}, expected_call_count=368, periodisation='alltime')
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -561,8 +946,6 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
-PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), 2)
-
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
         Wait(start_date, Choice(
@@ -590,8 +973,34 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
+PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), Running())
 """
-        self.assert_contract_value(specification, 11.57, expected_call_count=37)
+        self.assert_contract_value(specification, 11.771, expected_call_count=47)
+
+    def test_call_recombinations_with_function_calls_advancing_values(self):
+        # This wasn't working, because each function call was being carried into the next
+        # via the arg that was supposed to be adjusted by the function.
+        specification = """
+def f(t, d):
+    if (t > 0):
+        Add(
+            f(t - 1, f1(d)) + 1,
+            f(t - 1, f2(d)),
+        )
+    else:
+        return 0
+
+# @inline
+def f1(t):
+    0
+
+@inline
+def f2(d):
+    Min(1, d+1)
+
+f(9, 1)
+"""
+        self.assert_contract_value(specification, expected_call_count=28)
 
 
 class SpecialTests(ApplicationTestCase):

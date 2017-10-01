@@ -2,11 +2,12 @@ import datetime
 from unittest.case import TestCase
 
 from dateutil.relativedelta import relativedelta
+from mock import Mock
 from scipy import array
 
-from quantdsl.exceptions import DslNameError, DslSyntaxError
+from quantdsl.exceptions import DslNameError, DslSyntaxError, DslSystemError
 from quantdsl.semantics import Add, And, Date, Div, DslNamespace, DslObject, Max, Min, Mult, Name, Number, Or, \
-    String, Sub, TimeDelta, Pow
+    String, Sub, TimeDelta, Pow, FunctionDef, FunctionCall, Stub, FunctionArg
 
 
 class Subclass(DslObject):
@@ -329,9 +330,8 @@ class TestMax(TestCase):
         self.assertEqual(list(obj.evaluate()), list(array([3, 2, 3])))
 
 
-
 class TestName(TestCase):
-    def test_evaluate(self):
+    def test_substitute(self):
         # Maybe if Name can take a string, perhaps also other things can?
         # Maybe the parser should return Python string, numbers etc?
         # Maybe String and Number etc don't add anything?
@@ -341,9 +341,91 @@ class TestName(TestCase):
         obj = Name(String('a'))
         self.assertEqual(obj.name, 'a')
 
+        ns = DslNamespace()
         with self.assertRaises(DslNameError):
-            obj.reduce(DslNamespace(), DslNamespace())
+            obj.substitute_names(ns)
 
-        self.assertEqual(obj.reduce(DslNamespace({'a': 1}), DslNamespace()), Number(1))
-        self.assertEqual(obj.reduce(DslNamespace({'a': datetime.timedelta(1)}), DslNamespace()),
-                         TimeDelta(datetime.timedelta(1)))
+        ns = DslNamespace({'a': 1})
+        self.assertEqual(obj.substitute_names(ns), Number(1))
+
+        ns = DslNamespace({'a': datetime.timedelta(1)})
+        self.assertEqual(obj.substitute_names(ns), TimeDelta(datetime.timedelta(1)))
+
+        function_def = FunctionDef('f', [], Number(1), [])
+        ns = DslNamespace({'a': function_def})
+        self.assertEqual(obj.substitute_names(ns), function_def)
+
+
+class TestFunctionCall(TestCase):
+    def test_substitute_names(self):
+        fc = FunctionCall(Name('f'), [Name('x')])
+        fd = FunctionDef('f', [], Name('a'), [])
+        ns = DslNamespace({
+            'f': fd,
+            'x': Number(1),
+        })
+        fc1 = fc.substitute_names(ns)
+        self.assertEqual(fc1.functionDef, fd)
+        self.assertEqual(fc1.callArgExprs[0], Number(1))
+
+    def test_call_functions_with_pending_call_stack(self):
+        fc = FunctionCall(Name('f'), [Name('x')])
+        fd = FunctionDef('f', [FunctionArg('a', '')], Name('a'), [])
+        number = Number(1234)
+        ns = DslNamespace({
+            'f': fd,
+            'x': number,
+        })
+
+        # Substitute names.
+        fc1 = fc.substitute_names(ns)
+        self.assertEqual(fc1.functionDef, fd)
+        self.assertEqual(fc1.callArgExprs[0], number)
+
+        # Call functions.
+        expr = fc1.call_functions()
+        self.assertEqual(expr, number)
+
+    def test_call_functions_without_pending_call_stack(self):
+        fc = FunctionCall(Name('f'), [Name('x')])
+        fd = FunctionDef('f', [FunctionArg('a', '')], Name('a'), [])
+        number1 = Number(1234)
+        number2 = Number(2345)
+        ns1 = DslNamespace({
+            'f': fd,
+            'x': number1,
+        })
+        ns2 = DslNamespace({
+            'f': fd,
+            'x': number2,
+        })
+
+        # Call functions with pending call stack.
+        queue = Mock()
+        fc1 = fc.substitute_names(ns1)
+        fc2 = fc.substitute_names(ns2)
+        self.assertNotEqual(fd.create_hash(fc1), fd.create_hash(fc2))
+
+        t1 = datetime.datetime(2011, 1, 1)
+        expr = fc1.call_functions(pending_call_stack=queue, effective_present_time=t1)
+
+        # Check we got a stub.
+        self.assertIsInstance(expr, Stub)
+        self.assertEqual(queue.put.call_count, 1)
+
+        # Check the call to the stub was queued.
+        first_call = queue.put.mock_calls[0]
+        self.assertEqual(first_call[2]['stub_id'], expr.name)
+        self.assertEqual(first_call[2]['stacked_function_def'], fd)
+        self.assertEqual(first_call[2]['stacked_globals'], {})
+        self.assertEqual(first_call[2]['stacked_locals'], {'a': 1234})  # Maybe this should be Number(1234)?
+        self.assertEqual(first_call[2]['effective_present_time'], t1)
+
+    def test_must_substitute_names_before_call_functions(self):
+        fc = FunctionCall(Name('f'), [Name('x')])
+
+        # Call functions with pending call stack.
+        queue = Mock()
+        t1 = datetime.datetime(2011, 1, 1)
+        with self.assertRaises(DslSystemError):
+            fc.call_functions(pending_call_stack=queue, effective_present_time=t1)

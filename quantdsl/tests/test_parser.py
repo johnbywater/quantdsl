@@ -56,8 +56,8 @@ class TestDslParser(unittest.TestCase):
         assert isinstance(dsl_expr, DslExpression)
         self.assertIsInstance(dsl_expr, expectedDslType)
 
-        # Compile the module into an simple DSL expression object (no variables or calls to function defs).
-        dsl_expr = dsl_expr.reduce(DslNamespace(compile_kwds), DslNamespace())
+        # Compile the module into a simple DSL expression object (no variables or calls to function defs).
+        dsl_expr = dsl_expr.substitute_names(DslNamespace(compile_kwds))
 
         # Evaluate the compiled expression.
         dsl_value = dsl_expr.evaluate()
@@ -330,7 +330,7 @@ else:
         self.assertEqual(fib_def.body.test.evaluate(n=2), False)
         self.assertIsInstance(fib_def.body.body, Add)
         self.assertIsInstance(fib_def.body.body.left, FunctionCall)
-        self.assertIsInstance(fib_def.body.body.left.functionDefName, Name)
+        self.assertIsInstance(fib_def.body.body.left.functionDef, Name)
         self.assertIsInstance(fib_def.body.body.left.callArgExprs, list)
         self.assertIsInstance(fib_def.body.body.left.callArgExprs[0], Sub)
         self.assertIsInstance(fib_def.body.body.left.callArgExprs[0].left, Name)
@@ -429,42 +429,6 @@ else:
         self.assertEqual(len(fib_def.call_cache), 5)
         self.assertEqual(fib_expr.evaluate(), 8)
         self.assertEqual(len(fib_def.call_cache), 5)
-
-    def test_module_block(self):
-        # Expression with one function def.
-        dsl_source = """
-def sqr(n):
-    n ** 2
-sqr(3)
-"""
-        dsl_module = dsl_parse(dsl_source)
-        self.assertIsInstance(dsl_module, Module)
-        self.assertEqual(str(dsl_module), dsl_source.strip())
-
-        dsl_expr = dsl_compile(dsl_source)
-        self.assertEqual(dsl_expr.evaluate(), 9)
-
-        dsl_value = dsl_eval(dsl_source)
-        self.assertEqual(dsl_value, 9)
-
-        # Expression with two function defs.
-        dsl_source = """
-def add(a, b):
-    a + b
-def mul(a, b):
-    a if b == 1 else add(a, mul(a, b - 1))
-mul(3, 3)
-"""
-        dsl_module = dsl_parse(dsl_source)
-        self.assertIsInstance(dsl_module, Module)
-        self.assertEqual(str(dsl_module), dsl_source.strip())
-
-        dsl_expr = dsl_compile(dsl_source)
-        #        self.assertEqual(str(dsl_expr), "")
-        self.assertEqual(dsl_expr.evaluate(), 9)
-
-        dsl_value = dsl_eval(dsl_source)
-        self.assertEqual(dsl_value, 9)
 
 
 def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=None, compile_kwds=None,
@@ -652,6 +616,8 @@ def dsl_eval(dsl_source, filename='<unknown>', is_parallel=None, dsl_classes=Non
 
             stop = threading.Event()
             thread = threading.Thread(target=showProgress, args=(stop,))
+            thread.setDaemon(True)
+            thread.daemon = True
 
             # Start showProgress() thread.
             thread.start()
@@ -794,5 +760,5 @@ def compile_dsl_module(dsl_module, dsl_locals=None, dsl_globals=None):
 
         # Compile the module for a single threaded recursive operation (faster but not distributed,
         # so also limited in space and perhaps time). For smaller computations only.
-        dsl_obj = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals))
+        dsl_obj = dsl_expr.substitute_names(dsl_globals.combine(dsl_locals))
         return dsl_obj

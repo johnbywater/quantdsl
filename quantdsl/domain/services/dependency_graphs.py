@@ -139,9 +139,18 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
     # Of course if the module's expression doesn't have a function call, there
     # will just be one expression on the stack of "stubbed" expressions, and it will
     # not have any stubs, and there will be no pending calls on the pending call stack.
-    stubbed_expr = dsl_expr.reduce(dsl_locals, DslNamespace(dsl_globals), pending_call_stack=pending_call_stack)
 
+    # Substitute the Name elements, e.g. so function calls have function defs.
+    dsl_expr = dsl_expr.substitute_names(dsl_globals.combine(dsl_locals))
+
+    # Call functions (causes FunctionCall elements to be substituted
+    # with Stub elements, and pending calls to be put on the stack).
+    stubbed_expr = dsl_expr.call_functions(pending_call_stack=pending_call_stack)
+
+    # Find all the Stub elemements in the expression.
     dependencies = list_stub_dependencies(stubbed_expr)
+
+    # Yield a stubbed call (becomes a dependency graph node).
     yield StubbedCall(root_stub_id, stubbed_expr, None, dependencies)
 
     # Continue by looping over any pending calls.
@@ -158,7 +167,10 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
         stubbed_expr = function_def.apply(pending_call.stacked_globals,
                                           pending_call.effective_present_time,
                                           pending_call_stack=pending_call_stack,
-                                          is_destacking=True,  # Maybe just don't pass in the pending call stack?
+                                          # Make sure calling this pending call doesn't result
+                                          # in just a pending call being added to the stack.
+                                          # Todo: Rename 'is_destacking'?
+                                          is_destacking=True,
                                           **pending_call.stacked_locals)
 
         # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.

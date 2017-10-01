@@ -30,6 +30,7 @@ from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo 
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
+from quantdsl.semantics import Choice
 
 DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
@@ -169,7 +170,6 @@ class QuantDslApplication(EventSourcingApplication):
             call_dependencies_repo=self.call_dependencies_repo,
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
-            call_dependents_repo=self.call_dependents_repo,
             perturbation_dependencies_repo=self.perturbation_dependencies_repo,
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
         )
@@ -226,13 +226,16 @@ class QuantDslApplication(EventSourcingApplication):
         """Returns a dict of call IDs -> perturbation requirements."""
         calls = {}
         for call_id in regenerate_execution_order(contract_specification_id, self.call_link_repo):
+            call_requirement = self.call_requirement_repo[call_id]
             # Get the perturbation requirements for this call.
             try:
                 perturbation_dependencies = self.perturbation_dependencies_repo[call_id]
             except KeyError:
-                calls[call_id] = 1
+                cost = 1
             else:
                 assert isinstance(perturbation_dependencies, PerturbationDependencies)
                 # "1 + 2 * number of dependencies" because of the double sided delta.
-                calls[call_id] = 1 + 2 * len(perturbation_dependencies.dependencies)
+                cost = 1 + 2 * len(perturbation_dependencies.dependencies)
+            calls[call_id] = cost
+
         return calls

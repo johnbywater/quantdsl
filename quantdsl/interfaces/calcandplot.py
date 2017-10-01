@@ -7,6 +7,7 @@ import math
 import os
 import sys
 from collections import defaultdict
+import signal
 from threading import Event, Thread
 from time import sleep
 
@@ -24,7 +25,7 @@ from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, m
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.model.simulated_price_requirements import SimulatedPriceRequirements
-from quantdsl.exceptions import TimeoutError
+from quantdsl.exceptions import TimeoutError, InterruptSignalReceived
 from quantdsl.priceprocess.base import datetime_from_date
 
 
@@ -104,7 +105,15 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
         verbose=verbose,
         approximate_discounting=approximate_discounting,
     )
-    return cmd.calculate()
+    with cmd:
+        try:
+            return cmd.calculate()
+        except (TimeoutError, InterruptSignalReceived) as e:
+            print()
+            print()
+            print(e)
+            sys.exit(1)
+
 
 
 class Calculate(object):
@@ -127,10 +136,20 @@ class Calculate(object):
         # Todo: Repetitions - number of times the computation will be repeated (multiprocessing).
         # self.repetitions = repetitions
 
+    def __enter__(self):
+        self.orig_sigterm_handler = signal.signal(signal.SIGTERM, self.shutdown)
+        self.orig_sigint_handler = signal.signal(signal.SIGINT, self.shutdown)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        signal.signal(signal.SIGTERM, self.orig_sigterm_handler)
+        signal.signal(signal.SIGINT, self.orig_sigint_handler)
+
     def calculate(self):
         self.node_evaluations_count = 0
         self.root_result_id = None
         self.is_timed_out = Event()
+        self.is_interrupted = Event()
         self.timeout_msg = ''
         self.is_finished = Event()
         self.started = datetime.datetime.now()
@@ -214,9 +233,10 @@ class Calculate(object):
                 # Wait for the result.
                 self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
                 if not self.root_result_id in app.call_result_repo:
-                    while not self.is_finished.wait():
-                        self.check_is_timed_out()
+                    while not self.is_finished.wait(timeout=1):
+                        pass
                     self.check_is_timed_out()
+                    self.check_is_interrupted()
 
                 # Todo: Separate this, not all users want print statements.
                 end_calc = datetime.datetime.now()
@@ -307,6 +327,7 @@ class Calculate(object):
     def subscribe(self):
         subscribe(self.is_call_requirement_created, self.print_compilation_progress)
         subscribe(self.is_calculating, self.check_is_timed_out)
+        subscribe(self.is_calculating, self.check_is_interrupted)
         subscribe(self.is_evaluation_complete, self.set_is_finished)
         subscribe(self.is_result_value_computed, self.inc_result_value_computed_count)
         subscribe(self.is_result_value_computed, self.print_evaluation_progress)
@@ -316,6 +337,7 @@ class Calculate(object):
     def unsubscribe(self):
         unsubscribe(self.is_call_requirement_created, self.print_compilation_progress)
         unsubscribe(self.is_calculating, self.check_is_timed_out)
+        unsubscribe(self.is_calculating, self.check_is_interrupted)
         unsubscribe(self.is_evaluation_complete, self.set_is_finished)
         unsubscribe(self.is_result_value_computed, self.inc_result_value_computed_count)
         unsubscribe(self.is_result_value_computed, self.print_evaluation_progress)
@@ -343,10 +365,6 @@ class Calculate(object):
             SimulatedPriceRequirements.Created,
         ))
 
-    def check_is_timed_out(self, *_):
-        if self.is_timed_out.is_set():
-            raise TimeoutError(self.timeout_msg)
-
     def is_evaluation_complete(self, event):
         return isinstance(event, CallResult.Created) and event.entity_id == self.root_result_id
 
@@ -370,19 +388,20 @@ class Calculate(object):
     def print_evaluation_progress(self, event):
         self.check_is_timed_out(event)
 
-        if self.verbose:
-            self.times.append(datetime.datetime.now())
-            if len(self.times) > max(0.5 * self.node_evaluations_num_expected, 100):
-                self.times.popleft()
-            if len(self.times) > 1:
-                duration = self.times[-1] - self.times[0]
-                rate = len(self.times) / duration.total_seconds()
-            else:
-                rate = 0.001
+        # Todo: Settle this down, needs closer accounting of cost of element evaluation to stop estimate being so
+        # jumpy. Perhaps estiating the complexity is something to do when building the dependency graph?
+        i = len(self.times) // 2
+        j = len(self.times) - 1
+        self.times.append(datetime.datetime.now())
+
+        if self.verbose and j > i:
+            duration = self.times[j] - self.times[i]
+            rate = (j - i) / duration.total_seconds()
             eta = (self.node_evaluations_num_expected - self.node_evaluations_count) / rate
             seconds_running = (datetime.datetime.now() - self.started).total_seconds()
             seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
 
+            percent_complete = (100.0 * self.node_evaluations_count) / self.node_evaluations_num_expected
             msg = (
                 "\r"
                 "{}/{} "
@@ -392,8 +411,8 @@ class Calculate(object):
                 "eta {:.0f}s").format(
                     self.node_evaluations_count,
                     self.node_evaluations_num_expected,
-                (100.0 * self.node_evaluations_count) / self.node_evaluations_num_expected,
-                rate,
+                    percent_complete,
+                    rate,
                     seconds_running,
                     eta,
                 )
@@ -416,13 +435,29 @@ class Calculate(object):
     def wait_then_set_is_timed_out(self):
         sleep(self.timeout)
         if not self.is_finished.is_set():
-            msg = 'Timeout after {} seconds'.format(self.timeout)
+            msg = 'Timed out after {}s'.format(self.timeout)
             self.set_is_timed_out(msg)
 
     def set_is_timed_out(self, msg):
         self.timeout_msg = msg
         self.is_timed_out.set()
         self.set_is_finished()
+
+    def shutdown(self, signal, frame):
+        self.set_is_interrupted('Interrupted by signal {}'.format(signal))
+
+    def set_is_interrupted(self, msg):
+        self.interruption_msg = msg
+        self.is_interrupted.set()
+        self.set_is_finished()
+
+    def check_is_timed_out(self, *_):
+        if self.is_timed_out.is_set():
+            raise TimeoutError(self.timeout_msg)
+
+    def check_is_interrupted(self, *_):
+        if self.is_interrupted.is_set():
+            raise InterruptSignalReceived(self.interruption_msg)
 
 
 def print_results(results, path_count):
