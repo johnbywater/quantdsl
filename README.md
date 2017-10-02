@@ -599,7 +599,8 @@ simple expressions involving the call args, and must not involve any Quant DSL s
 as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in if 
 statements is supported, but the function definitions must not contain any of the stochastic elements.
 
-### Options
+
+### Derivative options
 
 In general, an option can be expressed as waiting to choose between, on one hand, the 
 difference between the value of an underlying expression and a strike expression,
@@ -731,8 +732,6 @@ assert_almost_equal(2.935, calc_european(spot=10, strike=12, sigma=0.9, rate=0))
 
 These results compare well with results from the Black-Scholes analytic formula for European stock options.
 
-Todo: Use Black 76 instead of Black Scholes? https://www.glynholton.com/notes/black_1976/ 
-
 
 ```python
 from scipy.stats import norm
@@ -767,6 +766,8 @@ for rate in [0.0, 20.0, 50.0]:
                 black_scholes(spot, strike, sigma, rate)
             )
 ```
+
+Todo: Use Black 76 to compare commodity option model? https://www.glynholton.com/notes/black_1976/ 
 
 
 ### Gas storage
