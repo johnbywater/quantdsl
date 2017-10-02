@@ -304,29 +304,24 @@ The `Market` element effectively estimates spot prices that could be agreed in t
 When a `Market` element is evaluated, it returns a random variable selected from a simulation
  of market prices. Selecting an estimated price from the simulation requires the name
  of the market, and a fixing date and a delivery date - when the price would be agreed, when
- the goods would be delivered.
- 
-The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` above).
+ the goods would be delivered. The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` above).
 Both the fixing date and the delivery date are set by the "effective present time"
 when the element is evaluated.
 
 Because a `Market` element depends a price simulation, it cannot be evaluated unless a price process is also 
-configured.
-
-In this example, the library's one-factor multi-market Black Scholes price process `BlackScholesPriceProcess` is 
-used to generate correlated geometric Brownian motions.
+configured. In this example, the library's one-factor multi-market Black Scholes price process 
+`BlackScholesPriceProcess` is used to generate correlated geometric Brownian motions.
 
 The calibration parameters required by `BlackScholesPriceProcess` are `market` (a list of market names), and 
 `sigma`, (a list of annualised historical volatilities, expressed as a fraction of 1, rather than as a 
 percentage). In these examples, at first the volatilities `sigma` of both 'GAS' and 'POWER' markets are set to zero.
 
-If there is more than one market, an additional parameter `rho` is required, which represents the 
-correlation between the markets, a symmetric matrix expressed as a list of lists.
+Since there is more than one market, an additional parameter `rho` is required, which represents the 
+correlation between the markets (a symmetric matrix expressed as a list of lists).
 
-A forward `curve` also is required to provide estimates of current prices for each market at the given 
+A forward `curve` is required to provide estimates of current prices for each market at the given 
 `observation_date`. The prices in the forward curve are prices that can be agreed at the `observation_date` for 
 delivery at the specified dates.
-
 
 ```python
 price_process = {
