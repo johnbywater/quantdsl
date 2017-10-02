@@ -499,9 +499,9 @@ def f(x):
         self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=2)
         self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=2)
         self.assert_contract_value(code + "f(f(1))", expected_call_count=2)
-        self.assert_contract_value(code + "f(f(f(1)))", expected_call_count=1)
-        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(1)))", expected_call_count=1)
-        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(f(1))))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1)))", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(1)))", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(f(1))))", expected_call_count=2)
 
     def test_call_cache_inlined_function(self):
         code = """
@@ -581,6 +581,29 @@ f1(0, f2(1), %s)
         self.assert_contract_value(code % 3, 2, expected_call_count=8)
         self.assert_contract_value(code % 4, 2, expected_call_count=10)
 
+    def test_call_cache_recombine_branches_with_referenced_function_call_arg(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y(1)
+    else:
+        if x <= 0:
+            Max(f1(x, y, t-1), f1(x+1, y, t-1))
+        else:
+            Max(f1(x-1, y, t-1), f1(x, y, t-1))
+        
+@inline
+def f2(x):
+    x
+        
+f1(0, f2, %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
     def test_call_cache_recombine_branches_with_inlined_function_call_arg_refactored(self):
         code = """
 def f1(x, y, t):
@@ -648,13 +671,6 @@ fib(%s)
         self.assert_contract_value(fib_tmpl % 5, 5, expected_call_count=7)
         self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
         self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
-        # self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
-
-        def test_add(self):
-            fib_tmpl = """
-    TimeDelta('1d') + %s
-    """
-            self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=None)
 
     def test_compare_args_error(self):
         code = "TimeDelta('1d') > 1"

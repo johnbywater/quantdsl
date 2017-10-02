@@ -34,8 +34,6 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
             if not self.has_thread_errored.is_set():
                 self.thread_exception = e
                 self.has_thread_errored.set()
-            if not isinstance(e, TimeoutError):
-                raise
 
     def get_result(self, contract_valuation):
         assert isinstance(contract_valuation, ContractValuation)
