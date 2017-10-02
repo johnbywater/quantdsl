@@ -198,14 +198,6 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     # assert isinstance(call_result_repo, CallResultRepository)
     # assert isinstance(simulated_price_dict, SimulatedPriceRepository)
 
-    # Parse the DSL source into a DSL module object (composite tree of objects that provide the DSL semantics).
-    # if call_requirement._dsl_expr is not None:
-    dsl_expr = call_requirement._dsl_expr
-    # else:
-    #     dsl_module = dsl_parse(call_requirement.dsl_source)
-    #     assert isinstance(dsl_module, Module), "Parsed stubbed expr string is not a module: %s" % dsl_module
-    #     dsl_expr = dsl_module.body[0]
-
     present_time = call_requirement.effective_present_time or market_simulation.observation_date
 
     simulated_value_dict = {}
@@ -230,14 +222,16 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
         result_repo=call_result_repo,
     )
 
-    result_value, perturbed_values = evaluate_dsl_expr(dsl_expr, first_commodity_name, market_simulation.id,
+    result_value, perturbed_values = evaluate_dsl_expr(call_requirement._dsl_expr,
+                                                       first_commodity_name,
+                                                       market_simulation.id,
                                                        market_simulation.interest_rate, present_time,
                                                        simulated_value_dict,
                                                        perturbation_dependencies.dependencies,
                                                        dependency_results, market_simulation.path_count,
                                                        market_simulation.perturbation_factor,
                                                        contract_valuation.periodisation,
-                                                       contract_valuation.approximate_discounting,
+                                                       call_requirement.cost
                                                        )
 
     # Return the result.
@@ -246,7 +240,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
                       perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation,
-                      approximate_discounting):
+                      estimated_cost_of_expr):
 
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
@@ -257,7 +251,6 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,
         'periodisation': periodisation,
-        'approximate_discounting': approximate_discounting,
     }
 
     result_value = None
@@ -292,7 +285,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
             perturbed_values[perturbation] = expr_value
 
         # Publish result value computed event.
-        publish(ResultValueComputed())
+        publish(ResultValueComputed(estimated_cost_of_expr))
 
     return result_value, perturbed_values
 

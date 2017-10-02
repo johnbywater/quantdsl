@@ -156,10 +156,8 @@ class QuantDslApplication(EventSourcingApplication):
                                                 requirements,
                                                 periodisation)
 
-    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation,
-                                 approximate_discounting):
-        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
-                                        approximate_discounting)
+    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation):
+        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
@@ -210,9 +208,8 @@ class QuantDslApplication(EventSourcingApplication):
         )
         return market_simulation
 
-    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None,
-                 approximate_discounting=False):
-        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation, approximate_discounting)
+    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
+        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
     def get_result(self, contract_valuation):
         call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
@@ -222,23 +219,31 @@ class QuantDslApplication(EventSourcingApplication):
         # Todo: Return the call count from the compilation method?
         return len(list(regenerate_execution_order(contract_specification_id, self.call_link_repo)))
 
-    def calc_call_costs(self, contract_specification_id):
+    def calc_counts_and_costs(self, contract_specification_id):
         """Returns a dict of call IDs -> perturbation requirements."""
-        calls = {}
+        costs = {}
+        counts = {}
         for call_id in regenerate_execution_order(contract_specification_id, self.call_link_repo):
+
+            # Get estimated cost of evaluating the expression once.
             call_requirement = self.call_requirement_repo[call_id]
+            estimated_cost_of_expr = call_requirement.cost
+
             # Get the perturbation requirements for this call.
             try:
                 perturbation_dependencies = self.perturbation_dependencies_repo[call_id]
             except KeyError:
-                cost = 1
+                num_evaluations = 1
             else:
                 assert isinstance(perturbation_dependencies, PerturbationDependencies)
                 # "1 + 2 * number of dependencies" because of the double sided delta.
-                cost = 1 + 2 * len(perturbation_dependencies.dependencies)
-            calls[call_id] = cost
+                num_evaluations = 1 + 2 * len(perturbation_dependencies.dependencies)
 
-        return calls
+            # Cost is cost of doing it once, times the number of times it needs doing.
+            costs[call_id] = num_evaluations * estimated_cost_of_expr
+            counts[call_id] = num_evaluations
+
+        return counts, costs
 
     def check_has_thread_errored(self):
         return False

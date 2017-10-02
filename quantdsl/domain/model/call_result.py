@@ -74,3 +74,5 @@ class ResultValueComputed(six.with_metaclass(QualnameABCMeta)):
 
     (This is not a persisted domain event.)
     """
+    def __init__(self, cost):
+        self.cost = cost

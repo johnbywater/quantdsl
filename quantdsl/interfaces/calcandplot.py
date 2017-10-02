@@ -37,8 +37,8 @@ class Results(object):
 
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, supress_plot=False,
-                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None, verbose=False,
-                    approximate_discounting=False):
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None, verbose=False):
+
     # Calculate and print the results.
     results = calc_print(source_code,
                          max_dependency_graph_size=max_dependency_graph_size,
@@ -50,7 +50,6 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
                          periodisation=periodisation,
                          timeout=timeout,
                          verbose=verbose,
-                         approximate_discounting=approximate_discounting,
                          )
 
     # Plot the results.
@@ -68,7 +67,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
 
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None, verbose=False, approximate_discounting=False):
+               timeout=None, verbose=False):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -81,7 +80,6 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
-        approximate_discounting=approximate_discounting,
     )
 
     # Print the results.
@@ -91,7 +89,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
          price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None, verbose=False, approximate_discounting=False):
+         timeout=None, verbose=False):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -103,7 +101,6 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
-        approximate_discounting=approximate_discounting,
     )
     with cmd:
         try:
@@ -119,7 +116,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None, verbose=False, approximate_discounting=False):
+                 timeout=None, verbose=False):
         self.timeout = timeout
         self.source_code = source_code
         self.observation_date = observation_date
@@ -130,7 +127,6 @@ class Calculate(object):
         # self.double_sided_deltas = double_sided_deltas
         self.price_process = price_process
         self.periodisation = periodisation
-        self.approximate_discounting = approximate_discounting
         self.max_dependency_graph_size = max_dependency_graph_size
         self.verbose = verbose
         # Todo: Repetitions - number of times the computation will be repeated (multiprocessing).
@@ -146,7 +142,8 @@ class Calculate(object):
         signal.signal(signal.SIGINT, self.orig_sigint_handler)
 
     def calculate(self):
-        self.node_evaluations_count = 0
+        self.result_cost = 0
+        self.result_count = 0
         self.root_result_id = None
         self.is_timed_out = Event()
         self.is_interrupted = Event()
@@ -214,11 +211,12 @@ class Calculate(object):
                 # Estimate the cost of the evaluation (to show progress).
                 # Todo: Improve the call cost estimation, perhaps by running over the depenendency graph and coding
                 # each DSL class to know how long it will take relative to others.
-                call_costs = app.calc_call_costs(contract_specification.id)
-                self.node_evaluations_num_expected = sum(call_costs.values())
+                call_counts, call_costs = app.calc_counts_and_costs(contract_specification.id)
+                self.result_count_expected = sum(call_counts.values())
+                self.result_cost_expected = sum(call_costs.values())
                 if self.verbose:
-                    print("Starting {} node evaluations, please wait...".format(self.node_evaluations_num_expected))
-                self.expected_num_call_requirements = len(call_costs)
+                    print("Starting {} node evaluations, please wait...".format(self.result_count_expected))
+                # self.expected_num_call_requirements = len(call_costs)
 
                 # Evaluate the contract specification.
                 start_calc = datetime.datetime.now()
@@ -227,7 +225,6 @@ class Calculate(object):
                     contract_specification_id=contract_specification.id,
                     market_simulation_id=market_simulation.id,
                     periodisation=self.periodisation,
-                    approximate_discounting=self.approximate_discounting,
                 )
 
                 # Wait for the result.
@@ -389,26 +386,29 @@ class Calculate(object):
     def is_result_value_computed(event):
         return isinstance(event, ResultValueComputed)
 
-    def inc_result_value_computed_count(self, _):
-        self.node_evaluations_count += 1
+    def inc_result_value_computed_count(self, event):
+        self.result_count += 1
+        self.result_cost += event.cost
 
     def print_evaluation_progress(self, event):
         self.check_is_timed_out(event)
 
         # Todo: Settle this down, needs closer accounting of cost of element evaluation to stop estimate being so
-        # jumpy. Perhaps estiating the complexity is something to do when building the dependency graph?
-        i = len(self.times) // 2
+        # jumpy. Perhaps estimating the complexity is something to do when building the dependency graph?
+        # i = len(self.times) // 2
+        i = 0
         j = len(self.times) - 1
         self.times.append(datetime.datetime.now())
 
         if self.verbose and j > i:
             duration = self.times[j] - self.times[i]
-            rate = (j - i) / duration.total_seconds()
-            eta = (self.node_evaluations_num_expected - self.node_evaluations_count) / rate
+            rate_cost = self.result_cost / duration.total_seconds()
+            rate_count = self.result_count / duration.total_seconds()
+            eta = (self.result_cost_expected - self.result_cost) / rate_cost
             seconds_running = (datetime.datetime.now() - self.started).total_seconds()
             seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
 
-            percent_complete = (100.0 * self.node_evaluations_count) / self.node_evaluations_num_expected
+            percent_complete = (100.0 * self.result_cost) / self.result_cost_expected
             msg = (
                 "\r"
                 "{}/{} "
@@ -416,10 +416,10 @@ class Calculate(object):
                 "{:.2f} eval/s "
                 "running {:.0f}s "
                 "eta {:.0f}s").format(
-                    self.node_evaluations_count,
-                    self.node_evaluations_num_expected,
+                    self.result_count,
+                    self.result_count_expected,
                     percent_complete,
-                    rate,
+                    rate_count,
                     seconds_running,
                     eta,
                 )

@@ -161,6 +161,12 @@ class DslObject(six.with_metaclass(ABCMeta)):
         return self.process('call_functions', effective_present_time=effective_present_time,
                             pending_call_stack=pending_call_stack)
 
+    def cost_expression(self):
+        cost = 0
+        for instance in self.find_instances(DslExpression):
+            cost += instance.cost_element()
+        return cost
+
     def process(self, method, *args, **kwargs):
         new_dsl_args = []
         for dsl_arg in self._args:
@@ -191,6 +197,8 @@ class DslObject(six.with_metaclass(ABCMeta)):
 
 
 class DslExpression(DslObject):
+    relative_cost = 1
+
     @abstractmethod
     def evaluate(self, **kwds):
         """
@@ -200,11 +208,13 @@ class DslExpression(DslObject):
     def discount(self, value, start_date, end_date, **kwds):
         r = float(kwds['interest_rate']) / 100
         T = get_duration_years(start_date, end_date)
-        # Todo: Support proper discounting (it's 16% slower).
-        if True or kwds['approximate_discounting']:
-            return value * math.exp(- r * T)
-        else:
-            return value / (1 + r) ** T
+        # Assumes continuous compounding rate.
+        return value * math.exp(- r * T)
+        # Not annualised equivalent rate.
+        # return value / (1 + r) ** T
+
+    def cost_element(self):
+        return self.relative_cost
 
 
 class DslConstant(DslExpression):
@@ -366,6 +376,8 @@ NUMEXPR_OPS = ['+', '-', '*', '/', '**', '%']
 
 
 class BinOp(DslExpression):
+    relative_cost = 10
+
     op_code = ''
 
     def pprint(self, indent=''):
@@ -534,6 +546,8 @@ class Max(NonInfixedBinOp):
 
 
 class Name(DslExpression):
+    relative_cost = 0
+
     def pprint(self, indent=''):
         return self.name
 
@@ -990,6 +1004,8 @@ class IfExp(If):
 
 
 class Compare(DslExpression):
+    relative_cost = 10
+
     valid_ops = {
         'Eq': lambda a, b: a == b,
         'NotEq': lambda a, b: a != b,
@@ -1192,6 +1208,7 @@ functionalDslClasses = {
 # Todo: Add something to Map a contract function to a sequence of values (range, list comprehension).
 
 class AbstractMarket(StochasticObject, DslExpression):
+    relative_cost = 0
     _commodity_name_arg_index = 0
 
     def evaluate(self, **kwds):
@@ -1335,6 +1352,7 @@ class Settlement(StochasticObject, DatedDslObject, DslExpression):
     """
     Discounts value of expression to 'present_time'.
     """
+    relative_cost = 10
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
@@ -1355,6 +1373,8 @@ class Fixing(StochasticObject, DatedDslObject, DslExpression):
     """
     A fixing defines the 'present_time' used for evaluating its expression.
     """
+    relative_cost = 0
+
 
     def pprint(self, indent=''):
         return indent + "%s('%04d-%02d-%02d', %s)" % (
@@ -1418,6 +1438,7 @@ class Wait(Fixing):
 
     Wait(date, expr) == Settlement(date, Fixing(date, expr))
     """
+    relative_cost = 10
 
     def evaluate(self, **kwds):
         value = super(Wait, self).evaluate(**kwds)
@@ -1428,6 +1449,7 @@ class Choice(StochasticObject, DslExpression):
     """
     Encapsulates the Longstaff-Schwartz routine as an element of the language.
     """
+    relative_cost = 300
 
     def validate(self, args):
         self.assert_args_len(args, min_len=2)

@@ -52,6 +52,7 @@ class TestEventSourcedRepos(ApplicationTestCase):
             dsl_source=dsl_source,
             effective_present_time=effective_present_time,
             contract_specification_id=contract_specification_id,
+            cost=1,
         )
 
         call_requirement = self.app.call_requirement_repo[call_id]

@@ -29,28 +29,32 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
     all_dependents = defaultdict(list)
 
     # Generate stubbed call from the parsed DSL module object.
-    for stub in generate_stubbed_calls(contract_specification.id, dsl_expr, dsl_globals, dsl_locals):
+    for stubed_call in generate_stubbed_calls(contract_specification.id, dsl_expr, dsl_globals, dsl_locals):
         # assert isinstance(stub, StubbedCall)
 
+        # Estimate the cost of evaluating this expression.
+        estimated_cost = stubed_call.dsl_expr.cost_expression()
+
         # Register the call requirements.
-        call_id = stub.call_id
-        dsl_source = str(stub.dsl_expr)
-        effective_present_time = stub.effective_present_time
+        call_id = stubed_call.call_id
+        dsl_source = str(stubed_call.dsl_expr)
+        effective_present_time = stubed_call.effective_present_time
         call_requirement = register_call_requirement(
             call_id=call_id,
             dsl_source=dsl_source,
             effective_present_time=effective_present_time,
             contract_specification_id=contract_specification.id,
+            cost=estimated_cost,
         )
 
         # Hold onto the dsl_expr, helps in "single process" modes....
-        call_requirement._dsl_expr = stub.dsl_expr
+        call_requirement._dsl_expr = stubed_call.dsl_expr
         # - put the entity directly in the cache, otherwise the entity will be regenerated when it is next accessed
         #   and the _dsl_expr will be lost.
         call_requirement_repo.add_cache(call_id, call_requirement)
 
         # Register the call requirements.
-        dependencies = stub.requirements
+        dependencies = stubed_call.requirements
         register_call_dependencies(call_id, dependencies)
 
         # Keep track of the leaves and the dependents.
