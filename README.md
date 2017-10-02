@@ -62,23 +62,70 @@ of the `QuantDslApplication` described above.
 from quantdsl.interfaces.calcandplot import calc
 ```
 
-Simple numerical operations.
+### Numerical expressions
 
 ```python
-results = calc("2 + 3 * 4 - 10 / 5")
-
-assert results.fair_value == 12
+results = calc("0")
+assert results.fair_value == 0
 ```
-
-Other numerical operations.
 
 ```python
-results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
-
-assert results.fair_value == 4
+results = calc("5")
+assert results.fair_value == 5
 ```
 
-Boolean operations.
+```python
+results = calc("-5")
+assert results.fair_value == -5
+```
+
+```python
+results = calc("5 + 2")
+assert results.fair_value == 7
+```
+
+```python
+results = calc("5 - 2")
+assert results.fair_value == 3
+```
+
+```python
+results = calc("5 * 2")
+assert results.fair_value == 10
+```
+
+```python
+results = calc("5 / 2")
+assert results.fair_value == 2.5
+```
+
+```python
+results = calc("5 // 2")
+assert results.fair_value == 2
+```
+
+```python
+results = calc("5 ** 2")
+assert results.fair_value == 25
+```
+
+```python
+results = calc("5 % 2")
+assert results.fair_value == 1
+```
+
+```python
+results = calc("Max(5, 2)")
+assert results.fair_value == 5
+```
+
+```python
+results = calc("Min(5, 2)")
+assert results.fair_value == 2
+```
+
+
+### Boolean expressions
 
 ```python
 assert calc("1 and 2").fair_value == True
@@ -92,233 +139,57 @@ assert calc("0 or 1").fair_value == True
 assert calc("0 or 0").fair_value == False
 ```
 
-Date and time values.
+### Date and time expressions
+
+The `Date` element can be used to indicate a date-time value. `TimeDelta` elements can be added and subtracted 
+from `Date` elements. `Date` elements can be compared, but `TimeDelta` elements cannot be compared.
 
 ```python
 import datetime
+from dateutil.relativedelta import relativedelta
+from quantdsl.exceptions import DslCompareArgsError
 
 
 results = calc("Date('2011-1-1')")
 assert results.fair_value == datetime.datetime(2011, 1, 1)
 
 results = calc("Date('2011-1-10') - Date('2011-1-1')")
-assert results.fair_value == datetime.timedelta(days=9)
+assert results.fair_value == relativedelta(days=9)
+
+results = calc("Date('2012-1-1') - Date('2011-1-1')")
+assert results.fair_value == relativedelta(years=1)
+
+results = calc("Date('2012-1-1') + TimeDelta('1y') == Date('2013-1-1')")
+assert results.fair_value == True
+
+results = calc("Date('2011-1-1') + TimeDelta('1y') == Date('2012-1-1')")
+assert results.fair_value == True
+
+results = calc("Date('2012-1-1') + 366 * TimeDelta('1d') == Date('2013-1-1')")
+assert results.fair_value == True
+
+results = calc("Date('2011-1-1') + 365 * TimeDelta('1d') == Date('2012-1-1')")
+assert results.fair_value == True
+
+results = calc("Date('2012-1-1') + 12 * TimeDelta('1m') == Date('2013-1-1')")
+assert results.fair_value == True
+
+results = calc("Date('2011-1-1') + 12 * TimeDelta('1m') == Date('2012-1-1')")
+assert results.fair_value == True
 
 results = calc("Date('2011-1-1') + 5 * TimeDelta('1d') < Date('2011-1-10')")
 assert results.fair_value == True
 
-results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') < Date('2011-1-10')")
-assert results.fair_value == False
+results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') > Date('2011-1-10')")
+assert results.fair_value == True
+
+
+try:
+    calc("365 * TimeDelta('1d') == TimeDelta('1y')")
+except DslCompareArgsError:
+    pass
+
 ```
-
-### Function definitions
-
-Function definitions can be used to structure complex expressions.
- 
-When evaluating an expression that involves calls to function definitions, the call to the function definition is 
-effectively replaced with the expression returned by the function definition, so that a larger expression is formed.
-
-The call args of the function definition can be used as names in the function definition's expressions. The call arg 
-values will be used to evaluate the expression returned by the function.
-
-```python
-results = calc("""
-def Function(a):
-    2 * a
-
-Function(10)
-""")
-
-assert results.fair_value == 20
-```   
-
-The call args of the function definition can be used in an if-else block, so that different expressions can be 
-returned depending upon the function call argument values.
-
-Each function call becomes a node on a dependency graph. For efficiency, each call is internally memoised, so if a 
-function is called many times with the same argument values (and at the same effective present time), the function 
-is only evaluated once, and the result is memoised and reused. This allows branched calculations to recombine 
-efficienctly. For example, the following Finboncci function definition will evaluate in linear time (proportional to
- `n`).
-
-```python
-results = calc("""
-def Fib(n):
-    if n > 1:
-        Fib(n-1) + Fib(n-2)
-    else:
-        n
-
-Fib(60)
-""")
-
-assert results.fair_value == 1548008755920
-```   
-
-Please note, the test expressions (the expressions preceding the colons in the if-else block) must be simple 
-expressions involving the call args, and must not involve any Quant DSL stochastic elements introduced below, such 
-as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in if 
-statements is supported, but the function definitions must not contain any of the stochastic elements.
-
-### Market
-
-The `Market` element effectively estimates spot prices that could be agreed in the future.
-
-```python
-from quantdsl.semantics import Market
-
-Market('GAS')
-```
-
-```python
-Market('POWER')
-```
-
-When a `Market` element is evaluated, it selects an estimated price from a simulation
- of market prices. Selecting an estimated price from the simulation requires a name
- of a market, a fixing date when the price would be agreed, and a delivery date when
- the goods would be delivered.
- 
-Both the fixing date and the delivery date are set by the "effective present time"
-when the element is evaluated (see below). 
-The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` above).
-
-Because a `Market` element depends a price simulation, it cannot be evaluated unless a price process is also 
-configured.
-
-```python
-price_process = {
-    'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-    'market': ['GAS', 'POWER'],
-    'sigma': [0.0, 0.0],
-    'rho': [
-        [1.0, 0.8],
-        [0.8, 1.0]
-    ],
-    'curve': {
-        'GAS': [
-            ('2011-1-1', 10),
-            ('2111-1-1', 1000)
-        ],
-        'POWER': [
-            ('2011-1-1', 11),
-            ('2111-1-1', 1100)
-        ]
-    },
-}
-```
-
-In this example, the library's one-factor multi-market Black Scholes price process `BlackScholesPriceProcess` is 
-used to generate correlated geometric Brownian motions.
-
-The calibration parameters required by this price process are `'market'`, a list of market names; and 
-`'sigma'`, a list of annualised historical volatilities (expressed as a fraction of 1, rather than as a 
-percentage). In these examples, at first the volatilities `sigma` of both 'GAS' and 'POWER' markets are set to zero.
-
-If there is more than one market, an additional parameter `'rho'` is required, which represents the 
-correlation between the markets, a symmetric matrix expressed as a list of lists.
-
-A forward `curve` is required to provide estimates of current prices for each market at the given `observation_date`. 
-The prices in the forward curve are prices that can be agreed at the `observation_date` for delivery at the 
-specified dates.
-
-The simulation generates estimates of prices that can be agreed in the future. These estimated prices are generated by 
-evolving a forward curve from the `observation_date`, according to both the configured `price_process` and the 
-requirements of the expression.
-
-The simulation identifies all the price estimates required by the Quant DSL expression to be evaluated. Requirements
-for the simulation (dates and markets) are derived from the expression to be evaluated, so that if the expression 
-involves agreeing at a particular date a price for particular goods to be delivered at a particular date, then the 
-simulation will work to provide that value.
-
-For each price that is required, the simulation uses the delivery date to select from the forward `curve` a price 
-that can be agreed at the `observation_date`, and then evolves that price through the fixing dates, according to the 
-configured `price_process`. If the forward curve doesn't contain a price at the required delivery date, a price at 
-an earlier delivery date is used (zero order hold).
-
-The effective present time of a single `Market` element is the `observation_date` given when evaluating the 
-expression. Therefore, evaluating a single `Market` element will simply return the last value from the given forward
- curve for that market at the given `observation_date`.
-
-```python
-results = calc("Market('GAS')",
-    observation_date='2011-1-1',
-    price_process=price_process,
-)
-assert results.fair_value.mean() == 10
-
-results = calc("Market('GAS')",
-    observation_date='2111-1-1',
-    price_process=price_process,
-)
-assert results.fair_value.mean() == 1000
-
-results = calc("Market('POWER')",
-    observation_date='2011-1-1',
-    price_process=price_process,
-)
-assert results.fair_value.mean() == 11
-
-results = calc("Market('POWER')",
-    observation_date='2111-1-1',
-    price_process=price_process,
-)
-assert results.fair_value.mean() == 1100
-```
-
-The number of samples in the random variable corresponds to the number of paths in the Monte Carlo simulation used 
-to evaluate the expression, which defaults to `20000`.
-
-```python
-assert len(results.fair_value) == 20000
-```
-The number of paths in the Monte Carlo simulation can be adjusted by setting `path_count`. The accuracy of results 
-can be doubled by increasing the path count by a factor of four.
-
-```python
-results = calc("Market('GAS')",
-    observation_date='2011-1-1',
-    price_process=price_process,
-    path_count=80000,
-)
-assert len(results.fair_value) == 80000
-```
-
-Since `sigma` (above) is `0.0`, there is no stochastic evolution of the forward curve, so the standard 
-deviation of the result value is zero.
-
-```python
-assert results.fair_value.std() == 0.0
-```
-
-Evaluating at a later observation date will return a later value from the forward curve. The standard deviation of 
-the result will still be zero, since the observation date and the date of the price are the same.
-
-```python
-results = calc("Market('GAS')",
-    observation_date='2111-1-1',
-    price_process=price_process,
-)
-assert results.fair_value.mean() == 1000
-assert results.fair_value.std() == 0.0
-```
-
-Values at particular dates are selected from the given forward curve, with zero-order hold from the last known 
-value. For example, using the `price_process` defined above, evaluating with `observation_date` of `2051-1-1` will 
-fall back onto the value in the forward curve for `2011-1-1`, which is `10`.
-
-```python
-results = calc("Market('GAS')",
-    observation_date='2051-1-1',
-    price_process=price_process,
-)
-assert results.fair_value.mean() == 10
-assert results.fair_value.std() == 0.0
-```
-
-The `Market` element can be combined with the `Fixing` and the `Wait` element to express expected prices in the 
-future beyond the `observation_date`. The `ForwardMarket` element can be used to specify a delivery date that is 
-different from the effective present time (when the price for that delivery is agreed).
 
 ### Settlement
 
@@ -329,8 +200,8 @@ evaluation.
 If the effective present time of the `Settlement` is the same as the settlement date, there is no discounting.
 
 ```python
-results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
-    observation_date='2011-1-1',
+results = calc("Settlement('2111-1-1', 10)",
+    observation_date='2111-1-1',
     interest_rate=2.5,
 )
 assert results.fair_value == 10.0
@@ -366,64 +237,24 @@ Todo: Support annual equivalent rate?
 
 ### Fixing
 
-The `Fixing` element is used to condition the "effective present time" of its included expression. If a
-`Market` element is included in the `Fixing` element, then the effective present time of the 
-`Market` element will be the date of the `Fixing`. 
+The `Fixing` element is used to condition the "effective present time" of its included expression.
 
-The expression below represents the price of `'GAS'` that can be agreed and delivered on `'2111-1-1'`.
+For example, if a `Settlement` element is included in the `Fixing` element, then the effective present time of the 
+`Settlement` element will be the date of the `Fixing`.
 
-Since `sigma` is still zero, the value of the expression observed at `'2011-1-1` is the value in the forward 
-curve at `'2111-1-1'`.
+The expression below represents the present value in `'2111-1-1'` of the value of `10` delivered on `'2111-1-1'`, 
+observed on `'2011-1-1'`.
 
 ```python
-results = calc("Fixing('2111-1-1', Market('GAS'))",
+results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
     observation_date='2011-1-1',
-    price_process=price_process,
+    interest_rate=7,
 )
 
-assert results.fair_value.mean() == 1000
-assert results.fair_value.std() == 0
+assert results.fair_value == 10
 ```   
 
-Now, let's recalibrate the price process to have a non-zero `sigma`, so that simulated prices will have some 
-volatility.
-
-```python
-price_process['sigma'] = [0.02, 0.02]  # 2% historical annualised volatility.
-```
-
-With non-zero `sigma`, and with a difference between the `observation_date` and the date
- of the `Fixing`, there is stochastic evolution from the prices in the forward curve that can be agreed at the 
- `observation_date` to an estimate of prices that may be agreed at the `Fixing` date.
-
-The standard deviation of the result is non-zero. And the mean of the samples will not be exactly equal to the 
-value taken from the forward curve (but it will tend towards that value as the number of samples tends to infinity).
-
-```python
-results = calc("Fixing('2111-1-1', Market('GAS'))",
-    observation_date='2011-1-1',
-    price_process=price_process,
-)
-
-assert results.fair_value.mean() != 1000
-assert results.fair_value.std() != 0
-```   
-
-### Wait
-
-The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
-effective present time of the included expression, and also the value of that expression is discounted to the 
-present time effective when evaluating the `Wait` element.
-
-```python
-results = calc("Wait('2111-1-1', Market('GAS'))",
-    observation_date='2011-1-1',
-    price_process=price_process,
-    interest_rate=2.5,
-)
-```
-
-Aside: Before continuing with the stochastic examples below, setting the random seed helps make test results 
+Before continuing with the stochastic examples below, setting the random seed helps make test results 
 repeatable. And to help keep things readable, some "helper" functions are defined: `assert_equal` and 
 `assert_almost_equal`.
 
@@ -445,12 +276,172 @@ def assert_almost_equal(a, b):
     assert diff < tol, (a, b, diff, tol)
 ```
 
-Now we can check the value of the `Wait` expression above reflects the later value in the forward `curve` and 
-discounting over the period to create a present value of less than `100`.
+
+### Market
+
+The `Market` element effectively estimates spot prices that could be agreed in the future.
+
+When a `Market` element is evaluated, it selects an estimated price from a simulation
+ of market prices. Selecting an estimated price from the simulation requires a name
+ of a market, a fixing date when the price would be agreed, and a delivery date when
+ the goods would be delivered.
+ 
+Both the fixing date and the delivery date are set by the "effective present time"
+when the element is evaluated (see below).
+
+The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` above).
+
+Because a `Market` element depends a price simulation, it cannot be evaluated unless a price process is also 
+configured.
+
+In this example, the library's one-factor multi-market Black Scholes price process `BlackScholesPriceProcess` is 
+used to generate correlated geometric Brownian motions.
+
+The calibration parameters required by this price process are `'market'`, a list of market names; and 
+`'sigma'`, a list of annualised historical volatilities (expressed as a fraction of 1, rather than as a 
+percentage). In these examples, at first the volatilities `sigma` of both 'GAS' and 'POWER' markets are set to zero.
+
+If there is more than one market, an additional parameter `'rho'` is required, which represents the 
+correlation between the markets, a symmetric matrix expressed as a list of lists.
+
+A forward `curve` is required to provide estimates of current prices for each market at the given `observation_date`. 
+The prices in the forward curve are prices that can be agreed at the `observation_date` for delivery at the 
+specified dates.
+
 
 ```python
-assert_almost_equal(82.044, results.fair_value.mean())
-```   
+price_process = {
+    'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+    'market': ['GAS', 'POWER'],
+    'sigma': [0.02, 0.02],
+    'rho': [
+        [1.0, 0.8],
+        [0.8, 1.0]
+    ],
+    'curve': {
+        'GAS': [
+            ('2011-1-1', 10),
+            ('2111-1-1', 1000)
+        ],
+        'POWER': [
+            ('2011-1-1', 11),
+            ('2111-1-1', 1100)
+        ]
+    },
+}
+```
+
+The price simulation has estimates of prices that could be agreed at future dates. These estimated prices are 
+generated by evolving a forward curve from the `observation_date`, according to both the configured `price_process`
+ and the requirements of the expression.
+
+The simulation identifies all the price estimates required by the Quant DSL expression to be evaluated. Requirements
+for the simulation (dates and markets) are derived from the expression to be evaluated, so that if the expression 
+involves agreeing at a particular date a price for particular goods to be delivered at a particular date, then the 
+simulation will work to provide that value.
+
+For each price that is required, the simulation uses the delivery date to select from the forward `curve` a price 
+that can be agreed at the `observation_date`, and then evolves that price through the fixing dates, according to the 
+configured `price_process`. If the forward curve doesn't contain a price at the required delivery date, a price at 
+an earlier delivery date is used (zero order hold).
+
+The effective present time of a single `Market` element is the `observation_date` given when evaluating the 
+expression. Therefore, evaluating a single `Market` element will simply return the last value from the given forward
+ curve for that market at the given `observation_date`.
+ 
+```python
+results = calc("Market('GAS')",
+    observation_date='2011-1-1',
+    price_process=price_process,
+)
+```
+
+The `Market` element uses random variables from the price simulation, so the results are random variables, and we 
+need to take the `mean()` to obtain a scalar value.
+
+```python
+assert results.fair_value.mean() == 10
+```
+
+Since `sigma` is `0.0` (above), there is no stochastic evolution of the forward curve, so the standard 
+deviation of the result value is zero.
+
+```python
+assert results.fair_value.std() == 0.0
+```
+
+Evaluating at a later observation date will return a later value from the forward curve. The standard deviation of 
+the result will still be zero, since the observation date and the date of the price are the same.
+
+```python
+results = calc("Market('GAS')",
+    observation_date='2111-1-1',
+    price_process=price_process,
+)
+assert results.fair_value.mean() == 1000
+```
+
+The number of samples in the random variable corresponds to the number of paths in the Monte Carlo simulation used 
+to evaluate the expression, which defaults to `20000`.
+
+```python
+assert len(results.fair_value) == 20000
+```
+The number of paths in the Monte Carlo simulation can be adjusted by setting `path_count`. The accuracy of results 
+can be doubled by increasing the path count by a factor of four.
+
+```python
+results = calc("Market('GAS')",
+    observation_date='2011-1-1',
+    price_process=price_process,
+    path_count=80000,
+)
+assert len(results.fair_value) == 80000
+```
+
+Values at particular dates are selected from the given forward curve, with zero-order hold from the last known 
+value. For example, using the `price_process` defined above, evaluating with `observation_date` of `2051-1-1` will 
+fall back onto the value in the forward curve for `2011-1-1`, which is `10`.
+
+```python
+results = calc("Market('GAS')",
+    observation_date='2051-1-1',
+    price_process=price_process,
+)
+assert results.fair_value.mean() == 10
+```
+
+The `Market` element can be combined with the `Fixing` or the `Wait` element to express expected prices in the 
+future beyond the `observation_date`. The `ForwardMarket` element can be used to specify a delivery date that is 
+different from the fixing date (when the price for that delivery would be agreed).
+
+Now, estimates of prices that can be agreed in the future are random variables with distributions that have non-zero 
+standard deviation, and so the mean value will only approximate to the value taken from the forward `curve`.
+
+```python
+results = calc("Fixing('2051-1-1', Market('GAS'))",
+    observation_date='2011-1-1',
+    price_process=price_process,
+)
+assert results.fair_value.std() > 0.0
+assert results.fair_value.mean() != 10
+```
+
+
+### Wait
+
+The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
+effective present time of the included expression, and also the value of that expression is discounted to the 
+present time effective when evaluating the `Wait` element.
+
+```python
+results = calc("Wait('2111-1-1', Market('GAS'))",
+    price_process=price_process,
+    observation_date='2110-1-1',
+    interest_rate=1,
+)
+assert_almost_equal(results.fair_value.mean(), 990.0)
+```
 
 
 ### Choice
@@ -490,7 +481,94 @@ results = calc(source_code,
 assert_almost_equal(9.048, results.fair_value.mean())
 ```
 
-### European and American options
+
+### Functions
+
+Quant DSL source code can include function definitions. Expressions can involve calls to functions.
+
+When evaluating an expression that involves a call to a function definitions, the call to the 
+function definition is effectively replaced with the expression returned by the function definition,
+so that a larger expression is formed.
+
+The call args of the function definition can be used as names in the function definition's expressions. The call arg 
+values will be used to evaluate the expression returned by the function.
+
+```python
+results = calc("""
+def Function(a):
+    2 * a
+
+Function(10)
+""")
+
+assert results.fair_value == 20
+```   
+
+The call args of the function definition can be used in an if-else block, so that different expressions can be 
+returned depending upon the function call argument values.
+
+Each function call becomes a node on a dependency graph. For efficiency, each call is internally memoised, so if a 
+function is called many times with the same argument values (and at the same effective present time), the function 
+is only evaluated once, and the result is memoised and reused. This allows branched calculations to recombine 
+efficienctly. For example, the following Finboncci function definition will evaluate in linear time (proportional to
+ `n`).
+
+```python
+results = calc("""
+def Fib(n):
+    if n > 1:
+        Fib(n-1) + Fib(n-2)
+    else:
+        n
+
+Fib(60)
+""")
+
+assert results.fair_value == 1548008755920
+```   
+
+Function definitions can be used to refactor complex expressions. For example, if the expression is the sum of a 
+series of settlements on different dates, the expression without a function definition might be:
+
+```python
+source_code = """
+Settlement(Date('2011-1-1'), 10) + Settlement(Date('2011-2-1'), 10) + Settlement(Date('2011-3-1'), 10) + \
+Settlement(Date('2011-4-1'), 10) + Settlement(Date('2011-5-1'), 10) + Settlement(Date('2011-6-1'), 10) + \
+Settlement(Date('2011-8-1'), 10) + Settlement(Date('2011-8-1'), 10) + Settlement(Date('2011-9-1'), 10) + \
+Settlement(Date('2011-10-1'), 10) + Settlement(Date('2011-11-1'), 10) + Settlement(Date('2011-12-1'), 10)
+"""
+results = calc(source_code,
+    observation_date='2011-1-1',
+    interest_rate=10,
+)
+assert_almost_equal(results.fair_value, 114.592)
+```
+ 
+Instead the expression could be refactored with a function definition.
+ 
+```python
+source_code = """
+def Repayments(start, end, installment):
+    if start <= end:
+        Settlement(start, installment) + Repayments(start + TimeDelta('1m'), end, installment)
+    else:
+        0
+        
+Repayments(Date('2011-1-1'), Date('2011-12-1'), 10)
+"""
+results = calc(source_code,
+    observation_date='2011-1-1',
+    interest_rate=10,
+)
+assert_almost_equal(results.fair_value, 114.592)
+```
+
+Please note, any `if` statement test expressions (the expressions preceding the colons in the `if` statement) must be 
+simple expressions involving the call args, and must not involve any Quant DSL stochastic elements, such 
+as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in if 
+statements is supported, but the function definitions must not contain any of the stochastic elements.
+
+### Options
 
 In general, an option can be expressed as waiting to choose between, on one hand, the 
 difference between the value of an underlying expression and a strike expression,
@@ -659,15 +737,22 @@ for rate in [0.0, 20.0, 50.0]:
             )
 ```
 
-## Examples of usage
 
-The examples below use the library function `calc_print_plot()` to calculate, print, and plot results.
+### Gas storage
+
+An evaluation of a gas storage facility. The value obtained is the extrinsic value. The intrinstic value can be 
+obtained by setting the volatility `sigma` to `0`, and evaluating with `path_count` of `1`.
+
+This example uses a forward curve that has seasonal variation (prices are high in winter and low in 
+summer).
+
+This example uses the library function `calc_print_plot()` to calculate, print, and plot results.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc_print_plot
 ```
 
-If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
+The deltas for each market in each period will be calculated, and estimated risk neutral 
  hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
  displayed showing underlying prices and the cumulative hedge positions for each underlying, and the net cash from the 
  hedge positions (profit and loss).
@@ -676,23 +761,12 @@ The plot will also show the statistical distribution of the simulated prices, an
  positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
  how well the deltas are performing.
 
-
-### Gas storage
-
-An evaluation of a gas storage facility. The value obtained is the extrinsic value. The intrinstic value can be 
-obtained by setting the volatility `sigma` to zero.
-
-This example uses a more detailed forward curve that has seasonal variation (prices are high in winter and low in 
-summer).
-
 Todo: Discounting of forward contracts when calculating hedge positions, so the quantities will be larger with 
 larger interest rates. Also the price of the hedge is the forward price at the observation time, rather than the 
 spot price at the forward time?
 
 ```python
-results = calc_print_plot(
-    title="Gas Storage",
-    source_code="""
+source_code = """
 def GasStorage(start, end, market, quantity, target, limit, step):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
@@ -743,8 +817,11 @@ def Full():
 
 
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), Market('GAS'), Empty(), Empty(), Full(), TimeDelta('1m'))
-""",
+"""
 
+results = calc_print_plot(
+    title="Gas Storage",
+    source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
     periodisation='monthly',
@@ -794,13 +871,15 @@ An evaluation of a power station. This example imports a power station model fro
 uses a market model with two correlated markets. The source code for the power station model is copied in below.
 
 ```python
-results = calc_print_plot(
-    title="Power Station",
-
-    source_code="""from quantdsl.lib.powerplant2 import PowerPlant, Running
+source_code = """
+from quantdsl.lib.powerplant2 import PowerPlant, Running
         
 PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
-""",
+"""
+
+results = calc_print_plot(
+    title="Power Station",
+    source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
     periodisation='daily',

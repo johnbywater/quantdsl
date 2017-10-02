@@ -239,3 +239,6 @@ class QuantDslApplication(EventSourcingApplication):
             calls[call_id] = cost
 
         return calls
+
+    def check_has_thread_errored(self):
+        return False

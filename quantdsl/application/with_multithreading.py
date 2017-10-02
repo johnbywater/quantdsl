@@ -34,6 +34,7 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
             if not self.has_thread_errored.is_set():
                 self.thread_exception = e
                 self.has_thread_errored.set()
+                raise
 
     def get_result(self, contract_valuation):
         assert isinstance(contract_valuation, ContractValuation)
@@ -46,5 +47,8 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
                 return super(QuantDslApplicationWithMultithreading, self).get_result(contract_valuation)
             except KeyError:
                 sleep(0.1)
-            if self.has_thread_errored.is_set():
-                raise self.thread_exception
+            self.check_has_thread_errored()
+
+    def check_has_thread_errored(self):
+        if self.has_thread_errored.is_set():
+            raise self.thread_exception

@@ -15,7 +15,7 @@ import dateutil.parser
 import numpy
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 
-from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
+from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, QuantDslApplication
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
 from quantdsl.domain.model.call_dependents import CallDependents
@@ -234,7 +234,7 @@ class Calculate(object):
                 self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
                 if not self.root_result_id in app.call_result_repo:
                     while not self.is_finished.wait(timeout=1):
-                        pass
+                        self.check_has_app_thread_errored(app)
                     self.check_is_timed_out()
                     self.check_is_interrupted()
 
@@ -251,6 +251,13 @@ class Calculate(object):
                 self.unsubscribe()
 
         return results
+
+    def check_has_app_thread_errored(self, app):
+        try:
+            app.check_has_thread_errored()
+        except:
+            self.set_is_finished()
+            raise
 
     def read_results(self, app, evaluation, market_simulation):
         assert isinstance(evaluation, ContractValuation)
@@ -457,6 +464,7 @@ class Calculate(object):
 
     def check_is_interrupted(self, *_):
         if self.is_interrupted.is_set():
+            self.set_is_finished()
             raise InterruptSignalReceived(self.interruption_msg)
 
 

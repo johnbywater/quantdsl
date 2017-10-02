@@ -282,10 +282,10 @@ class TimeDelta(DslConstant):
             duration_str = value.evaluate()
             parts = regex.match(duration_str)
             parts = parts.groupdict()
-            params = dict((name, int(param)) for (name, param) in six.iteritems(parts) if param)
-            if not params:
+            kwargs = dict((name, int(param)) for (name, param) in six.iteritems(parts) if param)
+            if not kwargs:
                 raise DslSyntaxError('invalid "time delta" string', duration_str, node=self.node)
-            value = relativedelta(**params)
+            value = relativedelta(**kwargs)
         return value
 
 
@@ -435,7 +435,10 @@ class Sub(BinOp):
     op_code = '-'
 
     def op_python(self, left, right):
-        return left - right
+        if isinstance(left, datetime.date) and isinstance(right, datetime.date):
+            return relativedelta(left, right)
+        else:
+            return left - right
 
 
 class Mult(BinOp):
@@ -1050,7 +1053,7 @@ class Compare(DslExpression):
     for integer_type in six.integer_types:
         comparable_types[integer_type] = (float, six.integer_types)
     comparable_types[float] = (float, six.integer_types)
-    comparable_types[relativedelta] = (relativedelta)
+    comparable_types[datetime.timedelta] = (datetime.timedelta)
     comparable_types[datetime.date] = (datetime.date, datetime.datetime)
     comparable_types[datetime.datetime] = (datetime.date, datetime.datetime)
     for string_type in six.string_types:
@@ -1062,9 +1065,9 @@ class Compare(DslExpression):
         try:
             assert isinstance(right, self.comparable_types[type(left)])
         except (KeyError, AssertionError) as e:
-            raise DslCompareArgsError("Test expression needs comparable values"
-                                      ", not: {} and {}: {}".format(type(left), type(right), e),
-                                      node=self.node)
+            msg = ("Test expression needs comparable values, "
+                   "not: {} and {}").format(type(left), type(right))
+            raise DslCompareArgsError(msg, '', node=self.node)
 
 
 class Module(DslObject):
