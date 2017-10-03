@@ -23,10 +23,11 @@ from quantdsl.domain.model.call_link import CallLink
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
+from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.model.simulated_price_requirements import SimulatedPriceRequirements
 from quantdsl.exceptions import TimeoutError, InterruptSignalReceived
-from quantdsl.priceprocess.base import datetime_from_date
+from quantdsl.priceprocess.base import datetime_from_date, get_duration_years
 
 
 class Results(object):
@@ -37,7 +38,8 @@ class Results(object):
 
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, supress_plot=False,
-                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, timeout=None, verbose=False):
+                    dsl_classes=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+                    timeout=None, verbose=False):
 
     # Calculate and print the results.
     results = calc_print(source_code,
@@ -48,6 +50,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
                          perturbation_factor=perturbation_factor,
                          price_process=price_process,
                          periodisation=periodisation,
+                         dsl_classes=dsl_classes,
                          timeout=timeout,
                          verbose=verbose,
                          )
@@ -66,7 +69,8 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
 
 
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-               price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+               price_process=None, periodisation=None, dsl_classes=None,
+               max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
                timeout=None, verbose=False):
     # Calculate the results.
     results = calc(
@@ -77,6 +81,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
         perturbation_factor=perturbation_factor,
         price_process=price_process,
         periodisation=periodisation,
+        dsl_classes=dsl_classes,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
@@ -88,7 +93,8 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+         price_process=None, periodisation=None, dsl_classes=None,
+         max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
          timeout=None, verbose=False):
     cmd = Calculate(
         source_code=source_code,
@@ -98,6 +104,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
         perturbation_factor=perturbation_factor,
         price_process=price_process,
         periodisation=periodisation,
+        dsl_classes=dsl_classes,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
@@ -115,10 +122,13 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, 
 
 class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-                 price_process=None, periodisation=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+                 price_process=None, periodisation=None, dsl_classes=None,
+                 max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
                  timeout=None, verbose=False):
         self.timeout = timeout
         self.source_code = source_code
+        if observation_date is not None:
+            observation_date = datetime_from_date(dateutil.parser.parse(observation_date))
         self.observation_date = observation_date
         self.interest_rate = interest_rate
         self.path_count = path_count
@@ -131,6 +141,7 @@ class Calculate(object):
         self.verbose = verbose
         # Todo: Repetitions - number of times the computation will be repeated (multiprocessing).
         # self.repetitions = repetitions
+        self.dsl_classes = dsl_classes
 
     def __enter__(self):
         self.orig_sigterm_handler = signal.signal(signal.SIGTERM, self.shutdown)
@@ -160,9 +171,10 @@ class Calculate(object):
             timeout_thread.setDaemon(True)
             timeout_thread.start()
 
-        # Compile.
         with QuantDslApplicationWithMultithreadingAndPythonObjects(
-                max_dependency_graph_size=self.max_dependency_graph_size) as app:
+                max_dependency_graph_size=self.max_dependency_graph_size,
+                dsl_classes=self.dsl_classes,
+        ) as app:
 
             # Subscribe after the application, so events are received after the application.
             # - this means the final result is persisted before this interface is notified
@@ -170,8 +182,9 @@ class Calculate(object):
             self.subscribe()
             try:
 
+                # Compile.
                 start_compile = datetime.datetime.now()
-                contract_specification = app.compile(self.source_code)
+                contract_specification = app.compile(self.source_code, self.observation_date)
                 end_compile = datetime.datetime.now()
                 if self.verbose:
                     # Todo: Separate this, not all users want print statements.
@@ -186,11 +199,6 @@ class Calculate(object):
                     price_process_name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
                     calibration_params = {}
 
-                if self.observation_date is not None:
-                    observation_date = datetime_from_date(dateutil.parser.parse(self.observation_date))
-                else:
-                    observation_date = None
-
                 # Simulate the market prices.
                 start_simulate = datetime.datetime.now()
                 market_simulation = app.simulate(
@@ -198,7 +206,7 @@ class Calculate(object):
                     price_process_name=price_process_name,
                     calibration_params=calibration_params,
                     path_count=self.path_count,
-                    observation_date=observation_date,
+                    observation_date=self.observation_date,
                     interest_rate=self.interest_rate,
                     perturbation_factor=self.perturbation_factor,
                     periodisation=self.periodisation,
@@ -258,6 +266,7 @@ class Calculate(object):
 
     def read_results(self, app, evaluation, market_simulation):
         assert isinstance(evaluation, ContractValuation)
+        assert isinstance(market_simulation, MarketSimulation)
 
         call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
         call_result = app.call_result_repo[call_result_id]
@@ -316,8 +325,12 @@ class Calculate(object):
                 price = simulated_price.value
                 dx = 2 * market_simulation.perturbation_factor * price
                 contract_delta = dy / dx
-                hedge_units = -contract_delta
-                cash_in = - hedge_units * price
+                years = get_duration_years(market_simulation.observation_date, price_date)
+                # Todo: Refactor this w.r.t the discount() method of DslExpression.
+                interest_rate = market_simulation.interest_rate / 100.0
+                discount_rate = math.exp(-interest_rate * years)
+                hedge_units = - contract_delta / discount_rate
+                cash_in = contract_delta * price
                 periods.append({
                     'commodity': perturbed_name,
                     'date': price_date,
@@ -548,10 +561,10 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         price_plot = subplots[i]
 
         prices_mean = [p['price'].mean() for p in _periods]
-        prices_1 = [p['price'][0] for p in _periods]
-        prices_2 = [p['price'][1] for p in _periods]
-        prices_3 = [p['price'][2] for p in _periods]
-        prices_4 = [p['price'][3] for p in _periods]
+        # prices_1 = [p['price'][0] for p in _periods]
+        # prices_2 = [p['price'][1] for p in _periods]
+        # prices_3 = [p['price'][2] for p in _periods]
+        # prices_4 = [p['price'][3] for p in _periods]
         prices_std = [p['price'].std() for p in _periods]
         prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
         prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))

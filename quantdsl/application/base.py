@@ -30,7 +30,6 @@ from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo 
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
-from quantdsl.semantics import Choice
 
 DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
@@ -52,8 +51,8 @@ class QuantDslApplication(EventSourcingApplication):
     Evaluate contract given call dependency graph and market simulation.
     """
 
-    def __init__(self, call_evaluation_queue=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, *args,
-                 **kwargs):
+    def __init__(self, call_evaluation_queue=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+                 dsl_classes=None, *args, **kwargs):
         super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
@@ -74,6 +73,7 @@ class QuantDslApplication(EventSourcingApplication):
         self.call_result_repo = {}
         self.call_evaluation_queue = call_evaluation_queue
         self.max_dependency_graph_size = max_dependency_graph_size
+        self.dsl_classes = dsl_classes
 
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
@@ -87,6 +87,7 @@ class QuantDslApplication(EventSourcingApplication):
             call_leafs_repo=self.call_leafs_repo,
             call_requirement_repo=self.call_requirement_repo,
             max_dependency_graph_size=self.max_dependency_graph_size,
+            dsl_classes=self.dsl_classes,
         )
         self.evaluation_subscriber = EvaluationSubscriber(
             contract_valuation_repo=self.contract_valuation_repo,
@@ -114,11 +115,11 @@ class QuantDslApplication(EventSourcingApplication):
         self.call_result_policy.close()
         super(QuantDslApplication, self).close()
 
-    def register_contract_specification(self, source_code):
+    def register_contract_specification(self, source_code, observation_date=None):
         """
         Registers a new contract specification, from given Quant DSL source code.
         """
-        return register_contract_specification(source_code=source_code)
+        return register_contract_specification(source_code=source_code, observation_date=observation_date)
 
     def register_market_calibration(self, price_process_name, calibration_params):
         """
@@ -187,8 +188,8 @@ class QuantDslApplication(EventSourcingApplication):
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
         )
 
-    def compile(self, source_code):
-        return self.register_contract_specification(source_code=source_code)
+    def compile(self, source_code, observation_date=None):
+        return self.register_contract_specification(source_code=source_code, observation_date=observation_date)
 
     def simulate(self, contract_specification, price_process_name, calibration_params, observation_date,
                  path_count=20000, interest_rate='2.5', perturbation_factor=0.01, periodisation=None):

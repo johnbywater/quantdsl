@@ -594,30 +594,31 @@ statements is supported, but the function definitions must not contain any of th
 
 ### Derivative options
 
-In general, an option can be expressed as waiting to choose between, on one hand, the 
-difference between the value of an underlying expression and a strike expression,
-and, on the other hand, an alternative expression.
+In general, an option can be expressed as waiting until an `expiry` date to choose between, on one hand, the 
+difference between the value of an `underlying` expression and a `strike` expression,
+and, on the other hand, an `alternative` expression.
 
 ```python
-def Option(date, strike, underlying, alternative):
-    Wait(date, Choice(underlying - strike, alternative))
+def Option(expiry, strike, underlying, alternative):
+    Wait(expiry, Choice(underlying - strike, alternative))
 ```
 
 A European option can then be expressed simply as an `Option` with zero alternative.
 
 ```python
-def EuropeanOption(date, strike, underlying):
-    Option(date, strike, underlying, 0)
+def EuropeanOption(expiry, strike, underlying):
+    Option(expiry, strike, underlying, 0)
+   
 ```
-The `AmericanOption` below is similar to the `EuropeanOption`: it is an option to exercise at a given strike price on 
-the start date, with the alternative being an `AmericanOption` starting on the next date - and so on until the end 
-date when the alternative is zero.
+The `AmericanOption` can be expressed as an `Option` to exercise at a given `strike` price on 
+the `start` date, with the alternative being another `AmericanOption` starting on the next date - and so on until the 
+`expiry` date, when the `alternative` becomes zero.
 
 ```python
-def AmericanOption(start, end, strike, underlying, step):
-    if start <= end:
+def AmericanOption(start, expiry, strike, underlying, step):
+    if start <= expiry:
         Option(start, strike, underlying,
-            AmericanOption(start + step, end, strike, underlying, step)
+            AmericanOption(start + step, expiry, strike, underlying, step)
         )
     else:
         0
@@ -626,20 +627,22 @@ def AmericanOption(start, end, strike, underlying, step):
 A European put option can be expressed as a `EuropeanOption`, with negated underlying and strike expressions.
 
 ```python
-def EuropeanPut(date, strike, underlying):
-    EuropeanOption(date, -strike, -underlying)
+def EuropeanPut(expiry, strike, underlying):
+    EuropeanOption(expiry, -strike, -underlying)
 ```
 
 A European stock option can be expressed as a `EuropeanOption`, with the `underlying` being the spot price at the 
-start of the contract, discounted forward from `start`, and observed at the option expiry time `end`.
+start of the contract, discounted forward from `start`, and observed at the option `expiry` time.
 
 ```python
-def EuropeanStockOption(start, end, strike, stock):
-    EuropeanOption(end, strike, Settlement(start, ForwardMarket(start, stock)))
+def EuropeanStockOption(expiry, strike, stock):
+    EuropeanOption(expiry, strike, StockMarket(stock))
+
+def StockMarket(stock):
+    Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
 ```
 
-The results from this function definition compare well with the well-known Black-Scholes stock option formulae across a 
-range of strike prices, volatilities, and interest rates (see below).
+The built-in `ObservationDate` element evaluates to the `observation_date` passed to the the `calc()` function.
 
 Let's evaluate a European stock option at different strike prices, volatilities, and interest rates.
 
@@ -648,19 +651,19 @@ The following function `calc_european` will make it easier to evaluate the optio
 ```python
 def calc_european(spot, strike, sigma, rate):
     source_code = """
-def Option(date, strike, underlying, alternative):
-    Wait(date, Choice(underlying - strike, alternative))
+def Option(expiry, strike, underlying, alternative):
+    Wait(expiry, Choice(underlying - strike, alternative))
 
-def EuropeanOption(date, strike, underlying):
-    Option(date, strike, underlying, 0)
+def EuropeanOption(expiry, strike, underlying):
+    Option(expiry, strike, underlying, 0)
    
-def StockMarket(start, stock):
-    Settlement(start, ForwardMarket(start, stock)) 
-    
-def EuropeanStockOption(start, end, strike, stock):
-    EuropeanOption(end, strike, StockMarket(start, stock))
+def EuropeanStockOption(expiry, strike, stock):
+    EuropeanOption(expiry, strike, StockMarket(stock))
 
-EuropeanStockOption(Date('2011-1-1'), Date('2012-1-1'), {strike}, 'ACME')
+def StockMarket(stock):
+    Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
+    
+EuropeanStockOption(Date('2012-1-1'), {strike}, 'ACME')
     """.format(strike=strike)
     
     results = calc(
@@ -722,8 +725,8 @@ If the strike price is greater than the underlying, with some volatility in the 
 assert_almost_equal(2.935, calc_european(spot=10, strike=12, sigma=0.9, rate=0))
 ```
 
-These results compare well with results from the Black-Scholes analytic formula for European stock options.
-
+These results compare well with results from the Black-Scholes analytic formula for European stock options, across a 
+range of strike prices, volatilities, and interest rates.
 
 ```python
 from scipy.stats import norm
@@ -784,10 +787,6 @@ The deltas for each market in each period will be calculated, and estimated risk
 The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
  positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
  how well the deltas are performing.
-
-Todo: Discounting of forward contracts when calculating hedge positions, so the quantities will be larger with 
-larger interest rates. Also the price of the hedge is the forward price at the observation time, rather than the 
-spot price at the forward time?
 
 ```python
 source_code = """
@@ -888,6 +887,11 @@ results = calc_print_plot(
 
 assert_almost_equal(6.15, results.fair_value.mean())
 ```
+
+Todo: Discounting of forward contracts when calculating hedge positions, so the quantities will be larger with 
+a higher interest rate. Also the price of the hedge is the forward price at the observation time, rather than the 
+spot price at the forward time.
+
 
 ### Power station
 

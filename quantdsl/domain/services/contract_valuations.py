@@ -191,7 +191,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     """
     Parses, compiles and evaluates a call requirement.
     """
-    # assert isinstance(contract_valuation, ContractValuation), contract_valuation
+    assert isinstance(contract_valuation, ContractValuation), contract_valuation
     # assert isinstance(call_requirement, CallRequirement), call_requirement
     # assert isinstance(market_simulation, MarketSimulation), market_simulation
     # assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
@@ -231,7 +231,8 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
                                                        dependency_results, market_simulation.path_count,
                                                        market_simulation.perturbation_factor,
                                                        contract_valuation.periodisation,
-                                                       call_requirement.cost
+                                                       call_requirement.cost,
+                                                       market_simulation.observation_date,
                                                        )
 
     # Return the result.
@@ -240,13 +241,14 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
                       perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation,
-                      estimated_cost_of_expr):
+                      estimated_cost_of_expr, observation_date):
 
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
         'interest_rate': interest_rate,
         'perturbation_factor': perturbation_factor,
+        'observation_date': observation_date,
         'present_time': present_time,
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,

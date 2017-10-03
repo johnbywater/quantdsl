@@ -288,10 +288,9 @@ class DslParser(object):
         conditional upon the test.
         """
         test = self.visitAstNode(node.test)
-        assert len(node.body) == 1, "If statements with more than one body statement are not supported at the moment."
+        assert len(node.body) == 1, "If statement body must have exactly one statement"
         body = self.visitAstNode(node.body[0])
-        assert len(
-            node.orelse) == 1, "If statements with more than one orelse statement are not supported at the moment."
+        assert len(node.orelse) == 1, "If statement must have exactly one orelse statement"
         orelse = self.visitAstNode(node.orelse[0])
         args = [test, body, orelse]
         return self.dsl_classes['If'](node=node, *args)

@@ -15,15 +15,18 @@ from quantdsl.semantics import DslExpression, DslNamespace, FunctionDef, Module,
 
 
 def generate_dependency_graph(contract_specification, call_dependencies_repo, call_dependents_repo,
-                              call_requirement_repo):
+                              call_requirement_repo, dsl_classes=None):
     assert isinstance(contract_specification, ContractSpecification)
-    dsl_module = dsl_parse(dsl_source=contract_specification.source_code)
+    dsl_module = dsl_parse(
+        dsl_source=contract_specification.source_code,
+        dsl_classes=dsl_classes,
+    )
     assert isinstance(dsl_module, Module)
     dsl_globals = dsl_module.namespace.copy()
     function_defs, expressions = extract_defs_and_exprs(dsl_module, dsl_globals)
     dsl_expr = expressions[0]
     assert isinstance(dsl_expr, DslExpression)
-    dsl_locals = DslNamespace()
+    dsl_locals = DslNamespace(observation_date=contract_specification.observation_date)
 
     leaf_ids = []
     all_dependents = defaultdict(list)
@@ -149,7 +152,7 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
 
     # Call functions (causes FunctionCall elements to be substituted
     # with Stub elements, and pending calls to be put on the stack).
-    stubbed_expr = dsl_expr.call_functions(pending_call_stack=pending_call_stack)
+    stubbed_expr = dsl_expr.call_functions(pending_call_stack=pending_call_stack, **dsl_locals)
 
     # Find all the Stub elemements in the expression.
     dependencies = list_stub_dependencies(stubbed_expr)
@@ -168,6 +171,7 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
         # assert isinstance(function_def, FunctionDef), type(function_def)
 
         # Apply the stacked call values to the called function def.
+        stacked_locals = pending_call.stacked_locals.combine(dsl_locals)
         stubbed_expr = function_def.apply(pending_call.stacked_globals,
                                           pending_call.effective_present_time,
                                           pending_call_stack=pending_call_stack,
@@ -175,7 +179,7 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals):
                                           # in just a pending call being added to the stack.
                                           # Todo: Rename 'is_destacking'?
                                           is_destacking=True,
-                                          **pending_call.stacked_locals)
+                                          **stacked_locals)
 
         # Put the resulting (potentially stubbed) expression on the stack of stubbed expressions.
         dependencies = list_stub_dependencies(stubbed_expr)

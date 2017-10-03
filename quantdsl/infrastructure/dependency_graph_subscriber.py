@@ -11,7 +11,7 @@ from quantdsl.exceptions import CallLimitError, RecursionDepthError
 class DependencyGraphSubscriber(object):
 
     def __init__(self, contract_specification_repo, call_dependencies_repo, call_dependents_repo, call_leafs_repo,
-                 call_requirement_repo, max_dependency_graph_size):
+                 call_requirement_repo, max_dependency_graph_size, dsl_classes):
         assert isinstance(contract_specification_repo, ContractSpecificationRepository)
         assert isinstance(call_dependencies_repo, CallDependenciesRepository)
         assert isinstance(call_dependents_repo, CallDependentsRepository)
@@ -24,6 +24,7 @@ class DependencyGraphSubscriber(object):
         subscribe(self.call_requirement_created, self.limit_calls)
         self.total_calls = defaultdict(int)
         self.max_dependency_graph_size = max_dependency_graph_size
+        self.dsl_classes = dsl_classes
 
     def close(self):
         unsubscribe(self.contract_specification_created, self.generate_dependency_graph)
@@ -48,7 +49,7 @@ class DependencyGraphSubscriber(object):
         contract_specification = self.contract_specification_repo[event.entity_id]
         try:
             generate_dependency_graph(contract_specification, self.call_dependencies_repo, self.call_dependents_repo,
-                                      self.call_requirement_repo)
+                                      self.call_requirement_repo, dsl_classes=self.dsl_classes)
         except RuntimeError as e:
             if 'maximum recursion depth exceeded' in str(e):
                 raise RecursionDepthError('maximum recursion depth exceeded')

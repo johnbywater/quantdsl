@@ -74,8 +74,11 @@ class ApplicationTestCase(unittest.TestCase):
     def assert_contract_value(self, specification, expected_value=None, expected_deltas=None,
                               expected_call_count=None, periodisation=None):
 
+        # Set the observation date.
+        observation_date = datetime.datetime(2011, 1, 1)
+
         # Register the specification (creates call dependency graph).
-        contract_specification = self.app.compile(source_code=specification)
+        contract_specification = self.app.compile(source_code=specification, observation_date=observation_date)
 
         # Check the call count (the number of nodes of the call dependency graph).
         call_count = self.calc_call_count(contract_specification.id)
@@ -84,7 +87,6 @@ class ApplicationTestCase(unittest.TestCase):
             self.assertEqual(call_count, expected_call_count)
 
         # Generate the market simulation.
-        observation_date = datetime.datetime(2011, 1, 1)
         market_simulation = self.app.simulate(
             contract_specification=contract_specification,
             price_process_name=self.price_process_name,
@@ -926,6 +928,10 @@ American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts
             'underlying': 'NBP'
         }, 5.534, {'NBP': 1.443}, expected_call_count=368, periodisation='alltime')
 
+    def test_observation_date(self):
+        specification = """ObservationDate()"""
+        self.assert_contract_value(specification, datetime.datetime(2011, 1, 1, 0, 0))
+
     def test_generate_valuation_swing_option(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
@@ -1017,6 +1023,44 @@ def f2(d):
 f(9, 1)
 """
         self.assert_contract_value(specification, expected_call_count=28)
+
+
+class TestObservationDate(ApplicationTestCase):
+    def test_observation_date_expression(self):
+        code = "ObservationDate()"
+        self.assert_contract_value(code,
+                                   expected_value=datetime.datetime(2011, 1, 1))
+
+    def test_observation_date_in_function_body(self):
+        code = """
+def Start():
+    ObservationDate()
+    
+Start()
+"""
+        self.assert_contract_value(code,
+                                   expected_value=datetime.datetime(2011, 1, 1))
+
+    def test_observation_date_as_function_call_arg(self):
+        code = """
+def f(a):
+    a
+    
+f(ObservationDate())
+"""
+        self.assert_contract_value(code,
+                                   expected_value=datetime.datetime(2011, 1, 1))
+
+    def test_observation_date_in_test_expr(self):
+        code = """
+def f(a):
+    if a > Date('2000-1-1'):
+        1
+    else:
+        0
+f(ObservationDate())
+"""
+        self.assert_contract_value(code, expected_value=1)
 
 
 class SpecialTests(ApplicationTestCase):
