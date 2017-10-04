@@ -541,6 +541,7 @@ simple expressions involving the call args, and must not involve any Quant DSL s
 as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in `if` 
 statements is supported, but the function definitions must not contain any of the stochastic elements.
 
+## Examples
 
 ### Derivative options
 
