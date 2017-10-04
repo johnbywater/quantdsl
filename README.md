@@ -327,7 +327,7 @@ results = calc("Market('GAS')",
 assert results.fair_value.mean() == 10
 ```
 
-In the examples so far, there has bben no difference between the effective present time of the `Market` element and 
+In the examples so far, there has been no difference between the effective present time of the `Market` element and 
 the `observation_date` of the evaluation. Therefore, there is no stochastic evolution of the forward curve, and the 
 standard deviation of the result value is zero.
 
