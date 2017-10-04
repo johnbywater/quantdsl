@@ -22,7 +22,7 @@ pip install --upgrade pip
 ```
 
 
-## Language
+## Overview
 
 Quant DSL is domain specific language for quantitative analytics in finance and trading.
 
