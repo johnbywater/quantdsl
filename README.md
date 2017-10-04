@@ -140,8 +140,8 @@ assert results.fair_value == 5
 
 ### Settlement
 
-The `Settlement` element discounts the value of the included expression from the given date to the effective present
- time.
+The `Settlement` element discounts the value of the included `Expression` from its given `Date` to the "effective 
+present time" when the element is evaluated (see below).
 
 ```
 <Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
@@ -179,7 +179,7 @@ assert round(results.fair_value, 2) == 1000.00, results.fair_value
 
 ### Fixing
 
-The `Fixing` element conditions with its give date the effective present time of its included expression.
+The `Fixing` element conditions the effective present time of its included `Expression` with its given `Date`.
 
 ```
 <Fixing> ::= "Fixing(" <Date> "," <Expression> ")"
@@ -361,9 +361,9 @@ configured `price_process`.
 
 ### Wait
 
-The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
-effective present time of the included expression, and also the value of that expression is discounted to the 
-present time effective when evaluating the `Wait` element.
+The `Wait` element combines `Settlement` and `Fixing`, so that its `Date` is used both to condition the 
+effective present time of the included `Expression`, and also the value of that expression is discounted to the 
+effective present time when evaluating the `Wait` element.
 
 ```
 <Wait> ::= "Wait(" <Date> "," <Expression> ")"
@@ -390,7 +390,7 @@ assert round(results.fair_value.mean(), 2) == 82.18, round(results.fair_value.me
 ### Choice
 
 The `Choice` element uses the least-squares Monte Carlo approach proposed by Longstaff and 
-Schwartz (1998) to compare the conditional expected value of each alternative.
+Schwartz (1998) to compare the conditional expected value of each alternative `Expression`.
 
 ```
 <Choice> ::= "Choice(" <Expression> "," <Expression> ")"
