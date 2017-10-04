@@ -6,22 +6,13 @@ import sys
 from quantdsl.exceptions import DslSyntaxError
 from quantdsl.semantics import FunctionDef, DslNamespace
 
-if six.PY3:
-    from importlib._bootstrap import PathFinder
-else:
-    PathFinder = None
+from importlib import import_module
 
 
 def find_module_path(name):
     # Find path.
-    if PathFinder is not None:
-        path_finder = PathFinder()
-        spec = path_finder.find_spec(fullname=name)
-        path = spec.origin
-    else:
-        __import__(name)
-        module = sys.modules[name]
-        path = module.__file__.strip('c')  # .py not .pyc
+    module = import_module(name)
+    path = module.__file__.strip('c')  # .py not .pyc
     return path
 
 
@@ -236,9 +227,9 @@ class DslParser(object):
         """
         if node.keywords:
             raise DslSyntaxError("Calling with keywords is not currently supported (positional args only).")
-        if node.starargs:
+        if hasattr(node, 'starargs') and node.starargs:
             raise DslSyntaxError("Calling with starargs is not currently supported (positional args only).")
-        if node.kwargs:
+        if hasattr(node, 'kwargs') and node.kwargs:
             raise DslSyntaxError("Calling with kwargs is not currently supported (positional args only).")
 
         # Collect the call arg expressions (whose values will be passed into the call when it is made).
