@@ -25,21 +25,42 @@ Quant DSL is domain specific language for quantitative analytics in finance and 
 
 At the heart of Quant DSL is a set of elements - *Settlement*, *Fixing*, *Choice*, *Market* - which encapsulate 
 maths used in finance and trading. The elements of the language can be freely composed into expressions
-of value. User defined functions generate extensive dependency graphs that effectively model and evaluate exotic
-derivatives.
+of value.
+
+```
+<Expression> ::= <Constant>
+    | "Market(" <MarketId> ")"
+    | "Fixing(" <Date> "," <Expression> ")"
+    | "Settlement(" <Date> "," <Expression> ")"
+    | "Wait(" <Date> "," <Expression> ")"
+    | "Choice(" <Expression> "," <Expression> ")"
+    | "Max(" <Expression> "," <Expression> ")"
+    | <Expression> "+" <Expression>
+    | <Expression> "-" <Expression>
+    | <Expression> "*" <Expression>
+    | <Expression> "/" <Expression>
+    | "-" <Expression>
+```
 
 The syntax of Quant DSL expressions has been
 [formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
 the semantic model is supported with mathematical proofs.
+
 
 ## Implementation
 
 This package is an implementation of the Quant DSL in Python. 
 
 In addition to the Quant DSL expressions, function definition
-statements `def` are supported, to allow expressions to be generated
-concisely. The `import` statement is also supported, to allow Quant DSL function 
+statements `def` are supported. User defined functions can be
+used to generate an extensive dependency graph of Quant DSL expressions,
+that efficiently models and values optionality.
+
+The `import` statement is also supported, to allow Quant DSL function 
 definitions to be used and maintained as normal Python code.
+
+
+## Introduction
 
 The work of a quantitative analyst includes: modelling the value of a derivative;
 calibrating a stochastic process for the underlying prices; simulating future prices
@@ -53,8 +74,6 @@ from the depedency graph, and a calibrated price process. During evaluation, nod
  memory usage is mostly constant during evaluation. For the delta calculations, nodes are selectively 
  re-evaluated with perturbed values, according to the periods and markets they involve.
 
-## Introduction
-
 The examples below use the library function `calc()` to evaluate Quant DSL source code. `calc()` uses the methods 
 of the `QuantDslApplication` described above.
 
@@ -62,7 +81,8 @@ of the `QuantDslApplication` described above.
 from quantdsl.interfaces.calcandplot import calc
 ```
 
-### Numerical expressions
+`calc()` returns a results object, with an attribute `fair_value` that is the computed value of the given 
+Quant DSL expression. 
 
 ```python
 results = calc("0")
@@ -70,213 +90,81 @@ assert results.fair_value == 0
 ```
 
 ```python
-results = calc("5")
+results = calc("2 + 3")
 assert results.fair_value == 5
 ```
 
 ```python
-results = calc("-5")
-assert results.fair_value == -5
-```
-
-```python
-results = calc("5 + 2")
-assert results.fair_value == 7
-```
-
-```python
-results = calc("5 - 2")
-assert results.fair_value == 3
-```
-
-```python
-results = calc("5 * 2")
-assert results.fair_value == 10
-```
-
-```python
-results = calc("5 / 2")
-assert results.fair_value == 2.5
-```
-
-```python
-results = calc("5 // 2")
-assert results.fair_value == 2
-```
-
-```python
-results = calc("5 ** 2")
-assert results.fair_value == 25
-```
-
-```python
-results = calc("5 % 2")
-assert results.fair_value == 1
-```
-
-```python
-results = calc("Max(5, 2)")
-assert results.fair_value == 5
-```
-
-```python
-results = calc("Min(5, 2)")
-assert results.fair_value == 2
-```
-
-
-### Boolean expressions
-
-```python
-assert calc("1 and 2").fair_value == True
-assert calc("0 and 2").fair_value == False
-assert calc("2 and 0").fair_value == False
-assert calc("0 and 0").fair_value == False
-
-assert calc("1 or 1").fair_value == True
-assert calc("1 or 0").fair_value == True
-assert calc("0 or 1").fair_value == True
-assert calc("0 or 0").fair_value == False
-```
-
-### Date and time expressions
-
-The `Date` element can be used to indicate a date-time value. `TimeDelta` elements can be added and subtracted 
-from `Date` elements. `Date` elements can be compared, but `TimeDelta` elements cannot be compared.
-
-```python
-import datetime
-from dateutil.relativedelta import relativedelta
-from quantdsl.exceptions import DslCompareArgsError
-
-
-results = calc("Date('2011-1-1')")
-assert results.fair_value == datetime.datetime(2011, 1, 1)
-```
-
-```python
-results = calc("Date('2011-1-10') - Date('2011-1-1')")
-assert results.fair_value == relativedelta(days=9)
-```
-
-```python
-results = calc("Date('2012-1-1') - Date('2011-1-1')")
-assert results.fair_value == relativedelta(years=1)
-```
-
-```python
-results = calc("Date('2012-1-1') + TimeDelta('1y') == Date('2013-1-1')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2011-1-1') + TimeDelta('1y') == Date('2012-1-1')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2012-1-1') + 366 * TimeDelta('1d') == Date('2013-1-1')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2011-1-1') + 365 * TimeDelta('1d') == Date('2012-1-1')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2012-1-1') + 12 * TimeDelta('1m') == Date('2013-1-1')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2011-1-1') + 12 * TimeDelta('1m') == Date('2012-1-1')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2011-1-1') + 5 * TimeDelta('1d') < Date('2011-1-10')")
-assert results.fair_value == True
-```
-
-```python
-results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') > Date('2011-1-10')")
-assert results.fair_value == True
-```
-
-```python
-try:
-    calc("365 * TimeDelta('1d') == TimeDelta('1y')")
-except DslCompareArgsError:
-    pass
+results = calc("2 * 3")
+assert results.fair_value == 6
 ```
 
 ### Settlement
 
-The `Settlement` element discounts the value of the included expression. Discounting is a function of the 
-`interest_rate` and the duration in time between the date of the `Settlement` and the effective present time of its 
-evaluation.
+The `Settlement` element discounts the value of the included expression from the given date to the effective present
+ time.
 
-If the effective present time of the `Settlement` is the same as the settlement date, there is no discounting.
+```
+<Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
+```
+
+Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
+element and the effective present time of its evaluation. The formula used for discounting by the `Settlement` 
+element is `e**-rt`. The `interest_rate` is the therefore the continuously compounding risk free rate (not the 
+annual equivalent rate).
+
+For example, with a continuously compounding `interest_rate` of `2.5` percent per year, the value `10` settled in 
+`'2111-1-1'` has a present value at the `observation_date` of `'2011-1-1'` of `82.085`.
 
 ```python
-results = calc("Settlement('2111-1-1', 10)",
+results = calc("Settlement('2111-1-1', 1000)",
+    observation_date='2011-1-1',
+    interest_rate=2.5,
+)
+
+assert round(results.fair_value, 2) == 82.08, results.fair_value
+```
+
+Similarly, the value of `82.085` settled in `'2011-1-1'` has a present value at the `observation_date` of `'2111-1-1'` 
+of `1000.00`.
+
+```python
+results = calc("Settlement('2011-1-1', 82.085)",
     observation_date='2111-1-1',
     interest_rate=2.5,
 )
-assert results.fair_value == 10.0
+
+assert round(results.fair_value, 2) == 1000.00, results.fair_value
 ```
-
-Similarly, if the `interest_rate` is `0.0`, there is no discounting.
-
-```python
-results = calc("Settlement('2111-1-1', 10)",
-    observation_date='2011-1-1',
-    interest_rate=0,
-)
-assert results.fair_value == 10.0
-```
-
-However with a non-zero `interest_rate` of `2.5` percent per year, the value of `1000` in `'2111-1-1'` 
-has a present value of less than `100` in `'2011-1-1'`.
-
-```python
-results = calc("Settlement('2111-1-1', 1000.0)",
-    observation_date='2011-1-1',
-    interest_rate=2.5,
-)
-
-# assert round(results.fair_value, 3) == 84.647, results.fair_value
-assert round(results.fair_value, 3) == 82.085, results.fair_value
-```
-
-The formula used for discounting by the `Settlement` element is `e**-rt`. The `interest_rate` (above) is the 
-therefore the continuously compounding risk free rate, rather than annual equivalent rate.
 
 Todo: Support annual equivalent rate?
 
+
 ### Fixing
 
-The `Fixing` element is used to condition the "effective present time" of its included expression.
+The `Fixing` element conditions with its give date the effective present time of its included expression.
 
-For example, if a `Settlement` element is included in the `Fixing` element, then the effective present time of the 
-`Settlement` element will be the date of the `Fixing`.
+```
+<Fixing> ::= "Fixing(" <Date> "," <Expression> ")"
+```
 
-The expression below represents the present value in `'2111-1-1'` of the value of `10` delivered on `'2111-1-1'`, 
-observed on `'2011-1-1'`.
+For example, if a `Fixing` element includes a `Settlement` element, then the effective present time of the 
+included `Settlement` element will be the given date of the `Fixing`.
+
+The expression below represents the present value in `'2051-1-1'` of the value of `1000` to be settled on 
+`'2111-1-1'`.
 
 ```python
-results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
-    observation_date='2011-1-1',
-    interest_rate=7,
+results = calc("Fixing('2051-1-1', Settlement('2111-1-1', 1000))",
+    interest_rate=2.5,
 )
 
-assert results.fair_value == 10
+assert round(results.fair_value, 2) == 223.13, results.fair_value
 ```   
 
-Before continuing with the stochastic examples below, setting the random seed helps make test results 
+*Before continuing with the stochastic examples below, setting the random seed helps make test results 
 repeatable. And to help keep things readable, some "helper" functions are defined: `assert_equal` and 
-`assert_almost_equal`.
+`assert_almost_equal`.*
 
 ```python
 import scipy
@@ -301,22 +189,27 @@ def assert_almost_equal(a, b):
 
 The `Market` element effectively estimates spot prices that could be agreed in the future.
 
+```
+<Market> ::= "Market(" <MarketId> ")"
+```
+
 When a `Market` element is evaluated, it returns a random variable selected from a simulation
- of market prices. Selecting an estimated price from the simulation requires the name
+ of market prices. Selecting an estimated price from the simulation requires the ID (or name)
  of the market, and a fixing date and a delivery date: when the price would be agreed, and when
- the goods would be delivered. The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` above).
-Both the fixing date and the delivery date are determined by the "effective present time"
+ the goods would be delivered. The ID of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'` 
+ above). Both the fixing date and the delivery date are determined by the "effective present time"
 when the element is evaluated (see `Fixing`).
 
-The price simulation is generated by a price process. In this example, the library's one-factor multi-market Black 
-Scholes price process `BlackScholesPriceProcess` is used to generate correlated geometric Brownian motions.
+The price simulation is generated by a price process. In this example, the library's one-factor
+multi-market Black  Scholes price process `BlackScholesPriceProcess` is used to generate correlated
+geometric Brownian motions.
 
 The calibration parameters required by `BlackScholesPriceProcess` are `market` (a list of market names), and 
 `sigma`, (a list of annualised historical volatilities, expressed as a fraction of 1, rather than as a 
-percentage). In these examples, at first the volatilities `sigma` of both `'GAS'` and `'POWER'` markets are set to zero.
+percentage).
 
-Since there is more than one market, an additional parameter `rho` is required, which represents the 
-correlation between the markets (a symmetric matrix expressed as a list of lists).
+When the simulation involves two or more markets, an additional parameter `rho` is required, which represents
+the correlation between the markets (a symmetric matrix expressed as a list of lists).
 
 A forward `curve` is required to provide estimates of current prices for each market at the given 
 `observation_date`. The prices in the forward curve are prices that can be agreed at the `observation_date` for 
@@ -360,8 +253,8 @@ results = calc("Market('GAS')",
 )
 ```
 
-The `Market` element uses random variables from the price simulation, so the results are random variables, and we 
-need to take the `mean()` to obtain a scalar value.
+Since the `Market` element uses random variables from the price simulation, so the results are random variables, and
+ we need to take the `mean()` to obtain a scalar value.
 
 ```python
 assert results.fair_value.mean() == 10
@@ -430,9 +323,9 @@ assert results.fair_value.std() == 0.0
 If a `Market` element is included within a `Fixing` element, the value of the expression will be the price 
 that can be expected to be agreed at the date provided by the `Fixing` element.
 
-With Brownian motion provided by the price process, the random variables used to estimate the price that can be 
-agreed in the future have statistical distributions with non-zero standard deviation, and so the mean value will 
-only approximate to the value taken from the forward `curve`.
+With Brownian motion provided by the price process, the random variable used to estimate a price that could be 
+agreed in the future has a statistical distribution with non-zero standard deviation. The mean value of the 
+expected price will only approximate to the value taken from the forward `curve`.
 
 ```python
 results = calc("Fixing('2051-1-1', Market('GAS'))",
@@ -457,13 +350,20 @@ The `Wait` element combines `Settlement` and `Fixing`, so that a single date val
 effective present time of the included expression, and also the value of that expression is discounted to the 
 present time effective when evaluating the `Wait` element.
 
+```
+<Wait> ::= "Wait(" <Date> "," <Expression> ")"
+```
+
+For example, the present value at the `observation_date` of `'2011-1-1'` of one unit of `'GAS'` delivered on 
+`'2111-1-1'` is approximately `82.08`.
+
 ```python
 results = calc("Wait('2111-1-1', Market('GAS'))",
     price_process=price_process,
-    observation_date='2110-1-1',
-    interest_rate=1,
+    observation_date='2011-1-1',
+    interest_rate=2.5,
 )
-assert_almost_equal(results.fair_value.mean(), 990.0)
+assert_almost_equal(results.fair_value.mean(), 82.08)
 ```
 
 
@@ -472,6 +372,13 @@ assert_almost_equal(results.fair_value.mean(), 990.0)
 The `Choice` element uses the least-squares Monte Carlo approach proposed by Longstaff and 
 Schwartz (1998) to compare the conditional expected value of each alternative.
 
+```
+<Choice> ::= "Choice(" <Expression> "," <Expression> ")"
+```
+
+For example, the value of the choice at `observation_date` of `'2011-1-1'` between one unit of `'GAS'` either on 
+`'2051-1-1'` or `'2111-1-1'` is `217.39`.
+
 ```python
 source_code = """
 Choice(
@@ -479,30 +386,17 @@ Choice(
     Wait('2111-1-1', Market('GAS'))
 )
 """
-```
-
-With a low interest rate, the value is dominated by the larger, later alternative.
-
-```python
 
 results = calc(source_code,
-    observation_date='2050-1-1',
+    observation_date='2011-1-1',
     price_process=price_process,
     interest_rate=2.5,
 )
-assert_almost_equal(217.390, results.fair_value.mean())
+assert_almost_equal(82.08, results.fair_value.mean())
+assert_almost_equal(16.67, results.fair_value.std())
 ```
 
-With a high interest rate, the value is dominated by the smaller, earlier alternative.
-
-```python
-results = calc(source_code,
-    observation_date='2050-1-1',
-    price_process=price_process,
-    interest_rate=10,
-)
-assert_almost_equal(9.048, results.fair_value.mean())
-```
+Todo: When does this differ in value from Max()?
 
 
 ### Functions definitions
@@ -725,44 +619,7 @@ If the strike price is greater than the underlying, with some volatility in the 
 assert_almost_equal(2.935, calc_european(spot=10, strike=12, sigma=0.9, rate=0))
 ```
 
-These results compare well with results from the Black-Scholes analytic formula for European stock options, across a 
-range of strike prices, volatilities, and interest rates.
-
-```python
-from scipy.stats import norm
-import math
-
-def black_scholes(spot, strike, sigma, rate):
-    S = float(spot)  # spot price
-    K = float(strike)  # strike price
-    r = rate / 100.0  # annual risk free rate / 100
-    t = 1.0  # duration (years)
-    sigma = max(0.0001**2, sigma)  # annual historical volatility / 100
-
-    sigma_squared_t = sigma ** 2.0 * t
-    sigma_root_t = sigma * math.sqrt(t)
-    math.log(S / K)
-    d1 = (math.log(S / K) + t * r + 0.5 * sigma_squared_t) / sigma_root_t
-    d2 = d1 - sigma_root_t
-    Nd1 = norm(0, 1).cdf(d1)
-    Nd2 = norm(0, 1).cdf(d2)
-    e_to_minus_rt = math.exp(-1.0 * r * t)
-    return Nd1 * S - Nd2 * K * e_to_minus_rt
-    # Put option.
-    # optionValue = (1-Nd2)*K*e_to_minus_rt - (1-Nd1)*S
-
-# Check the Quant DSL valuation matches the well-known analytic formula.
-spot = 10.0
-for rate in [0.0, 20.0, 50.0]:
-    for strike in [9.0, 10.0, 11.0]:
-        for sigma in [0.0, 0.2, 0.5]:
-            assert_almost_equal(
-                calc_european(spot, strike, sigma, rate),
-                black_scholes(spot, strike, sigma, rate)
-            )
-```
-
-Todo: Use Black 76 to compare commodity option model? https://www.glynholton.com/notes/black_1976/ 
+These results compare well with results from the Black-Scholes analytic formula for European stock options.
 
 
 ### Gas storage
