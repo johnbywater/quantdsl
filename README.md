@@ -98,9 +98,9 @@ on filtration `F`.
 
 ### Software
 
-This package is an implementation of the Quant DSL in Python. 
+This library is an implementation in Python of Quant DSL.
 
-In addition to the Quant DSL expressions, function `def`
+In addition to the Quant DSL expressions above, function `def`
 statements are supported. User defined functions can be used
 to generate an extensive dependency graph of Quant DSL expressions
 that efficiently model complex optionality.
