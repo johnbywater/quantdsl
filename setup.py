@@ -31,9 +31,7 @@ setup(
         'eventsourcing==0.9.4',
         'pytz',
         'blist',
-        'importlib',
-        'matplotlib',
-        'numexpr'
+        # 'numexpr'
     ],
 
     scripts=[],

@@ -18,39 +18,40 @@ def build_and_test(cwd):
     tmpcwd27 = os.path.join(cwd, 'tmpve2.7')
     tmpcwd34 = os.path.join(cwd, 'tmpve3.4')
 
-    for (tmpcwd, python_executable) in [(tmpcwd27, 'python2.7'), (tmpcwd34, 'python3.4')]:
-
-        # # Rebuild virtualenvs.
-        # rebuild_virtualenv(cwd, tmpcwd, python_executable)
-        #
-        # # Upgrade pip.
-        # subprocess.check_call(['bin/pip', 'install', '--upgrade', 'pip'], cwd=tmpcwd)
-        #
-        # # Install from project folder.
-        # # - assumes we are starting in the scripts folder
-        # subprocess.check_call(['bin/pip', 'install', '..'], cwd=tmpcwd)
-        #
-        # # Check installed tests all pass.
-        # test_installation(tmpcwd)
+    for (tmpcwd, python_executable) in [(tmpcwd34, 'python3.4'), (tmpcwd27, 'python2.7')]:
 
         # Rebuild virtualenvs.
         rebuild_virtualenv(cwd, tmpcwd, python_executable)
 
-        # Build and upload to Test PyPI.
-        subprocess.check_call([sys.executable, 'setup.py', 'sdist', 'upload', '-r', 'pypitest'], cwd=cwd)
-
-        # Install from Test PyPI.
+        # Upgrade pip.
         subprocess.check_call(['bin/pip', 'install', '--upgrade', 'pip'], cwd=tmpcwd)
+        subprocess.check_call(['bin/pip', 'install', '--upgrade', 'setuptools'], cwd=tmpcwd)
 
-        subprocess.check_call(['bin/pip', 'install', 'quantdsl=='+get_version(),
-                               '--index-url', 'https://testpypi.python.org/simple',
-                               '--extra-index-url', 'https://pypi.python.org/simple'
-                               ],
-                               cwd=tmpcwd)
+        # Install from project folder.
+        # - assumes we are starting in the scripts folder
+        subprocess.check_call(['bin/pip', 'install', '..'], cwd=tmpcwd)
 
         # Check installed tests all pass.
         test_installation(tmpcwd)
+        #
+        # # Rebuild virtualenvs.
+        # rebuild_virtualenv(cwd, tmpcwd, python_executable)
+        #
+        # # Build and upload to Test PyPI.
+        # subprocess.check_call([sys.executable, 'setup.py', 'sdist', 'upload', '-r', 'pypitest'], cwd=cwd)
+        #
+        # # Install from Test PyPI.
+        # subprocess.check_call(['bin/pip', 'install', '--upgrade', 'pip'], cwd=tmpcwd)
+        #
+        # subprocess.check_call(['bin/pip', 'install', 'quantdsl=='+get_version(),
+        #                        '--index-url', 'https://testpypi.python.org/simple',
+        #                        '--extra-index-url', 'https://pypi.python.org/simple'
+        #                        ],
+        #                        cwd=tmpcwd)
 
+        # # Check installed tests all pass.
+        # test_installation(tmpcwd)
+        #
         remove_virtualenv(cwd, tmpcwd)
 
 

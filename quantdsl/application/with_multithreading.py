@@ -5,7 +5,8 @@ import six.moves.queue as queue
 
 from quantdsl.application.base import QuantDslApplication
 from quantdsl.domain.model.contract_valuation import ContractValuation
-from quantdsl.exceptions import DslError, TimeoutError
+from quantdsl.exceptions import DslError, TimeoutError, DslCompareArgsError, DslBinOpArgsError, \
+    DslIfTestExpressionError
 
 
 class ServiceExit(Exception):
@@ -34,6 +35,7 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
             if not self.has_thread_errored.is_set():
                 self.thread_exception = e
                 self.has_thread_errored.set()
+            if not isinstance(e, (TimeoutError, DslCompareArgsError, DslBinOpArgsError, DslIfTestExpressionError)):
                 raise
 
     def get_result(self, contract_valuation):

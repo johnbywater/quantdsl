@@ -8,6 +8,4 @@ eventsourcing==0.9.4
 filelock
 pytz
 blist
-importlib
-matplotlib
-numexpr
+#numexpr

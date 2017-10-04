@@ -7,7 +7,7 @@ import re
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 
-import numexpr
+# import numexpr
 import scipy
 import scipy.linalg
 import six
@@ -375,7 +375,8 @@ class And(BoolOp):
         return not value
 
 
-NUMEXPR_OPS = ['+', '-', '*', '/', '**', '%']
+# NUMEXPR_OPS = ['+', '-', '*', '/', '**', '%']
+NUMEXPR_OPS = []
 
 
 class BinOp(DslExpression):
