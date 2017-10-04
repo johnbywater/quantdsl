@@ -116,16 +116,18 @@ normal Python code.
 The work of a quantitative analyst involves modelling the value of a derivative,
 calibrating a stochastic process for the underlying prices, simulating future prices
 of the underlyings, and evaluating of the model of the derivative against the simulation.
-This library provides an application class `QuantDslApplication` which has methods that
+This library provides an application object class `QuantDslApplication` which has methods that
 support this work: `compile()`, `simulate()` and `evaluate()`.
 
-During compilation of the specification source code, the application constructs a
+During compilation of Quant DSL source code, the application constructs a
 dependency graph of function calls. The simulation is generated according to requirements
-derived from the depedency graph, and a calibrated price process. During evaluation, nodes
+derived from the dependency graph and a calibrated price process. During evaluation, nodes
 are evaluated when they are ready to be evaluated, and intermediate call results are discarded
-as soon as they are no longer required, which means memory usage is mostly constant during
+as soon as they are no longer required, such that memory usage is mostly constant during
 evaluation. For the delta calculations, nodes are selectively re-evaluated with perturbed
 values, according to the periods and markets they involve.
+
+### calc()
 
 The examples below use the library function `calc()` to evaluate Quant DSL source code.
 
@@ -241,7 +243,7 @@ def assert_almost_equal(a, b):
 
 ### Market
 
-The `Market` element effectively estimates spot prices that could be agreed in the future.
+The `Market` element effectively estimates prices that could be agreed in the future.
 
 ```
 <Market> ::= "Market(" <MarketId> ")"
