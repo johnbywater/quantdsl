@@ -13,6 +13,7 @@ from time import sleep
 
 import dateutil.parser
 import numpy
+import six
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 
 from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, QuantDslApplication
@@ -492,7 +493,7 @@ def print_results(results, path_count):
             dates.append(date)
 
     sqrt_path_count = math.sqrt(path_count)
-    if isinstance(results.fair_value, (int, float, long)):
+    if isinstance(results.fair_value, six.integer_types + (float,)):
         fair_value_mean = results.fair_value
         fair_value_stderr = 0
     else:
@@ -515,7 +516,7 @@ def print_results(results, path_count):
             cash_in_mean = cash_in.mean()
             cash_in_stderr = cash_in.std() / sqrt_path_count
             net_cash_in += cash_in
-            print("Hedge: {:.2f} ± {:.2f} units".format(hedge_units_mean, 3 * hedge_units_stderr))
+            print(u"Hedge: {:.2f} ± {:.2f} units".format(hedge_units_mean, 3 * hedge_units_stderr))
             print("Cash: {:.2f} ± {:.2f}".format(cash_in_mean, 3 * cash_in_stderr))
             print()
 

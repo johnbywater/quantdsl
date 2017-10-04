@@ -77,6 +77,10 @@ class TestString(TestCase):
         self.assertEqual(str(obj), "'a'")
         self.assertEqual(str(Subclass(obj)), "Subclass('a')")
 
+    def test_hash(self):
+        obj = String('a')
+        obj.hash
+
 
 class TestNumber(TestCase):
     def test_value(self):
