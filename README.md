@@ -126,9 +126,8 @@ values, according to the periods and markets they involve.
 
 ### calc()
 
-The examples below use the library function `calc()` to evaluate Quant DSL source code.
-
-`calc()` uses the methods of the `QuantDslApplication` described above.
+The examples below use the library function `calc()` to evaluate Quant DSL source code. It uses the methods of the 
+`QuantDslApplication` described above.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc
@@ -138,18 +137,8 @@ from quantdsl.interfaces.calcandplot import calc
 Quant DSL expression. 
 
 ```python
-results = calc("0")
-assert results.fair_value == 0
-```
-
-```python
 results = calc("2 + 3")
 assert results.fair_value == 5
-```
-
-```python
-results = calc("2 * 3")
-assert results.fair_value == 6
 ```
 
 ### Settlement
