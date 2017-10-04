@@ -7,7 +7,7 @@ import re
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 
-import numexpr
+# import numexpr
 import scipy
 import scipy.linalg
 import six
@@ -77,10 +77,25 @@ class DslObject(six.with_metaclass(ABCMeta)):
             hashes = ""
             for arg in self._args:
                 if isinstance(arg, list):
-                    arg = tuple(arg)
-                hashes += str(hash(arg))
+                    for _arg in arg:
+                        _hash = self.hash_single_arg(_arg)
+                        hashes += _hash
+
+                else:
+                    _hash = self.hash_single_arg(arg)
+                    hashes += _hash
+
             self._hash = hash(hashes)
         return self._hash
+
+    def hash_single_arg(self, _arg):
+        if isinstance(_arg, DslObject):
+            _hash = str(_arg.hash)
+        elif isinstance(_arg, relativedelta):
+            _hash = str(hash(str(_arg)))
+        else:
+            _hash = str(hash(_arg))
+        return _hash
 
     def __hash__(self):
         return self.hash
@@ -375,7 +390,8 @@ class And(BoolOp):
         return not value
 
 
-NUMEXPR_OPS = ['+', '-', '*', '/', '**', '%']
+# NUMEXPR_OPS = ['+', '-', '*', '/', '**', '%']
+NUMEXPR_OPS = []
 
 
 class BinOp(DslExpression):
@@ -801,7 +817,7 @@ class FunctionDef(DslObject):
             return hash(tuple(sorted([self.create_hash(a) for a in obj])))
 
         if isinstance(obj, DslObject):
-            return hash(obj)
+            return obj.hash
 
         raise DslSystemError("Can't create hash from obj type '%s'" % type(obj), obj,
                              node=obj.node if isinstance(obj, DslObject) else None)

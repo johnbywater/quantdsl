@@ -592,9 +592,7 @@ EuropeanStockOption(Date('2012-1-1'), {strike}, 'ACME')
         },
         interest_rate=rate,
     )
-    value = round(results.fair_value.mean(), 2)
-    print(value)
-    return value
+    return round(results.fair_value.mean(), 2)
 ```
 
 If the strike price of a European option is the same as the price of the underlying, without any volatility (`sigma` 
@@ -649,10 +647,10 @@ obtained by setting the volatility `sigma` to `0`, and evaluating with `path_cou
 This example uses a forward curve that has seasonal variation (prices are high in winter and low in 
 summer).
 
-This example uses the library function `calc_print_plot()` to calculate, print, and plot results.
+This example uses the library function `calc_print()` to calculate and then print results.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc_print_plot
+from quantdsl.interfaces.calcandplot import calc_print
 ```
 
 The deltas for each market in each period will be calculated, and estimated risk neutral 
@@ -718,8 +716,7 @@ def Full():
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), Market('GAS'), Empty(), Empty(), Full(), TimeDelta('1m'))
 """
 
-results = calc_print_plot(
-    title="Gas Storage",
+results = calc_print(
     source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
@@ -777,8 +774,7 @@ from quantdsl.lib.powerplant2 import PowerPlant, Running
 PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
 """
 
-results = calc_print_plot(
-    title="Power Station",
+results = calc_print(
     source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
