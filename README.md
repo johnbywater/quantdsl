@@ -58,6 +58,8 @@ such as:
 [geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element; and 
 [least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
 for the `Choice` element.
+The validity of Monte Carlo simulation for all possible expressions in the language is
+[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
 In the table below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
 variable in a probability space. For market `i`, the last price `Si` and volatility `σi` are determined
@@ -88,9 +90,6 @@ on filtration `F`.
 
 [[-x]](t) = -[[x]](t)
 ```
-
-The validity of Monte Carlo simulation for all possible expressions in the language is
-[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
 ### Software
 
