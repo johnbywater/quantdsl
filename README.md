@@ -37,7 +37,7 @@ be freely composed into expressions of value.
 
 ### Syntax
 
-The syntax of Quant DSL expressions has been defined with
+The syntax of Quant DSL expressions is defined with
 [Backus–Naur Form](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form).
 
 ```
@@ -57,20 +57,21 @@ The syntax of Quant DSL expressions has been defined with
 
 ### Semantics
 
-The semantics are defined with mathematical expressions commonly used within quantitative analytics such as 
-[present value discounting](https://en.wikipedia.org/wiki/Present_value) (`Settlement`),
-[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) (`Market`), and 
+The semantics of the elements are defined with mathematical expressions commonly used within quantitative analytics 
+such as 
+[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element,
+[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element, and 
 [least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
- (`Choice`).
-
-The validity of Monte Carlo simulation for all possible expressions in the language is  
-[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
+for the `Choice` element.
 
 In the table below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
 variable in a probability space. For market `i`, the last price `Si` and volatility `σi` are determined
 using only market price data generated before `t0`. Brownian motion `z` is used in diffusion.
 Constant interest rate `r` is used in discounting. Expectation `E` is conditioned
 on filtration `F`.
+
+The validity of Monte Carlo simulation for all possible expressions in the language is
+[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
 ```
 [[Settlement(d, x)]](t) = e ** (r * (t−d)) * [[x]](t)
