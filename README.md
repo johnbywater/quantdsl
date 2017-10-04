@@ -8,8 +8,17 @@
 ## Install
 
 Use pip to install the [latest distribution](https://pypi.python.org/pypi/quantdsl) from
-the Python Package Index. To avoid disturbing your system's site packages, it is recommended to install
+the Python Package Index.
+
+```
+pip install quantdsl
+```
+
+To avoid disturbing your system's site packages, it is recommended to install
 into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
+
+Please note, this library depends on SciPy, which fails to install with some older versions of pip. In case of 
+difficulty, please try again after upgrading pip.
 
 ```
 pip install --upgrade pip
