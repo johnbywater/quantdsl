@@ -341,7 +341,7 @@ assert results.fair_value.std() == 0.0
 ```
 
 If a `Market` element is included within a `Fixing` element, the value of the expression will be the price 
-that can be expected to be agreed at the date provided by the `Fixing` element.
+that could be agreed at the date provided by the `Fixing` element, as expected at the effective present time.
 
 With Brownian motion provided by the price process, the random variable used to estimate a price that could be 
 agreed in the future has a statistical distribution with non-zero standard deviation. The mean value of the 
@@ -505,6 +505,20 @@ Please note, any `if` statement test expressions (the expressions preceding the 
 simple expressions involving the call args, and must not involve any Quant DSL stochastic elements, such 
 as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in `if` 
 statements is supported, but the function definitions must not contain any of the stochastic elements.
+
+### Other args of calc()
+
+The deltas can be obtained by setting the `periodisation` arg of `calc()`.
+
+You can adjust the `perturbation_factor` used to calculated deltas. If the `path_count` is larger, a smaller
+perturbation factor may give better results.
+
+You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the `
+`max_dependency_graph_size` arg of `calc()`.
+
+You can set a calculation to `timeout` after a given number of seconds.
+
+Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
 
 ## Examples
 
