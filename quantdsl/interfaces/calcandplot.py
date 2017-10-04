@@ -516,7 +516,7 @@ def print_results(results, path_count):
             cash_in_mean = cash_in.mean()
             cash_in_stderr = cash_in.std() / sqrt_path_count
             net_cash_in += cash_in
-            print(u"Hedge: {:.2f} ± {:.2f} units".format(hedge_units_mean, 3 * hedge_units_stderr))
+            print("Hedge: {:.2f} ± {:.2f} units".format(hedge_units_mean, 3 * hedge_units_stderr))
             print("Cash: {:.2f} ± {:.2f}".format(cash_in_mean, 3 * cash_in_stderr))
             print()
 
