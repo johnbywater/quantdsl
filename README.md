@@ -148,11 +148,6 @@ present time" when the element is evaluated (see below).
 <Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
 ```
 
-Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
-element and the effective present time of its evaluation. The formula used for discounting by the `Settlement` 
-element is `e**-rt`. The `interest_rate` is the therefore the continuously compounding risk free rate (not the 
-annual equivalent rate).
-
 For example, with a continuously compounding `interest_rate` of `2.5` percent per year, the value `10` settled in 
 `'2111-1-1'` has a present value at the `observation_date` of `'2011-1-1'` of `82.085`.
 
@@ -176,6 +171,11 @@ results = calc("Settlement('2011-1-1', 82.085)",
 
 assert round(results.fair_value, 2) == 1000.00, results.fair_value
 ```
+
+Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
+element and the effective present time of its evaluation. The formula used for discounting by the `Settlement` 
+element is `e**-rt`. The `interest_rate` is the therefore the continuously compounding risk free rate (not the 
+annual equivalent rate).
 
 
 ### Fixing
