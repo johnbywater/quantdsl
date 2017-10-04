@@ -176,8 +176,6 @@ results = calc("Settlement('2011-1-1', 82.085)",
 assert round(results.fair_value, 2) == 1000.00, results.fair_value
 ```
 
-Todo: Support annual equivalent rate?
-
 
 ### Fixing
 
@@ -200,6 +198,7 @@ results = calc("Fixing('2051-1-1', Settlement('2111-1-1', 1000))",
 
 assert round(results.fair_value, 2) == 223.13, results.fair_value
 ```   
+
 
 ### Market
 
@@ -764,10 +763,6 @@ results = calc_print_plot(
 
 assert round(results.fair_value.mean(), 2) == 6.08
 ```
-
-Todo: Discounting of forward contracts when calculating hedge positions, so the quantities will be larger with 
-a higher interest rate. Also the price of the hedge is the forward price at the observation time, rather than the 
-spot price at the forward time.
 
 
 ### Power station
