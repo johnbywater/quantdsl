@@ -19,8 +19,10 @@ difficulty, please try again after upgrading pip.
 
 ```
 pip install --upgrade pip
-pip install quantdsl
 ```
+
+
+## Feedback
 
 Please register any [issues on GitHub](https://github.com/johnbywater/quantdsl/issues).
 
