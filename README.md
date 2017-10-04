@@ -32,15 +32,18 @@ Please register any [issues on GitHub](https://github.com/johnbywater/quantdsl/i
 
 Quant DSL is domain specific language for quantitative analytics in finance and trading.
 
-At the heart of Quant DSL is a set of elements - *Settlement*, *Fixing*, *Choice*, *Market* - which encapsulate 
-maths used in finance and trading. The elements of the language can be freely composed into expressions
+At the heart of Quant DSL is a set of elements (e.g. `Settlement`, `Fixing`, `Market`, `Wait`, `Choice`) which 
+encapsulate maths used in finance and trading. The elements of the language can be freely composed into expressions
 of value.
+
+The syntax of Quant DSL expressions has been defined with
+[Backus–Naur Form](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form).
 
 ```
 <Expression> ::= <Constant>
+    | "Settlement(" <Date> "," <Expression> ")"
     | "Market(" <MarketId> ")"
     | "Fixing(" <Date> "," <Expression> ")"
-    | "Settlement(" <Date> "," <Expression> ")"
     | "Wait(" <Date> "," <Expression> ")"
     | "Choice(" <Expression> "," <Expression> ")"
     | "Max(" <Expression> "," <Expression> ")"
@@ -51,40 +54,67 @@ of value.
     | "-" <Expression>
 ```
 
-The syntax of Quant DSL expressions has been
-[formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
-the semantic model is supported with mathematical proofs.
+The semantics are defined with mathematical expressions commonly used within quantitative analytics, such as 
+discounting from future to present value (`Settlement`, `Wait`), geometric Brownian motion (`Market`), and the
+least-squares Monte Carlo approach proposed by Longstaff and Schwartz (`Choice`).
+
+In the table below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
+variable in a probability space. For market `i`, the last price `Si` and volatility `σi` are determined
+using only market price data generated before `t0`. Brownian motion `z` is used in diffusion.
+Constant interest rate `r` is used in discounting. Expectation `E` is conditioned
+on filtration `F`.
+
+```
+[[Settlement(d, x)]](t) = e ** (r * (t−d)) * [[x]](t)
+
+[[Fixing(d, x)]](t) = [[x]](d)
+
+[[Market(i)]](t) = Si * e ** (σi * z(t−t0)) − 0.5 * σi ** 2 * (t−t0)
+
+[[Wait(d, x)]](t) = [[Settlement(d, Fixing(d, x))]](t)
+
+[[Choice(x, y)]](t) = max(E[[[x]](t)|F(t)], E[[[y]](t)|F(t)])
+
+[[x + y]](t) = [[x]](t) + [[y]](t)
+```
+
+The validity of Monte Carlo simulation for all possible expressions in the language is  
+[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
 
 ## Implementation
 
 This package is an implementation of the Quant DSL in Python. 
 
-In addition to the Quant DSL expressions, function definition
-statements `def` are supported. User defined functions can be
-used to generate an extensive dependency graph of Quant DSL expressions,
-that efficiently models and values optionality.
+In addition to the Quant DSL expressions, function `def`
+statements are supported. User defined functions can be used
+to generate an extensive dependency graph of Quant DSL expressions
+that efficiently model complex optionality.
 
 The `import` statement is also supported, to allow Quant DSL function 
-definitions to be used and maintained as normal Python code.
+definitions and expressions to be used and maintained in a library as
+normal Python code.
 
 
 ## Introduction
 
-The work of a quantitative analyst includes: modelling the value of a derivative;
-calibrating a stochastic process for the underlying prices; simulating future prices
-of the underlyings; and evaluating of the model of the derivative against the simulation.
+The work of a quantitative analyst involves modelling the value of a derivative,
+calibrating a stochastic process for the underlying prices, simulating future prices
+of the underlyings, and evaluating of the model of the derivative against the simulation.
+This library provides an application class `QuantDslApplication` which has methods that
+support this work: `compile()`, `simulate()` and `evaluate()`.
 
-The library provides an application class `QuantDslApplication` which has methods that support these steps:
-`compile()`, `simulate()` and `evaluate()`. During compilation of the specification source code, the application 
-constructs a dependency graph of function calls. The simulation is generated according to requirements derived 
-from the depedency graph, and a calibrated price process. During evaluation, nodes are evaluated when they are ready
- to be evaluated, and intermediate call results are discarded as soon as they are no longer required, which means 
- memory usage is mostly constant during evaluation. For the delta calculations, nodes are selectively 
- re-evaluated with perturbed values, according to the periods and markets they involve.
+During compilation of the specification source code, the application constructs a
+dependency graph of function calls. The simulation is generated according to requirements
+derived from the depedency graph, and a calibrated price process. During evaluation, nodes
+are evaluated when they are ready to be evaluated, and intermediate call results are discarded
+as soon as they are no longer required, which means memory usage is mostly constant during
+evaluation. For the delta calculations, nodes are selectively re-evaluated with perturbed
+values, according to the periods and markets they involve.
 
-The examples below use the library function `calc()` to evaluate Quant DSL source code. `calc()` uses the methods 
-of the `QuantDslApplication` described above.
+The examples below use the library function `calc()` to evaluate Quant DSL source code.
+
+`calc()` uses the methods of the `QuantDslApplication` described above.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc
