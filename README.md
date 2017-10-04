@@ -538,7 +538,7 @@ assert_almost_equal(results.fair_value, 114.592)
 
 Please note, any `if` statement test expressions (the expressions preceding the colons in the `if` statement) must be 
 simple expressions involving the call args, and must not involve any Quant DSL stochastic elements, such 
-as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in if 
+as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in `if` 
 statements is supported, but the function definitions must not contain any of the stochastic elements.
 
 
