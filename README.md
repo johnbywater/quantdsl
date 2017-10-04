@@ -22,7 +22,7 @@ pip install --upgrade pip
 ```
 
 
-## Overview
+## Language
 
 Quant DSL is domain specific language for quantitative analytics in finance and trading.
 
@@ -110,6 +110,7 @@ normal Python code.
 The work of a quantitative analyst involves modelling the value of a derivative,
 calibrating a stochastic process for the underlying prices, simulating future prices
 of the underlyings, and evaluating of the model of the derivative against the simulation.
+
 This library provides an application object class `QuantDslApplication` which has methods that
 support this work: `compile()`, `simulate()` and `evaluate()`.
 
