@@ -21,10 +21,7 @@ difficulty, please try again after upgrading pip.
 pip install --upgrade pip
 ```
 
-
-## Feedback
-
-Please register [issues on GitHub](https://github.com/johnbywater/quantdsl/issues).
+Please feedback [issues on GitHub](https://github.com/johnbywater/quantdsl/issues).
 
 
 ## Overview
