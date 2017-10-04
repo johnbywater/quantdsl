@@ -70,9 +70,6 @@ using only market price data generated before `t0`. Brownian motion `z` is used 
 Constant interest rate `r` is used in discounting. Expectation `E` is conditioned
 on filtration `F`.
 
-The validity of Monte Carlo simulation for all possible expressions in the language is
-[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
-
 ```
 [[Settlement(d, x)]](t) = e ** (r * (t−d)) * [[x]](t)
 
@@ -96,6 +93,9 @@ The validity of Monte Carlo simulation for all possible expressions in the langu
 
 [[-x]](t) = -[[x]](t)
 ```
+
+The validity of Monte Carlo simulation for all possible expressions in the language is
+[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
 ### Software
 
