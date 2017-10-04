@@ -27,7 +27,6 @@ setup(
         'python-dateutil==2.2',
         'requests',
         'six==1.7.3',
-        'filelock',
         'eventsourcing==0.9.4',
         'pytz',
         'blist',

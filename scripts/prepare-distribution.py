@@ -16,9 +16,9 @@ def get_version():
 def build_and_test(cwd):
     # Declare temporary working directory variable.
     tmpcwd27 = os.path.join(cwd, 'tmpve2.7')
-    tmpcwd34 = os.path.join(cwd, 'tmpve3.4')
+    tmpcwd36 = os.path.join(cwd, 'tmpve3.6')
 
-    for (tmpcwd, python_executable) in [(tmpcwd34, 'python3.4'), (tmpcwd27, 'python2.7')]:
+    for (tmpcwd, python_executable) in [(tmpcwd36, 'python3'), (tmpcwd27, 'python')]:
 
         # Rebuild virtualenvs.
         rebuild_virtualenv(cwd, tmpcwd, python_executable)

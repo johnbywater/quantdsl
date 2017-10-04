@@ -79,7 +79,7 @@ class TestString(TestCase):
 
     def test_hash(self):
         obj = String('a')
-        obj.hash
+        self.assertIsInstance(obj.hash, int)
 
 
 class TestNumber(TestCase):

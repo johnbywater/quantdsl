@@ -592,9 +592,7 @@ EuropeanStockOption(Date('2012-1-1'), {strike}, 'ACME')
         },
         interest_rate=rate,
     )
-    value = round(results.fair_value.mean(), 2)
-    print(value)
-    return value
+    return round(results.fair_value.mean(), 2)
 ```
 
 If the strike price of a European option is the same as the price of the underlying, without any volatility (`sigma` 
