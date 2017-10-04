@@ -96,7 +96,7 @@ The validity of Monte Carlo simulation for all possible expressions in the langu
 
 ### Software
 
-This library is an implementation in Python of Quant DSL.
+This library is an implementation of Quant DSL in Python.
 
 In addition to the Quant DSL expressions above, function `def`
 statements are supported. User defined functions can be used
