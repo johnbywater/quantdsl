@@ -52,10 +52,10 @@ The syntax of Quant DSL expressions is defined with
 
 ### Semantics
 
-The semantics of the elements are defined with mathematical expressions commonly used within quantitative analytics 
-such as 
-[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element,
-[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element, and 
+The semantics of the elements are defined with mathematical expressions commonly used within quantitative analytics, 
+such as: 
+[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element;
+[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element; and 
 [least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
 for the `Choice` element.
 
