@@ -218,29 +218,6 @@ results = calc("Fixing('2051-1-1', Settlement('2111-1-1', 1000))",
 assert round(results.fair_value, 2) == 223.13, results.fair_value
 ```   
 
-*Before continuing with the stochastic examples below, setting the random seed helps make test results 
-repeatable. And to help keep things readable, some "helper" functions are defined: `assert_equal` and 
-`assert_almost_equal`.*
-
-```python
-import scipy
-
-# Setting the random seed to make the results in the examples repeatable.
-scipy.random.seed(1234)
-
-def assert_equal(a, b):
-    a_round = round(a, 3)
-    b_round = round(b, 3)
-    assert a_round == b_round, (a_round, b_round, a_round - b_round)
-
-def assert_almost_equal(a, b):
-    diff = abs(a - b)
-    avg = max(1, (a + b) / 2)
-    tol = 0.05 * avg
-    assert diff < tol, (a, b, diff, tol)
-```
-
-
 ### Market
 
 The `Market` element effectively estimates prices that could be agreed in the future.
@@ -411,15 +388,20 @@ present time effective when evaluating the `Wait` element.
 ```
 
 For example, the present value at the `observation_date` of `'2011-1-1'` of one unit of `'GAS'` delivered on 
-`'2111-1-1'` is approximately `82.08`.
+`'2111-1-1'` is approximately `82.18`.
 
 ```python
+import scipy
+# Setting random seed makes test results repeatable.
+scipy.random.seed(1234)
+
 results = calc("Wait('2111-1-1', Market('GAS'))",
     price_process=price_process,
     observation_date='2011-1-1',
     interest_rate=2.5,
 )
-assert_almost_equal(results.fair_value.mean(), 82.08)
+
+assert round(results.fair_value.mean(), 2) == 82.18, round(results.fair_value.mean(), 2)
 ```
 
 
@@ -448,12 +430,8 @@ results = calc(source_code,
     price_process=price_process,
     interest_rate=2.5,
 )
-assert_almost_equal(82.08, results.fair_value.mean())
-assert_almost_equal(16.67, results.fair_value.std())
+assert round(results.fair_value.mean(), 2) == 82.06, round(results.fair_value.mean(), 2)
 ```
-
-Todo: When does this differ in value from Max()?
-
 
 ### Functions definitions
 
@@ -514,7 +492,7 @@ results = calc(source_code,
     observation_date='2011-1-1',
     interest_rate=10,
 )
-assert_almost_equal(results.fair_value, 114.592)
+assert round(results.fair_value, 2) == 114.59
 ```
  
 Instead the expression could be refactored with a function definition.
@@ -533,7 +511,7 @@ results = calc(source_code,
     observation_date='2011-1-1',
     interest_rate=10,
 )
-assert_almost_equal(results.fair_value, 114.592)
+assert round(results.fair_value, 2) == 114.67
 ```
 
 Please note, any `if` statement test expressions (the expressions preceding the colons in the `if` statement) must be 
@@ -632,48 +610,50 @@ EuropeanStockOption(Date('2012-1-1'), {strike}, 'ACME')
         },
         interest_rate=rate,
     )
-    return results.fair_value.mean()
+    value = round(results.fair_value.mean(), 2)
+    print(value)
+    return value
 ```
 
 If the strike price of a European option is the same as the price of the underlying, without any volatility (`sigma` 
 is `0`) the value is zero.
 
 ```python
-assert_equal(0.0, calc_european(spot=10, strike=10, sigma=0, rate=0))
+assert calc_european(spot=10, strike=10, sigma=0, rate=0) == 0.0
 ```
 
 If the strike price is less than the underlying, without any volatility, the value is the difference between the 
 strike and the underlying.
 
 ```python
-assert_equal(2.0, calc_european(spot=10, strike=8, sigma=0, rate=0))
+assert calc_european(spot=10, strike=8, sigma=0, rate=0) == 2.0
 ```
 
 If the strike price is greater than the underlying, without any volatility, the value is zero.
 
 ```python
-assert_equal(0, calc_european(spot=10, strike=12, sigma=0, rate=0))
+assert calc_european(spot=10, strike=12, sigma=0, rate=0) == 0.0
 ```
 
 If the strike price is the same as the underlying, with some volatility in the price of the underlying, there
  is some value in the option.
 
 ```python
-assert_almost_equal(3.522, calc_european(spot=10, strike=10, sigma=0.9, rate=0))
+assert calc_european(spot=10, strike=10, sigma=0.9, rate=0) == 3.42
 ```
 
 If the strike price is less than the underlying, with some volatility in the price of the underlying (`sigma`) there
  is more value in the option than without volatility.
 
 ```python
-assert_almost_equal(4.252, calc_european(spot=10, strike=8, sigma=0.9, rate=0))
+assert calc_european(spot=10, strike=8, sigma=0.9, rate=0) == 4.23
 ```
 
 If the strike price is greater than the underlying, with some volatility in the price of the underlying (`sigma`) there
  is still a little bit of value in the option.
 
 ```python
-assert_almost_equal(2.935, calc_european(spot=10, strike=12, sigma=0.9, rate=0))
+assert calc_european(spot=10, strike=12, sigma=0.9, rate=0) == 2.90
 ```
 
 These results compare well with results from the Black-Scholes analytic formula for European stock options.
@@ -799,7 +779,7 @@ results = calc_print_plot(
     }
 )
 
-assert_almost_equal(6.15, results.fair_value.mean())
+assert round(results.fair_value.mean(), 2) == 6.08
 ```
 
 Todo: Discounting of forward contracts when calculating hedge positions, so the quantities will be larger with 
@@ -852,7 +832,7 @@ results = calc_print_plot(
     }
 )
 
-assert_almost_equal(9.077, results.fair_value.mean())
+assert round(results.fair_value.mean(), 2) == 9.11
 ```
 
 ### Library
