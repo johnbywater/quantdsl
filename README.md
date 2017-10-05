@@ -521,7 +521,7 @@ You can set a calculation to `timeout` after a given number of seconds.
 
 Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
 
-### Derivative options
+### European and American options
 
 In general, an option can be expressed as waiting until an `expiry` date to choose between, on one hand, the 
 difference between the value of an `underlying` expression and a `strike` expression,
