@@ -149,8 +149,8 @@ present time (`t` in the semantics above) when the element is evaluated, which d
 <Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
 ```
 
-For example, with a continuously compounding `interest_rate` of `2.5` percent per year, the value `10` settled in 
-`'2111-1-1'` has a present value at the `observation_date` of `'2011-1-1'` of `82.085`.
+For example, with a continuously compounding `interest_rate` of `2.5` percent per year, the value `10` settled on 
+`'2111-1-1'` has a present value of `82.08` on `'2011-1-1'`.
 
 ```python
 results = calc("Settlement('2111-1-1', 1000)",
@@ -161,8 +161,8 @@ results = calc("Settlement('2111-1-1', 1000)",
 assert round(results.fair_value, 2) == 82.08, results.fair_value
 ```
 
-Similarly, the value of `82.085` settled in `'2011-1-1'` has a present value at the `observation_date` of `'2111-1-1'` 
-of `1000.00`.
+Similarly, the value of `82.085` settled in `'2011-1-1'` has a present value of `1000.00` on `'2111-1-1'` 
+.
 
 ```python
 results = calc("Settlement('2011-1-1', 82.085)",
