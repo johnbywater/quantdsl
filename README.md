@@ -963,7 +963,7 @@ Fair value: 9.11 ± 0.14
 ## Library
 
 There is a small collection of Quant DSL modules in a library under `quantdsl.lib`. Putting Quant DSL source code in 
-dedicated Python files makes it much easier to develop and maintain Quant DSL function definitions in a Python IDE.
+dedicated Python files makes it much easier to use a Python IDE to develop and maintain Quant DSL function definitions.
 
 Below is a copy of the Quant DSL source code for the library's power plant model `quantdsl.lib.powerplant2`, as used
  in the example above.
