@@ -29,8 +29,9 @@ from quantdsl.infrastructure.event_sourced_repos.market_simulation_repo import M
 from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
-from quantdsl.infrastructure.event_sourced_repos.simulated_price_repo import SimulatedPriceRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
+
+DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
 
 class QuantDslApplication(EventSourcingApplication):
@@ -50,7 +51,8 @@ class QuantDslApplication(EventSourcingApplication):
     Evaluate contract given call dependency graph and market simulation.
     """
 
-    def __init__(self, call_evaluation_queue=None, *args, **kwargs):
+    def __init__(self, call_evaluation_queue=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+                 dsl_classes=None, *args, **kwargs):
         super(QuantDslApplication, self).__init__(*args, **kwargs)
         self.contract_specification_repo = ContractSpecificationRepo(event_store=self.event_store, use_cache=True)
         self.contract_valuation_repo = ContractValuationRepo(event_store=self.event_store, use_cache=True)
@@ -70,6 +72,8 @@ class QuantDslApplication(EventSourcingApplication):
         # self.call_result_repo = CallResultRepo(event_store=self.event_store, use_cache=True)
         self.call_result_repo = {}
         self.call_evaluation_queue = call_evaluation_queue
+        self.max_dependency_graph_size = max_dependency_graph_size
+        self.dsl_classes = dsl_classes
 
         self.simulation_subscriber = SimulationSubscriber(
             market_calibration_repo=self.market_calibration_repo,
@@ -82,6 +86,8 @@ class QuantDslApplication(EventSourcingApplication):
             call_dependents_repo=self.call_dependents_repo,
             call_leafs_repo=self.call_leafs_repo,
             call_requirement_repo=self.call_requirement_repo,
+            max_dependency_graph_size=self.max_dependency_graph_size,
+            dsl_classes=self.dsl_classes,
         )
         self.evaluation_subscriber = EvaluationSubscriber(
             contract_valuation_repo=self.contract_valuation_repo,
@@ -109,11 +115,11 @@ class QuantDslApplication(EventSourcingApplication):
         self.call_result_policy.close()
         super(QuantDslApplication, self).close()
 
-    def register_contract_specification(self, source_code):
+    def register_contract_specification(self, source_code, observation_date=None):
         """
         Registers a new contract specification, from given Quant DSL source code.
         """
-        return register_contract_specification(source_code=source_code)
+        return register_contract_specification(source_code=source_code, observation_date=observation_date)
 
     def register_market_calibration(self, price_process_name, calibration_params):
         """
@@ -140,19 +146,19 @@ class QuantDslApplication(EventSourcingApplication):
     def register_call_link(self, link_id, call_id):
         return register_call_link(link_id, call_id)
 
-    def identify_simulation_requirements(self, contract_specification, observation_date, requirements):
+    def identify_simulation_requirements(self, contract_specification, observation_date, requirements, periodisation):
         assert isinstance(contract_specification, ContractSpecification), contract_specification
         assert isinstance(requirements, set)
         return identify_simulation_requirements(contract_specification.id,
                                                 self.call_requirement_repo,
                                                 self.call_link_repo,
                                                 self.call_dependencies_repo,
-                                                self.perturbation_dependencies_repo,
                                                 observation_date,
-                                                requirements)
+                                                requirements,
+                                                periodisation)
 
-    def start_contract_valuation(self, contract_specification_id, market_simulation_id):
-        return start_contract_valuation(contract_specification_id, market_simulation_id)
+    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation):
+        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
@@ -163,7 +169,6 @@ class QuantDslApplication(EventSourcingApplication):
             call_dependencies_repo=self.call_dependencies_repo,
             call_result_repo=self.call_result_repo,
             simulated_price_repo=self.simulated_price_repo,
-            call_dependents_repo=self.call_dependents_repo,
             perturbation_dependencies_repo=self.perturbation_dependencies_repo,
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
         )
@@ -183,13 +188,17 @@ class QuantDslApplication(EventSourcingApplication):
             simulated_price_requirements_repo=self.simulated_price_requirements_repo,
         )
 
-    def compile(self, source_code):
-        return self.register_contract_specification(source_code=source_code)
+    def compile(self, source_code, observation_date=None):
+        return self.register_contract_specification(source_code=source_code, observation_date=observation_date)
 
-    def simulate(self, contract_specification, market_calibration, observation_date, path_count=20000,
-                 interest_rate='2.5', perturbation_factor=0.001):
+    def simulate(self, contract_specification, price_process_name, calibration_params, observation_date,
+                 path_count=20000, interest_rate='2.5', perturbation_factor=0.01, periodisation=None):
+
+        market_calibration = self.register_market_calibration(price_process_name, calibration_params)
+
         simulation_requirements = set()
-        self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements)
+        self.identify_simulation_requirements(contract_specification, observation_date, simulation_requirements,
+                                              periodisation)
         market_simulation = self.register_market_simulation(
             market_calibration_id=market_calibration.id,
             requirements=list(simulation_requirements),
@@ -200,8 +209,8 @@ class QuantDslApplication(EventSourcingApplication):
         )
         return market_simulation
 
-    def evaluate(self, contract_specification_id, market_simulation_id):
-        return self.start_contract_valuation(contract_specification_id, market_simulation_id)
+    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
+        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
     def get_result(self, contract_valuation):
         call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
@@ -211,17 +220,31 @@ class QuantDslApplication(EventSourcingApplication):
         # Todo: Return the call count from the compilation method?
         return len(list(regenerate_execution_order(contract_specification_id, self.call_link_repo)))
 
-    def calc_call_costs(self, contract_specification_id):
+    def calc_counts_and_costs(self, contract_specification_id):
         """Returns a dict of call IDs -> perturbation requirements."""
-        calls = {}
+        costs = {}
+        counts = {}
         for call_id in regenerate_execution_order(contract_specification_id, self.call_link_repo):
+
+            # Get estimated cost of evaluating the expression once.
+            call_requirement = self.call_requirement_repo[call_id]
+            estimated_cost_of_expr = call_requirement.cost
+
             # Get the perturbation requirements for this call.
             try:
                 perturbation_dependencies = self.perturbation_dependencies_repo[call_id]
             except KeyError:
-                calls[call_id] = 1
+                num_evaluations = 1
             else:
                 assert isinstance(perturbation_dependencies, PerturbationDependencies)
                 # "1 + 2 * number of dependencies" because of the double sided delta.
-                calls[call_id] = 1 + 2 * len(perturbation_dependencies.dependencies)
-        return calls
+                num_evaluations = 1 + 2 * len(perturbation_dependencies.dependencies)
+
+            # Cost is cost of doing it once, times the number of times it needs doing.
+            costs[call_id] = num_evaluations * estimated_cost_of_expr
+            counts[call_id] = num_evaluations
+
+        return counts, costs
+
+    def check_has_thread_errored(self):
+        return False

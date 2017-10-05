@@ -5,6 +5,7 @@ import math
 
 import scipy
 import scipy.linalg
+from collections import defaultdict
 from scipy.linalg import LinAlgError
 
 from quantdsl.exceptions import DslError
@@ -22,6 +23,14 @@ class BlackScholesPriceProcess(PriceProcess):
 
         all_brownian_motions = self.get_brownian_motions(observation_date, requirements, path_count, calibration_params)
 
+        delivery_dates = defaultdict(set)
+        for requirement in requirements:
+            fixing_date = requirement[1]
+            delivery_date = requirement[2]
+            delivery_dates[fixing_date].add(delivery_date)
+
+        delivery_dates[observation_date].add(observation_date)
+
         # Compute simulated market prices using the correlated Brownian
         # motions, the actual historical volatility, and the last price.
         for commodity_name, brownian_motions in all_brownian_motions:
@@ -31,10 +40,11 @@ class BlackScholesPriceProcess(PriceProcess):
             sigma = calibration_params['sigma'][index]
             curve = ForwardCurve(commodity_name, calibration_params['curve'][commodity_name])
             for fixing_date, brownian_rv in brownian_motions:
-                last_price = curve.get_price(fixing_date)
-                T = get_duration_years(observation_date, fixing_date)
-                simulated_value = last_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
-                yield commodity_name, fixing_date, fixing_date, simulated_value
+                for delivery_date in sorted(delivery_dates[fixing_date]):
+                    forward_price = curve.get_price(delivery_date)
+                    T = get_duration_years(observation_date, fixing_date)
+                    simulated_value = forward_price * scipy.exp(sigma * brownian_rv - 0.5 * sigma * sigma * T)
+                    yield commodity_name, fixing_date, delivery_date, simulated_value
 
     def get_brownian_motions(self, observation_date, requirements, path_count, calibration_params):
         assert isinstance(observation_date, datetime.datetime), observation_date

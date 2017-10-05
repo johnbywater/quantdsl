@@ -1,18 +1,23 @@
-from multiprocessing.pool import Pool
-
 from eventsourcing.domain.model.events import publish
 
 from quantdsl.domain.model.call_dependencies import CallDependencies
-from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, CallResultRepository, ResultValueComputed, \
     make_call_result_id, register_call_result
 from quantdsl.domain.model.contract_valuation import ContractValuation
-from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.domain.services.parser import dsl_parse
-from quantdsl.semantics import DslNamespace, Module
+from quantdsl.semantics import DslNamespace
+from eventsourcing.domain.model.events import publish
+
+from quantdsl.domain.model.call_dependencies import CallDependencies
+from quantdsl.domain.model.call_result import CallResult, CallResultRepository, ResultValueComputed, \
+    make_call_result_id, register_call_result
+from quantdsl.domain.model.contract_valuation import ContractValuation
+from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
+from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.domain.services.call_links import regenerate_execution_order
+from quantdsl.semantics import DslNamespace
 
 
 def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo,
@@ -81,7 +86,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             call_dependencies_repo=call_dependencies_repo,
             call_result_repo=call_result_repo,
             simulated_price_repo=simulated_price_repo,
-            simulation_requirements=simulation_requirements
+            simulation_requirements=simulation_requirements,
         )
 
         # Register the result.
@@ -115,7 +120,7 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
 
 def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, call_requirement_repo,
                              market_simulation_repo, call_dependencies_repo, call_result_repo, simulated_price_repo,
-                             call_dependents_repo, perturbation_dependencies_repo, simulated_price_requirements_repo):
+                             perturbation_dependencies_repo, simulated_price_requirements_repo):
     while True:
         item = call_evaluation_queue.get()
         try:
@@ -132,7 +137,8 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
                 call_result_repo=call_result_repo,
                 simulated_price_repo=simulated_price_repo,
                 perturbation_dependencies_repo=perturbation_dependencies_repo,
-                simulated_price_requirements_repo=simulated_price_requirements_repo)
+                simulated_price_requirements_repo=simulated_price_requirements_repo,
+            )
         finally:
             call_evaluation_queue.task_done()
 
@@ -185,20 +191,12 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     """
     Parses, compiles and evaluates a call requirement.
     """
-    # assert isinstance(contract_valuation, ContractValuation), contract_valuation
+    assert isinstance(contract_valuation, ContractValuation), contract_valuation
     # assert isinstance(call_requirement, CallRequirement), call_requirement
     # assert isinstance(market_simulation, MarketSimulation), market_simulation
     # assert isinstance(call_dependencies_repo, CallDependenciesRepository), call_dependencies_repo
     # assert isinstance(call_result_repo, CallResultRepository)
     # assert isinstance(simulated_price_dict, SimulatedPriceRepository)
-
-    # Parse the DSL source into a DSL module object (composite tree of objects that provide the DSL semantics).
-    # if call_requirement._dsl_expr is not None:
-    dsl_expr = call_requirement._dsl_expr
-    # else:
-    #     dsl_module = dsl_parse(call_requirement.dsl_source)
-    #     assert isinstance(dsl_module, Module), "Parsed stubbed expr string is not a module: %s" % dsl_module
-    #     dsl_expr = dsl_module.body[0]
 
     present_time = call_requirement.effective_present_time or market_simulation.observation_date
 
@@ -224,27 +222,37 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
         result_repo=call_result_repo,
     )
 
-    result_value, perturbed_values = evaluate_dsl_expr(dsl_expr, first_commodity_name, market_simulation.id,
+    result_value, perturbed_values = evaluate_dsl_expr(call_requirement._dsl_expr,
+                                                       first_commodity_name,
+                                                       market_simulation.id,
                                                        market_simulation.interest_rate, present_time,
                                                        simulated_value_dict,
                                                        perturbation_dependencies.dependencies,
                                                        dependency_results, market_simulation.path_count,
-                                                       market_simulation.perturbation_factor)
+                                                       market_simulation.perturbation_factor,
+                                                       contract_valuation.periodisation,
+                                                       call_requirement.cost,
+                                                       market_simulation.observation_date,
+                                                       )
 
     # Return the result.
     return result_value, perturbed_values
 
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
-                      perturbation_dependencies, dependency_results, path_count, perturbation_factor):
+                      perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation,
+                      estimated_cost_of_expr, observation_date):
+
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
         'simulation_id': simulation_id,
         'interest_rate': interest_rate,
         'perturbation_factor': perturbation_factor,
+        'observation_date': observation_date,
         'present_time': present_time,
         'first_commodity_name': first_commodity_name,
         'path_count': path_count,
+        'periodisation': periodisation,
     }
 
     result_value = None
@@ -264,13 +272,14 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
                 dependency_value = dependency_result_value
             dependency_values[stub_id] = dependency_value
 
+        # Prepare the namespace with the values the expression depends on.
         dsl_locals = DslNamespace(dependency_values)
 
-        # Compile the parsed expr using the namespace to give something that can be evaluated.
-        dsl_expr_reduced = dsl_expr.reduce(dsl_locals=dsl_locals, dsl_globals=DslNamespace())
-        # assert isinstance(dsl_expr, DslExpression), dsl_expr
+        # Substitute Name elements, to give something that can be evaluated.
+        dsl_expr_resolved = dsl_expr.substitute_names(dsl_locals)
 
-        expr_value = dsl_expr_reduced.evaluate(**evaluation_kwds)
+        # Evaluate the expression.
+        expr_value = dsl_expr_resolved.evaluate(**evaluation_kwds)
         if perturbation is None:
             assert result_value is None
             result_value = expr_value
@@ -278,7 +287,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
             perturbed_values[perturbation] = expr_value
 
         # Publish result value computed event.
-        publish(ResultValueComputed())
+        publish(ResultValueComputed(estimated_cost_of_expr))
 
     return result_value, perturbed_values
 

@@ -30,7 +30,37 @@ class DslSyntaxError(DslError):
     """
 
 
-class DslNameError(DslError):
+class DslTestExpressionCannotBeEvaluated(DslSyntaxError):
+    """
+    Exception class for test expression evaluation errors.
+    """
+
+
+class DslPresentTimeNotInScope(DslSyntaxError):
+    """
+    Exception class for present time not being in scope.
+    """
+
+
+class DslIfTestExpressionError(DslSyntaxError):
+    """
+    Exception class for user syntax errors (comparison errors).
+    """
+
+
+class DslCompareArgsError(DslSyntaxError):
+    """
+    Exception class for user syntax errors (comparison errors).
+    """
+
+
+class DslBinOpArgsError(DslSyntaxError):
+    """
+    Exception class for user syntax errors (binary operation).
+    """
+
+
+class DslNameError(DslSyntaxError):
     """
     Exception class for undefined names.
     """
@@ -40,3 +70,23 @@ class DslSystemError(DslError):
     """
     Exception class for DSL system errors.
     """
+
+
+class DslCompileError(DslError):
+    pass
+
+
+class CallLimitError(DslCompileError):
+    pass
+
+
+class RecursionDepthError(DslCompileError):
+    pass
+
+
+class TimeoutError(DslError):
+    pass
+
+
+class InterruptSignalReceived(DslError):
+    pass

@@ -1,6 +1,7 @@
 import scipy
+import six
 from eventsourcing.domain.model.entity import EntityRepository, EventSourcedEntity
-from eventsourcing.domain.model.events import publish
+from eventsourcing.domain.model.events import publish, QualnameABCMeta
 
 
 class CallResult(EventSourcedEntity):
@@ -65,7 +66,7 @@ class CallResultRepository(EntityRepository):
     pass
 
 
-class ResultValueComputed(object):
+class ResultValueComputed(six.with_metaclass(QualnameABCMeta)):
     """Event published when a result value is computed.
 
     Used to track progress of computation more smoothly than
@@ -73,3 +74,5 @@ class ResultValueComputed(object):
 
     (This is not a persisted domain event.)
     """
+    def __init__(self, cost):
+        self.cost = cost

@@ -44,7 +44,7 @@ class TestReadmeFile(TestCase):
             readme_py.writelines("\n".join(lines) + '\n')
 
         # Run the code and catch errors.
-        p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE, env={'SUPRESS_PLOT': 'True'})
+        p = Popen([sys.executable, temp_path], stdout=PIPE, stderr=PIPE)
         out, err = p.communicate()
         out = out.decode('utf8').replace(temp_filename, readme_filename)
         err = err.decode('utf8').replace(temp_filename, readme_filename)

@@ -24,7 +24,10 @@ class TestDependencyGraphSubscriber(unittest.TestCase):
             call_dependencies_repo,
             call_dependents_repo,
             call_leafs_repo,
-            call_requirement_repo
+            call_requirement_repo,
+            # Todo: Test call limiting in this test case.
+            max_dependency_graph_size=None,
+            dsl_classes={}
         )
 
     def tearDown(self):

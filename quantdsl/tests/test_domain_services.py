@@ -63,7 +63,6 @@ double(1 + 1)
             contract_specification=contract_specification,
             call_dependencies_repo=self.call_dependencies_repo,
             call_dependents_repo=self.call_dependents_repo,
-            call_leafs_repo=self.call_leafs_repo,
             call_requirement_repo=self.call_requirement_repo,
         )
 
@@ -200,14 +199,12 @@ class TestListMarketNamesAndFixingDates(unittest.TestCase):
                                                2: Mock(spec=CallDependencies, dependencies=[]),
                                                3: Mock(spec=CallDependencies, dependencies=[]),
                                            }[x])
-        market_dependencies_repo = MagicMock(spec=PerturbationDependenciesRepo)
 
         observation_date = datetime.datetime(2011, 1, 1)
 
         requirements = set()
         identify_simulation_requirements(contract_specification.id, call_requirement_repo, call_link_repo,
-                                         call_dependencies_repo, market_dependencies_repo, observation_date,
-                                         requirements)
+                                         call_dependencies_repo, observation_date, requirements)
 
         self.assertEqual(requirements, {
             ('1', datetime.datetime(2011, 1, 1), datetime.datetime(2011, 1, 1)),

@@ -1,11 +1,8 @@
 import datetime
 import unittest
-from abc import ABCMeta
-from time import sleep
 
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
-from six import with_metaclass
 
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.call_result import CallResult
@@ -13,45 +10,19 @@ from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.exceptions import CallLimitError, RecursionDepthError, DslCompareArgsError, DslBinOpArgsError, \
+    DslTestExpressionCannotBeEvaluated
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
-class ApplicationTestCaseMixin(with_metaclass(ABCMeta)):
+class ApplicationTestCase(unittest.TestCase):
     skip_assert_event_handers_empty = False
     NUMBER_DAYS = 5
     NUMBER_MARKETS = 2
     NUMBER_WORKERS = 20
     PATH_COUNT = 2000
+    MAX_DEPENDENCY_GRAPH_SIZE = 2000
 
-    def setUp(self):
-        if not self.skip_assert_event_handers_empty:
-            assert_event_handlers_empty()
-        # super(ContractValuationTestCase, self).setUp()
-
-        scipy.random.seed(1354802735)
-
-        self.setup_application()
-
-    def tearDown(self):
-        if self.app is not None:
-            self.app.close()
-        if not self.skip_assert_event_handers_empty:
-            assert_event_handlers_empty()
-            # super(ContractValuationTestCase, self).tearDown()
-
-    def setup_application(self):
-        self.app = QuantDslApplicationWithPythonObjects()
-
-
-class TestCase(ApplicationTestCaseMixin, unittest.TestCase):
-    def setUp(self):
-        super(TestCase, self).setUp()
-
-    def tearDown(self):
-        super(TestCase, self).tearDown()
-
-
-class ContractValuationTestCase(ApplicationTestCaseMixin):
     price_process_name = DEFAULT_PRICE_PROCESS_NAME
     calibration_params = {
         'market': ['#1', '#2', 'NBP', 'TTF', 'SPARKSPREAD'],
@@ -80,30 +51,34 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             [0.0, 0.0, 0.4, 1.0, 0.0],
             [0.0, 0.0, 0.0, 0.0, 1.0],
         ],
-        # '#1-LAST-PRICE': 10,
-        # '#2-LAST-PRICE': 10,
-        # '#1-ACTUAL-HISTORICAL-VOLATILITY': 50,
-        # '#2-ACTUAL-HISTORICAL-VOLATILITY': 50,
-        # '#1-#2-CORRELATION': 0.0,
-        # 'NBP-LAST-PRICE': 10,
-        # 'TTF-LAST-PRICE': 11,
-        # 'NBP-ACTUAL-HISTORICAL-VOLATILITY': 50,
-        # 'TTF-ACTUAL-HISTORICAL-VOLATILITY': 40,
-        # 'NBP-TTF-CORRELATION': 0.4,
-        # 'NBP-2011-01-LAST-PRICE': 10,
-        # 'NBP-2011-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
-        # 'NBP-2012-01-LAST-PRICE': 10,
-        # 'NBP-2012-01-ACTUAL-HISTORICAL-VOLATILITY': 10,
-        # 'NBP-2012-01-NBP-2012-02-CORRELATION': 0.4,
-        # 'NBP-2012-02-NBP-2012-03-CORRELATION': 0.4,
-        # 'SPARKSPREAD-LAST-PRICE': 1,
-        # 'SPARKSPREAD-ACTUAL-HISTORICAL-VOLATILITY': 40,
     }
 
-    def assert_contract_value(self, specification, expected_value, expected_deltas=None, expected_call_count=None):
+    def setUp(self):
+        if not self.skip_assert_event_handers_empty:
+            assert_event_handlers_empty()
+
+        scipy.random.seed(1354802735)
+
+        self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
+
+    def tearDown(self):
+        if self.app is not None:
+            self.app.close()
+        if not self.skip_assert_event_handers_empty:
+            assert_event_handlers_empty()
+            # super(ContractValuationTestCase, self).tearDown()
+
+    def setup_application(self, **kwargs):
+        self.app = QuantDslApplicationWithPythonObjects(**kwargs)
+
+    def assert_contract_value(self, specification, expected_value=None, expected_deltas=None,
+                              expected_call_count=None, periodisation=None):
+
+        # Set the observation date.
+        observation_date = datetime.datetime(2011, 1, 1)
 
         # Register the specification (creates call dependency graph).
-        contract_specification = self.app.compile(source_code=specification)
+        contract_specification = self.app.compile(source_code=specification, observation_date=observation_date)
 
         # Check the call count (the number of nodes of the call dependency graph).
         call_count = self.calc_call_count(contract_specification.id)
@@ -112,36 +87,37 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
             self.assertEqual(call_count, expected_call_count)
 
         # Generate the market simulation.
-        market_calibration = self.app.register_market_calibration(self.price_process_name, self.calibration_params)
-        observation_date = datetime.datetime(2011, 1, 1)
         market_simulation = self.app.simulate(
             contract_specification=contract_specification,
-            market_calibration=market_calibration,
+            price_process_name=self.price_process_name,
+            calibration_params=self.calibration_params,
             observation_date=observation_date,
             path_count=self.PATH_COUNT,
-            interest_rate='2.5',
+            interest_rate=2.5,
             perturbation_factor=0.001,
+            periodisation=periodisation,
         )
 
-        # Generate the contract valuation ID.
-
-        # Listen for the call result, if possible.
-        # Todo: Listen for results, rather than polling for results - there will be less lag.
-        # call_result_listener = None
-
         # Start the contract valuation.
-        contract_valuation = self.app.evaluate(contract_specification.id, market_simulation.id)
+        contract_valuation = self.app.evaluate(
+            contract_specification_id=contract_specification.id,
+            market_simulation_id=market_simulation.id,
+            periodisation=periodisation,
+        )
         assert isinstance(contract_valuation, ContractValuation)
-
-        # # Get the call result.
-        # if call_result_listener:
-        #     call_result_listener.wait()
 
         main_result = self.get_result(contract_valuation)
 
+        if expected_value is None:
+            return
+
         # Check the call result.
         assert isinstance(main_result, CallResult)
-        self.assertAlmostEqual(self.scalar(main_result.result_value), expected_value, places=2)
+        actual_value = self.scalar(main_result.result_value)
+        if isinstance(actual_value, float):
+            self.assertAlmostEqual(actual_value, expected_value, places=2)
+        else:
+            self.assertEqual(actual_value, expected_value)
 
         if expected_deltas is None:
             return
@@ -183,33 +159,17 @@ class ContractValuationTestCase(ApplicationTestCaseMixin):
         return contract_value
 
     def get_result(self, contract_valuation):
-        assert isinstance(contract_valuation, ContractValuation)
-        call_costs = self.app.calc_call_costs(contract_valuation.contract_specification_id)
-        total_cost = sum(call_costs.values())
-
-        patience = max(total_cost, 10) * 1.5 * (max(self.PATH_COUNT, 2000) / 1000)  # Guesses.
-        while True:
-            try:
-                return self.app.get_result(contract_valuation)
-            except:
-                interval = 0.1
-                self.sleep(interval)
-                patience -= interval
-                if not patience:
-                    self.fail("Timeout whilst waiting for result")
-
-    def sleep(self, interval):
-        sleep(interval)
+        return self.app.get_result(contract_valuation)
 
 
-class ExpressionTests(ContractValuationTestCase):
+class ExpressionTests(ApplicationTestCase):
     def test_generate_valuation_addition(self):
         self.assert_contract_value("""1 + 2""", 3)
         self.assert_contract_value("""2 + 4""", 6)
 
     def test_market(self):
-        self.assert_contract_value("Lift('#1', Market('#1'))", 10, {'#1': 1})
-        self.assert_contract_value("Lift('#2', Market('#2'))", 10, {'#2': 1})
+        self.assert_contract_value("Market('#1')", 10, {'#1': 1}, periodisation='alltime')
+        self.assert_contract_value("Market('#2')", 10, {'#2': 1}, periodisation='alltime')
 
     def test_market_plus(self):
         self.assert_contract_value("Market('#1') + 10", 20)
@@ -244,6 +204,7 @@ class ExpressionTests(ContractValuationTestCase):
     def test_max(self):
         specification = "Fixing(Date('2011-01-01'), Max(Market('#1'), Market('#2')))"
         self.assert_contract_value(specification, 10.0000)
+
         specification = "Fixing(Date('2012-01-01'), Max(Market('#1'), Market('#2')))"
         self.assert_contract_value(specification, 13.0250)
 
@@ -256,17 +217,19 @@ Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
 
     def test_bermudan_with_alltime_delta(self):
         specification = """
-Fixing(Date('2011-06-01'), Choice(Lift('NBP', Market('NBP')) - 9,
-    Fixing(Date('2012-01-01'), Choice(Lift('NBP', Market('NBP')) - 9, 0))))
+Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
+    Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
 """
-        self.assert_contract_value(specification, 2.6093, expected_deltas={'NBP': 0.71})
+        self.assert_contract_value(specification, 2.6093, expected_deltas={'NBP': 0.71}, periodisation='alltime')
 
     def test_bermudan_with_monthly_deltas(self):
         specification = """
-Fixing(Date('2011-06-01'), Choice(Lift('NBP', 'monthly', Market('NBP')) - 9,
-    Fixing(Date('2012-01-01'), Choice(Lift('NBP', 'monthly', Market('NBP')) - 9, 0))))
+Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
+    Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
 """
-        self.assert_contract_value(specification, 2.6093, expected_deltas={'NBP-2011-6': 0.2208})
+        self.assert_contract_value(specification, 2.6093,
+                                   expected_deltas={'NBP-2011-6': 0.105},
+                                   periodisation='monthly')
 
     def test_identical_fixings(self):
         specification = "Fixing(Date('2012-01-02'), Market('#1')) - Fixing(Date('2012-01-02'), Market('#1'))"
@@ -357,64 +320,415 @@ Fixing(
 Max(
     Fixing(
         Date('2012-01-01'),
-        Lift('#1', Market('#1'))
+        Market('#1')
     ) /
     Fixing(
         Date('2011-01-01'),
-        Lift('#1', Market('#1'))
+        Market('#1')
     ),
     1.0
 ) - Max(
     Fixing(
         Date('2013-01-01'),
-        Lift('#1', Market('#1'))
+        Market('#1')
     ) /
     Fixing(
         Date('2012-01-01'),
-        Lift('#1', Market('#1'))
+        Market('#1')
     ),
     1.0
 )
 """
-        # NB: Expected value should be 0.0000. It is slightly
-        # off due to small path count, and consistently at the
-        # slightly negative value due to the seed being fixed.
-        self.assert_contract_value(specification, -0.01, expected_deltas={'#1': 0.00})
+        self.assert_contract_value(specification, 0.00, expected_deltas={'#1': 0.00}, periodisation='alltime')
 
 
-class FunctionTests(ContractValuationTestCase):
-    def test_functional_fibonacci_numbers(self):
-        fib_tmpl = """
-def fib(n): return fib(n-1) + fib(n-2) if n > 1 else n
-fib(%d)
-"""
-        # self.assert_contract_value(fib_tmpl % 0, 0, expected_call_count=2)
-        # self.assert_contract_value(fib_tmpl % 1, 1, expected_call_count=2)
-        # self.assert_contract_value(fib_tmpl % 2, 1, expected_call_count=4)
-        # self.assert_contract_value(fib_tmpl % 3, 2, expected_call_count=5)
-        self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=6)
-        # self.assert_contract_value(fib_tmpl % 5, 5, expected_call_count=7)
-        # self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
-        # self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
-        # self.assert_contract_value(fib_tmpl % 17, 1597, expected_call_count=19)
 
+class FunctionTests(ApplicationTestCase):
     def test_two_defs(self):
         dsl_source = """
-def add(a, b):
-    a + b
+def f1():
+    1
 
-def mul(a, b):
-    a if b == 1 else add(a, mul(a, b - 1))
-mul(3, 3)
+def f2():
+    2
+
+f1() + f2()
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=3)
+
+    def test_function_call_in_function_body(self):
+        dsl_source = """
+def f1():
+    1 + f2()
+
+def f2():
+    2
+
+f1()
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=3)
+
+    def test_function_call_in_function_call_arg(self):
+        dsl_source = """
+def f1(x):
+    1 + x
+
+def f2():
+    2
+    
+f1(f2())
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=2)
+
+    def test_function_call_in_function_call_in_function_call_arg(self):
+        dsl_source = """
+def f1(x):
+    1 + x
+
+def f2(x):
+    2 + x + Market('NBP') + f4()
+
+def f3():
+    Market('NBP') + f4()
+    
+def f4():
+    1
+    
+def f5():
+    Market('NBP')
+
+f1(f2(Market('NBP')))
+"""
+        self.assert_contract_value(dsl_source, expected_call_count=4)
+
+    def test_function_name_in_function_call_arg(self):
+        dsl_source = """
+def f1(f):
+    1 + f()
+
+def f2():
+    2
+
+f1(f2)
+"""
+        self.assert_contract_value(dsl_source, 3, expected_call_count=3)
+
+    def test_ifstatement_test_expression_gets_function_that_can_be_evaluated(self):
+        code = """
+def f1(x):
+    100 if x else -100
+
+def f2(x):
+    x * 3
+
+f1(f2(%s))
+"""
+        self.assert_contract_value(code % 1, 100)
+        self.assert_contract_value(code % 0, -100)
+
+    def test_ifstatement_test_expression_has_function_call_that_can_be_evaluated_in_compare(self):
+        code = """
+def f1(x):
+    100 if f2(x) > 0 else -100
+
+def f2(x):
+    x
+
+f1(%s)
+"""
+        self.assert_contract_value(code % 1, 100)
+        self.assert_contract_value(code % -1, -100)
+
+    def test_ifstatement_test_expression_gets_function_call_that_can_be_evaluated(self):
+        code = """
+def f1(x):
+    100 if f2(x) > 0 else -100
+
+def f2(x):
+    x
+
+f1(f2(%s))
+"""
+        self.assert_contract_value(code % 1, 100)
+        self.assert_contract_value(code % -1, -100)
+
+    def test_ifstatement_test_expression_gets_function_call_that_cannot_be_evaluated(self):
+        code = """
+def f1(x):
+    100 if x > 0 else -100
+
+def f2(x):
+    x * Choice(1, 2)
+
+f1(f2(%s))
+"""
+        with self.assertRaises(DslTestExpressionCannotBeEvaluated):
+            self.assert_contract_value(code % 1)
+
+    def test_if_test_expression_has_nested_function_calls_and_gets_nested_function_calls(self):
+        code = """
+def f1(x):
+    1 if f6(f4(f3(x))) else 0
+
+def f2(x):
+    x
+
+def f3(x):
+    x
+
+def f4(x):
+    x
+
+def f5(x):
+    x
+
+def f6(x):
+    x
+
+f1(f5(f2(%s)))
+"""
+        # Not sure how this works, but it seems to!
+        self.assert_contract_value(code % 1, 1)
+        self.assert_contract_value(code % 0, 0)
+
+    def test_call_cache_simple_function(self):
+        code = """
+def f(x):
+    x
+"""
+        self.assert_contract_value(code + "f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(1) + f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(1))", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(f(1)))", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(1)))", expected_call_count=2)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(f(1))))", expected_call_count=2)
+
+    def test_call_cache_inlined_function(self):
+        code = """
+@inline
+def f(x):
+    x
+"""
+        self.assert_contract_value(code + "f(1)", expected_call_count=1)
+        self.assert_contract_value(code + "f(1) + f(1)", expected_call_count=1)
+        self.assert_contract_value(code + "f(1) + f(1) + f(1)", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(1))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1)))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(1)))", expected_call_count=1)
+        self.assert_contract_value(code + "f(f(f(1))) + f(f(f(f(1))))", expected_call_count=1)
+
+    def test_call_cache_recombine_branches_integer_args(self):
+        code = """
+def f(x, t):
+    if t <= 0:
+        x
+    else:
+        if x <= 0:
+            Max(f(x, t-1), f(x+1, t-1))
+        else:
+            Max(f(x-1, t-1), f(x, t-1))
+            
+f(0, %s)
+"""
+        self.assert_contract_value(code % 0, 0, expected_call_count=2)
+        self.assert_contract_value(code % 1, 1, expected_call_count=4)
+        self.assert_contract_value(code % 2, 1, expected_call_count=6)
+        self.assert_contract_value(code % 3, 1, expected_call_count=8)
+        self.assert_contract_value(code % 4, 1, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_function_call_arg(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y
+    else:
+        if x <= 0:
+            Max(f1(x, y, t-1), f1(x+1, y, t-1))
+        else:
+            Max(f1(x-1, y, t-1), f1(x, y, t-1))
+        
+def f2(x):
+    x
+        
+f1(0, f2(1), %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_inlined_function_call_arg(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y
+    else:
+        if x <= 0:
+            Max(f1(x, y, t-1), f1(x+1, y, t-1))
+        else:
+            Max(f1(x-1, y, t-1), f1(x, y, t-1))
+        
+@inline
+def f2(x):
+    x
+        
+f1(0, f2(1), %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_referenced_function_call_arg(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y(1)
+    else:
+        if x <= 0:
+            Max(f1(x, y, t-1), f1(x+1, y, t-1))
+        else:
+            Max(f1(x-1, y, t-1), f1(x, y, t-1))
+        
+@inline
+def f2(x):
+    x
+        
+f1(0, f2, %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_inlined_function_call_arg_refactored(self):
+        code = """
+def f1(x, y, t):
+    if t <= 0:
+        x + y
+    else:
+        if x <= 0:
+            up(x, y, t)
+        else:
+            down(x, y, t)
+        
+@inline
+def f2(x):
+    x
+        
+@inline
+def up(x, y, t):
+    Max(f1(x, y, t-1), f1(x+1, y, t-1))
+
+@inline
+def down(x, y, t):
+    Max(f1(x-1, y, t-1), f1(x, y, t-1))
+
+f1(0, f2(1), %s)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 2, expected_call_count=6)
+        self.assert_contract_value(code % 3, 2, expected_call_count=8)
+        self.assert_contract_value(code % 4, 2, expected_call_count=10)
+
+    def test_call_cache_recombine_branches_with_timedelta_arg(self):
+        # calls, time deltas).
+        code = """
+def f1(t, x):
+    if t <= 0:
+        x
+    else:
+        Max(1 + f1(f2(t), x), f1(f2(t), x+1)) 
+
+@inline
+def f2(t):
+    t-1  
+      
+f1(%s, 1)
+"""
+        self.assert_contract_value(code % 0, 1, expected_call_count=2)
+        self.assert_contract_value(code % 1, 2, expected_call_count=4)
+        self.assert_contract_value(code % 2, 3, expected_call_count=7)
+        self.assert_contract_value(code % 3, 4, expected_call_count=11)
+        self.assert_contract_value(code % 4, 5, expected_call_count=16)
+
+    def test_functional_fibonacci_numbers(self):
+        fib_tmpl = """
+def fib(n):
+    fib(n-1) + fib(n-2) if n > 1 else n
+
+fib(%s)
+"""
+        self.assert_contract_value(fib_tmpl % 0, 0, expected_call_count=2)
+        self.assert_contract_value(fib_tmpl % 1, 1, expected_call_count=2)
+        self.assert_contract_value(fib_tmpl % 2, 1, expected_call_count=4)
+        self.assert_contract_value(fib_tmpl % 3, 2, expected_call_count=5)
+        self.assert_contract_value(fib_tmpl % 4, 3, expected_call_count=6)
+        self.assert_contract_value(fib_tmpl % 5, 5, expected_call_count=7)
+        self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
+        self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
+
+    def test_compare_args_error(self):
+        code = "TimeDelta('1d') > 1"
+        with self.assertRaises(DslCompareArgsError):
+            self.assert_contract_value(code)
+
+    def test_bin_op_args_error(self):
+        code = "TimeDelta('1d') + 1"
+        with self.assertRaises(DslBinOpArgsError):
+            self.assert_contract_value(code)
+
+    def test_function_call_as_call_arg_gets_correct_effective_present_time_when_inlined(self):
+        dsl_source = """
+def MyFixing(end, underlying):
+    return Fixing(end, underlying)
+
+@inline
+def Discount(start):
+    Settlement(start, 1)
+
+MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
+"""
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=2)
+
+    def test_function_call_as_call_arg_gets_correct_effective_present_time_when_not_inlined(self):
+        dsl_source = """
+def MyFixing(end, underlying):
+    return Fixing(end, underlying)
+
+def Discount(start):
+    Settlement(start, 1)
+
+MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
+"""
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
+
+    def test_function_as_call_arg_gets_correct_effective_present_time(self):
+        # Novelty here is passing a function as a
+        # call arg, and then calling the arg name.
+        dsl_source = """
+def MyWait(start, end, func):
+    return Fixing(end, func(start))
+
+def Discount(start):
+    Settlement(start, 1)
+
+MyWait(Date('2011-01-01'), Date('2012-01-01'), Discount)
     """
-        self.assert_contract_value(dsl_source, 9, expected_call_count=6)
+        self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
 
     def test_functional_derivative_option_definition(self):
         specification = """
 def Option(date, strike, x, y):
     return Wait(date, Choice(x - strike, y))
 
-Option(Date('2012-01-01'), 9, Underlying(Market('NBP')), 0)
+Option(Date('2012-01-01'), 9, Market('NBP'), 0)
 """
         self.assert_contract_value(specification, 2.4557, expected_call_count=2)
 
@@ -426,32 +740,197 @@ def Option(date, strike, underlying, alternative):
 def European(date, strike, underlying):
     return Option(date, strike, underlying, 0)
 
-European(Date('2012-01-01'), 9, Lift('NBP', Market('NBP')))
+European(Date('2012-01-01'), 9, Market('NBP'))
 """
-        self.assert_contract_value(specification, 2.4557, {'NBP': 0.6743}, expected_call_count=3)
+        self.assert_contract_value(specification, 2.4557, {'NBP': 0.6743}, expected_call_count=3,
+                                   periodisation='alltime')
 
-    def test_generate_valuation_american_option(self):
+    def test_functional_european_stock_option_definition(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+def EuropeanStock(start, end, strike, name):
+    return European(end, strike, Settlement(start, 1) * ForwardMarket(start, name))
+
+EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
+"""
+        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
+                                   periodisation='alltime')
+
+    def test_functional_european_stock_option_definition_with_stock_market_def_inlined(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+def EuropeanStock(start, end, strike, name):
+    return European(end, strike, StockMarket(start, name))
+
+@inline
+def StockMarket(start, name):
+    Settlement(start, 1) * ForwardMarket(start, name)
+
+EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
+"""
+        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
+                                   periodisation='alltime')
+
+    def test_functional_european_stock_option_definition_with_stock_market_def_non_inlined(self):
+        specification = """
+def Option(date, strike, underlying, alternative):
+    return Wait(date, Choice(underlying - strike, alternative))
+
+def European(date, strike, underlying):
+    return Option(date, strike, underlying, 0)
+
+def EuropeanStock(start, end, strike, name):
+    return European(end, strike, StockMarket(start, name))
+
+def StockMarket(start, name):
+    Settlement(start, 1) * ForwardMarket(start, name)
+
+EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
+"""
+        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=5,
+                                   periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_market(self):
         american_option_tmpl = """
 def American(starts, ends, strike, underlying):
-    if starts < ends:
+    if starts <= ends:
         Option(starts, strike, underlying,
             American(starts + TimeDelta('1d'), ends, strike, underlying)
         )
     else:
-        Option(starts, strike, underlying, 0)
+        0
+
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        }, 5.353, {'NBP': 1.425}, expected_call_count=734, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_stock_market(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            # 'ends': '2011-01-04',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        # }, 1.1874, {'#1': 1.0185}, expected_call_count=None, periodisation='alltime')
+        }, 5.534, {'NBP': 1.443}, expected_call_count=1100, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_inlined_stockmarket_def(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+@inline
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        }, 5.534, {'NBP': 1.443}, expected_call_count=734, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_inlined_option_def(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
 
 @inline
 def Option(date, strike, underlying, alternative):
     Wait(date, Choice(underlying - strike, alternative))
 
-American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Lift('%(underlying)s', Market('%(underlying)s')))
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
 """
         self.assert_contract_value(american_option_tmpl % {
-            'starts': '2011-01-02',
-            'ends': '2011-01-04',
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
             'strike': 9,
-            'underlying': '#1'
-        }, 1.1874, {'#1': 1.0185}, expected_call_count=4)
+            'underlying': 'NBP'
+        }, 5.534, {'NBP': 1.443}, expected_call_count=734, periodisation='alltime')
+
+    def test_generate_valuation_american_option_with_inlined_stockmarket_and_option_def(self):
+        american_option_tmpl = """
+def American(starts, ends, strike, underlying):
+    if starts <= ends:
+        Option(starts, strike, underlying,
+            American(starts + TimeDelta('1d'), ends, strike, underlying)
+        )
+    else:
+        0
+
+@inline
+def Option(date, strike, underlying, alternative):
+    Wait(date, Choice(underlying - strike, alternative))
+
+@inline
+def StockMarket(start, name):
+    Settlement(start, ForwardMarket(start, name))
+
+American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
+"""
+        self.assert_contract_value(american_option_tmpl % {
+            'starts': '2011-01-01',
+            'ends': '2012-01-01',
+            'strike': 9,
+            'underlying': 'NBP'
+        }, 5.534, {'NBP': 1.443}, expected_call_count=368, periodisation='alltime')
+
+    def test_observation_date(self):
+        specification = """ObservationDate()"""
+        self.assert_contract_value(specification, datetime.datetime(2011, 1, 1, 0, 0))
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -466,10 +945,11 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.20756, {'NBP': 3.02076}, expected_call_count=15)
+        self.assert_contract_value(specification, 30.20756, {'NBP': 3.02076}, expected_call_count=15,
+                                   periodisation='alltime')
 
 
-class LongerTests(ContractValuationTestCase):
+class LongerTests(ApplicationTestCase):
     def test_value_swing_option(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
@@ -488,8 +968,6 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
-PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), 2)
-
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
         Wait(start_date, Choice(
@@ -517,23 +995,92 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
+PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), Running())
 """
-        self.assert_contract_value(specification, 11.57, expected_call_count=37)
+        self.assert_contract_value(specification, 11.771, expected_call_count=47)
+
+    def test_call_recombinations_with_function_calls_advancing_values(self):
+        # This wasn't working, because each function call was being carried into the next
+        # via the arg that was supposed to be adjusted by the function.
+        specification = """
+def f(t, d):
+    if (t > 0):
+        Add(
+            f(t - 1, f1(d)) + 1,
+            f(t - 1, f2(d)),
+        )
+    else:
+        return 0
+
+# @inline
+def f1(t):
+    0
+
+@inline
+def f2(d):
+    Min(1, d+1)
+
+f(9, 1)
+"""
+        self.assert_contract_value(specification, expected_call_count=28)
 
 
-class SpecialTests(ContractValuationTestCase):
+class TestObservationDate(ApplicationTestCase):
+    def test_observation_date_expression(self):
+        code = "ObservationDate()"
+        self.assert_contract_value(code,
+                                   expected_value=datetime.datetime(2011, 1, 1))
+
+    def test_observation_date_in_function_body(self):
+        code = """
+def Start():
+    ObservationDate()
+    
+Start()
+"""
+        self.assert_contract_value(code,
+                                   expected_value=datetime.datetime(2011, 1, 1))
+
+    def test_observation_date_as_function_call_arg(self):
+        code = """
+def f(a):
+    a
+    
+f(ObservationDate())
+"""
+        self.assert_contract_value(code,
+                                   expected_value=datetime.datetime(2011, 1, 1))
+
+    def test_observation_date_in_test_expr(self):
+        code = """
+def f(a):
+    if a > Date('2000-1-1'):
+        1
+    else:
+        0
+f(ObservationDate())
+"""
+        self.assert_contract_value(code, expected_value=1)
+
+
+class SpecialTests(ApplicationTestCase):
     def test_simple_expression_with_market(self):
         dsl = "Market('NBP') + 2 * Market('TTF')"
-        self.assert_contract_value(dsl, 32, {('NBP', 2011, 1): 1, ('TTF', 2011, 1): 2}, expected_call_count=1)
+        self.assert_contract_value(dsl,
+                                   expected_value=32,
+                                   expected_deltas={'NBP-2011-1': 1, 'TTF-2011-1': 2},
+                                   expected_call_count=1,
+                                   periodisation='monthly'
+                                   )
 
     def test_simple_function_with_market(self):
         dsl = """
 def F():
-  Lift('NBP', Market('NBP')) + 2 * Lift('TTF', Market('TTF'))
+  Market('NBP') + 2 * Market('TTF')
 
 F()
 """
-        self.assert_contract_value(dsl, 32, {'NBP': 1, 'TTF': 2}, expected_call_count=2)
+        self.assert_contract_value(dsl, 32, {'NBP': 1, 'TTF': 2}, expected_call_count=2, periodisation='alltime')
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -546,9 +1093,10 @@ def Swing(start_date, end_date, underlying, quantity):
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-01-05'), Lift('NBP', Market('NBP')), 3)
+Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.20756, {'NBP': 3.0207}, expected_call_count=15)
+        self.assert_contract_value(specification, 30.20756, {'NBP': 3.0207}, expected_call_count=15,
+                                   periodisation='alltime')
         # self.assert_contract_value(specification, 30.20756, {}, expected_call_count=15)
 
     def test_reuse_unperturbed_call_results(self):
@@ -557,7 +1105,7 @@ def SumTwoMarkets(market_name1, market_name2):
     GetMarket(market_name1) + GetMarket(market_name2)
 
 def GetMarket(market_name):
-    Lift(market_name, Market(market_name))
+    Market(market_name)
 
 SumTwoMarkets('NBP', 'TTF')
 """
@@ -565,6 +1113,7 @@ SumTwoMarkets('NBP', 'TTF')
                                    expected_value=21,
                                    expected_deltas={'NBP': 1, 'TTF': 1},
                                    expected_call_count=4,
+                                   periodisation='alltime'
                                    )
 
     def test_reuse_unperturbed_call_results2(self):
@@ -586,17 +1135,18 @@ def Exercise(f, start_date, end_date, underlying, quantity):
 def Hold(f, start_date, end_date, underlying, quantity):
     return f(start_date + TimeDelta('1d'), end_date, underlying, quantity)
 
-Swing(Date('2011-1-1'), Date('2011-1-4'), Lift('#1', Market('#1')), 2) * 1 + \
-Swing(Date('2011-1-1'), Date('2011-1-4'), Lift('#2', Market('#2')), 2) * 2
+Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#1'), 2) * 1 + \
+Swing(Date('2011-1-1'), Date('2011-1-4'), Market('#2'), 2) * 2
 """
         self.assert_contract_value(specification,
                                    expected_call_count=19,
                                    expected_value=60.4826,
                                    expected_deltas={'#1': 2.0168, '#2': 4.0313},
+                                   periodisation='alltime'
                                    )
 
 
-class ExperimentalTests(ContractValuationTestCase):
+class ExperimentalTests(ApplicationTestCase):
     def test_value_swing_option_with_fixing_on_market(self):
         specification = """
 def Swing(start_date, end_date, underlying, quantity):
@@ -662,16 +1212,16 @@ def HoldSwing(start, end, step, market, quantity):
 def ExerciseSwing(start, end, step, market, quantity, vol):
     Settlement(start, vol*market) + HoldSwing(start, end, step, market, quantity-vol)
 
-Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Lift('NBP', Market('NBP')), 1)
+Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Market('NBP'), 1)
 """
-        self.assert_contract_value(dsl, 10, {'NBP': 1}, expected_call_count=6)
+        self.assert_contract_value(dsl, 10, {'NBP': 1}, expected_call_count=6, periodisation='alltime')
 
     def test_value_swing_option_with_forward_markets(self):
         specification = """
 def Swing(start_date, end_date, quantity):
     if (quantity != 0) and (start_date < end_date):
         return Settlement(start_date, Fixing(start_date, Choice(
-            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket('NBP', start_date),
+            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket(start_date, 'NBP'),
             Swing(start_date + TimeDelta('1m'), end_date, quantity)
         )))
     else:
@@ -680,14 +1230,13 @@ def Swing(start_date, end_date, quantity):
 Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
 """
         self.assert_contract_value(specification, 29.9575, {
-            ('NBP', 2011, 2): 1.0,
-            ('NBP', 2011, 3): 1.0,
-            ('NBP', 2011, 4): 1.0,
-        }, expected_call_count=11)
+            'NBP-2011-2': 1.0,
+            'NBP-2011-3': 1.0,
+        }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):
-        specification = """Lift('NBP', ForwardMarket('NBP', '2011-1-1'))"""
-        self.assert_contract_value(specification, 10.00, {'NBP': 1.0}, expected_call_count=1)
+        specification = """ForwardMarket('2011-1-2', 'NBP')"""
+        self.assert_contract_value(specification, 10.00, {'NBP': 1.0}, expected_call_count=1, periodisation='alltime')
 
     def test_gas_storage_option(self):
         specification_tmpl = """
@@ -719,7 +1268,7 @@ def Continue(start, end, commodity_name, quantity, limit, step):
 @inline
 def Inject(start, end, commodity_name, quantity, limit, step, vol):
     Continue(start, end, commodity_name, quantity + vol, limit, step) - \
-    Settlement(start, vol * ForwardMarket(commodity_name, start))
+    Settlement(start, vol * ForwardMarket(start, commodity_name))
 
 GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quantity)s, %(limit)s, TimeDelta('1m'))
 """
@@ -784,35 +1333,26 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
         self.assert_contract_value(specification, 0.0123, {}, expected_call_count=6)
 
 
-class SingleTests(ContractValuationTestCase):
-    def test_value_swing_option_with_forward_markets(self):
+class SingleTests(ApplicationTestCase):
+    def test_limit_dependency_graph_size_recursive_noninlined(self):
+        # Test programs that don't halt are limited by the max dependency graph size.
         specification = """
-def Swing(start_date, end_date, quantity):
-    if (quantity != 0) and (start_date < end_date):
-        return Settlement(start_date, Fixing(start_date,
-            Choice(
-                Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + \
-                    Lift('NBP', 'monthly', ForwardMarket('NBP', start_date)),
-                Swing(start_date + TimeDelta('1m'), end_date, quantity)
-            )
-        ))
-    else:
-        return 0
-
-Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
+def Func(n):
+    return Func(n+1)
+    
+Func(1)
 """
-        self.assert_contract_value(specification, 29.9575, {
-            'NBP-2011-1': 0.9939,
-            'NBP-2011-3': 1.0,
-            # ('NBP', 2011, 4): 1.0,
-        }, expected_call_count=11)
+        with self.assertRaises(CallLimitError):
+            self.assert_contract_value(specification, None)
 
+    def test_limit_dependency_graph_size_recursive_inlined(self):
+        # Test the Python maximum recursion depth is handled.
+        specification = """
+@inline
+def Func(n):
+    return Func(n+1)
 
-class ContractValuationTests(
-    SingleTests,
-    ExperimentalTests,
-    SpecialTests,
-    ExpressionTests,
-    FunctionTests,
-    LongerTests
-): pass
+Func(1)
+"""
+        with self.assertRaises(RecursionDepthError):
+            self.assert_contract_value(specification, None)

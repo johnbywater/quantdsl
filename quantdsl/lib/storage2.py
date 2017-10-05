@@ -1,41 +1,42 @@
-from quantdsl.semantics import Wait, Choice, inline, Market, Lift
+from quantdsl.semantics import Choice, Market, Wait, inline
 
 
-def GasStorage(start, end, commodity_name, quantity, target, limit, step, period):
+def GasStorage(start, end, commodity_name, quantity, target, limit, step, slew):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
             return Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, limit, step, period, target),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, 1),
+                Continue(start, end, commodity_name, quantity, target, limit, step, slew),
+                Inject(start, end, commodity_name, quantity, target, limit, step, slew, slew),
             ))
         elif quantity >= limit:
             return Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, limit, step, period, target),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, -1),
+                Continue(start, end, commodity_name, quantity, target, limit, step, slew),
+                Inject(start, end, commodity_name, quantity, target, limit, step, -slew, slew),
             ))
         else:
             return Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, limit, step, period, target),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, 1),
-                Inject(start, end, commodity_name, quantity, limit, step, period, target, -1),
+                Continue(start, end, commodity_name, quantity, target, limit, step, slew),
+                Inject(start, end, commodity_name, quantity, target, limit, step, slew, slew),
+                Inject(start, end, commodity_name, quantity, target, limit, step, -slew, slew),
             ))
     else:
         if target < 0 or target == quantity:
-            return 0
+            0
         else:
-            return BreachOfContract()
+            BreachOfContract()
 
 
 @inline
 def BreachOfContract():
     -10000000000000000
 
+
 @inline
-def Continue(start, end, commodity_name, quantity, limit, step, period, target):
-    GasStorage(start + step, end, commodity_name, quantity, target, limit, step, period)
+def Continue(start, end, commodity_name, quantity, target, limit, step, slew):
+    GasStorage(start + step, end, commodity_name, quantity, target, limit, step, slew)
 
 
 @inline
-def Inject(start, end, commodity_name, quantity, limit, step, period, target, vol):
-    Continue(start, end, commodity_name, quantity + vol, limit, step, period, target) - \
-    vol * Lift(commodity_name, period, Market(commodity_name))
+def Inject(start, end, commodity_name, quantity, target, limit, step, vol, slew):
+    Continue(start, end, commodity_name, quantity + vol, target, limit, step, slew) - \
+    vol * Market(commodity_name)

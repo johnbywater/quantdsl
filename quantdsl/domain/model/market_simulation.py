@@ -47,6 +47,9 @@ class MarketSimulation(EventSourcedEntity):
 
 def register_market_simulation(market_calibration_id, observation_date, requirements, path_count, interest_rate,
                                perturbation_factor):
+
+    # Todo: Eliminate duplicate requirements before publishing the event.
+
     assert isinstance(requirements, list), type(requirements)
     created_event = MarketSimulation.Created(entity_id=create_uuid4(),
                                              market_calibration_id=market_calibration_id,

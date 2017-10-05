@@ -12,10 +12,10 @@ from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id, register_simulated_price
 from quantdsl.domain.services.uuids import create_uuid4
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
-from quantdsl.tests.test_application import TestCase
+from quantdsl.tests.test_application import ApplicationTestCase
 
 
-class TestEventSourcedRepos(TestCase):
+class TestEventSourcedRepos(ApplicationTestCase):
     def test_register_market_calibration(self):
         price_process_name = DEFAULT_PRICE_PROCESS_NAME
         calibration_params = {'param1': 10, 'param2': 20}
@@ -40,19 +40,26 @@ class TestEventSourcedRepos(TestCase):
 
     def test_register_call_requirements(self):
         call_id = create_uuid4()
+        contract_specification_id = create_uuid4()
 
         self.assertRaises(KeyError, self.app.call_requirement_repo.__getitem__, call_id)
 
         dsl_source = '1 + 1'
         effective_present_time = datetime.datetime(2015, 9, 7, 0, 0, 0)
 
-        register_call_requirement(call_id=call_id, dsl_source=dsl_source,
-                                  effective_present_time=effective_present_time)
+        register_call_requirement(
+            call_id=call_id,
+            dsl_source=dsl_source,
+            effective_present_time=effective_present_time,
+            contract_specification_id=contract_specification_id,
+            cost=1,
+        )
 
         call_requirement = self.app.call_requirement_repo[call_id]
         assert isinstance(call_requirement, CallRequirement)
         self.assertEqual(call_requirement.dsl_source, dsl_source)
         self.assertEqual(call_requirement.effective_present_time, effective_present_time)
+        self.assertEqual(call_requirement.contract_specification_id, contract_specification_id)
 
     def test_register_call_dependencies(self):
         call_id = create_uuid4()

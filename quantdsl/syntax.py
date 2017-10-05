@@ -1,10 +1,19 @@
 import ast
-import importlib
 
 import six
+import sys
 
 from quantdsl.exceptions import DslSyntaxError
 from quantdsl.semantics import FunctionDef, DslNamespace
+
+from importlib import import_module
+
+
+def find_module_path(name):
+    # Find path.
+    module = import_module(name)
+    path = module.__file__.strip('c')  # .py not .pyc
+    return path
 
 
 class DslParser(object):
@@ -96,21 +105,20 @@ class DslParser(object):
         if node.module == 'quantdsl.semantics':
             return []
         from_names = [a.name for a in node.names]
-        dsl_module = self.import_python_module(node.module)
+        dsl_module = self.import_dsl_module(node.module)
         nodes = []
         for node in dsl_module.body:
             if isinstance(node, FunctionDef) and node.name in from_names:
                 nodes.append(node)
         return nodes
 
-    def import_python_module(self, module_name):
-        nodes = []
-        module = importlib.import_module(module_name)
-        path = module.__file__.strip('c')
-        source = open(path).read()  # .py not .pyc
-        dsl_node = self.parse(source, filename=path)
-        assert isinstance(dsl_node, self.dsl_classes['Module']), type(dsl_node)
-        return dsl_node
+    def import_dsl_module(self, name):
+        path = find_module_path(name)
+        with open(path) as f:
+            source = f.read()
+        dsl_module = self.parse(source, filename=path)
+        assert isinstance(dsl_module, self.dsl_classes['Module']), type(dsl_module)
+        return dsl_module
 
     def visitReturn(self, node):
         """
@@ -219,9 +227,9 @@ class DslParser(object):
         """
         if node.keywords:
             raise DslSyntaxError("Calling with keywords is not currently supported (positional args only).")
-        if node.starargs:
+        if hasattr(node, 'starargs') and node.starargs:
             raise DslSyntaxError("Calling with starargs is not currently supported (positional args only).")
-        if node.kwargs:
+        if hasattr(node, 'kwargs') and node.kwargs:
             raise DslSyntaxError("Calling with kwargs is not currently supported (positional args only).")
 
         # Collect the call arg expressions (whose values will be passed into the call when it is made).
@@ -288,10 +296,9 @@ class DslParser(object):
         conditional upon the test.
         """
         test = self.visitAstNode(node.test)
-        assert len(node.body) == 1, "If statements with more than one body statement are not supported at the moment."
+        assert len(node.body) == 1, "If statement body must have exactly one statement"
         body = self.visitAstNode(node.body[0])
-        assert len(
-            node.orelse) == 1, "If statements with more than one orelse statement are not supported at the moment."
+        assert len(node.orelse) == 1, "If statement must have exactly one orelse statement"
         orelse = self.visitAstNode(node.orelse[0])
         args = [test, body, orelse]
         return self.dsl_classes['If'](node=node, *args)

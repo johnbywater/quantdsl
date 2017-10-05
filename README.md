@@ -8,150 +8,449 @@
 ## Install
 
 Use pip to install the [latest distribution](https://pypi.python.org/pypi/quantdsl) from
-the Python Package Index. To avoid disturbing your system's site packages, it is recommended to install
-into a new virtual Python environment, using [Virtualenv](http://docs.python-guide.org/en/latest/dev/virtualenvs/).
+the Python Package Index. You may feedback [issues on GitHub](https://github.com/johnbywater/quantdsl/issues).
 
 ```
-pip install --upgrade pip
 pip install quantdsl
 ```
 
-Please register any [issues on GitHub](https://github.com/johnbywater/quantdsl/issues).
+Please note, this library depends on SciPy, which can fail to install with some older versions of pip. In case of 
+difficulty, please try again after upgrading pip.
+
+```
+pip install --upgrade pip
+```
 
 
 ## Overview
 
-Quant DSL is a functional programming language for modelling derivative instruments.
+Quant DSL is domain specific language for quantitative analytics in finance and trading.
 
-At the heart of Quant DSL is a set of elements - e.g. *Settlement*, *Fixing*, *Choice*, *Market* - which encapsulate 
-maths used in finance and trading. The elements of the language can be freely composed into expressions
-of value. User defined functions generate extensive dependency graphs that effectively model and evaluate exotic
-derivatives.
+At the heart of Quant DSL is a set of elements (e.g. `Settlement`, `Fixing`, `Market`, `Wait`,
+`Choice`) which encapsulate maths used in finance and trading. The elements of the language can
+be freely composed into expressions of value.
 
-The syntax of Quant DSL expressions has been
-[formally defined](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf),
-the semantic model is supported with mathematical proofs.
+### Syntax
 
-This package is an implementation of the Quant DSL in Python. 
+The syntax of Quant DSL expressions is defined with
+[Backus–Naur Form](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form).
 
-## Implementation
+```
+<Expression> ::= <Constant>
+    | "Settlement(" <Date> "," <Expression> ")"
+    | "Fixing(" <Date> "," <Expression> ")"
+    | "Market(" <MarketId> ")"
+    | "Wait(" <Date> "," <Expression> ")"
+    | "Choice(" <Expression> "," <Expression> ")"
+    | "Max(" <Expression> "," <Expression> ")"
+    | <Expression> "+" <Expression>
+    | <Expression> "-" <Expression>
+    | <Expression> "*" <Expression>
+    | <Expression> "/" <Expression>
+    | "-" <Expression>
+```
 
-In addition to the Quant DSL expressions, to ease construction of Quant DSL expressions, function definition
-statements `def` are supported. And the `import` statement is supported, to allow function definitions to be used
-from a library (see below).
+### Semantics
 
-Steps for evaluating a contract include: specification of a model of a contract; calibration of a stochastic process
-for the underlying prices; simulation using the price process of future prices underlying the contract; and evaluation
-of the contract model against the simulation.
+The semantics of the elements are defined with mathematical expressions commonly used within quantitative analytics, 
+such as: 
+[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element;
+[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element; and 
+[least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
+for the `Choice` element.
+The validity of Monte Carlo simulation for all possible expressions in the language is
+[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
-The library provides an application class `QuantDslApplication` which has methods that support these steps:
-`compile()`, `simulate()` and `evaluate()`. During compilation of the specification source code, the application 
-constructs a dependency graph of function calls. The simulation is generated according to requirements derived 
-from the depedency graph, and a calibrated price process. During evaluation, nodes are evaluated when they are ready
- to be evaluated, and intermediate call results are discarded as soon as they are no longer required, which means 
- memory usage is mostly constant during evaluation. For the delta calculations, nodes are selectively 
- re-evaluated with perturbed values, according to the periods and markets they involve.
+In the table below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
+variable in a probability space. For market `i`, the last price `Si` and volatility `σi` are determined
+using only market price data generated before `t0`. Brownian motion `z` is used in diffusion.
+Constant interest rate `r` is used in discounting. Expectation `E` is conditioned
+on filtration `F`.
 
-The examples below use the library function `calc()` to evaluate Quant DSL source code. `calc()` uses the methods 
-of the `QuantDslApplication` described above.
+```
+[[Settlement(d, x)]](t) = e ** (r * (t−d)) * [[x]](t)
+
+[[Fixing(d, x)]](t) = [[x]](d)
+
+[[Market(i)]](t) = Si * e ** (σi * z(t−t0)) − 0.5 * σi ** 2 * (t−t0)
+
+[[Wait(d, x)]](t) = [[Settlement(d, Fixing(d, x))]](t)
+
+[[Choice(x, y)]](t) = max(E[[[x]](t)|F(t)], E[[[y]](t)|F(t)])
+
+[[Max(x, y)]](t) = max([[x]](t), [[y]](t))
+
+[[x + y]](t) = [[x]](t) + [[y]](t)
+
+[[x - y]](t) = [[x]](t) - [[y]](t)
+
+[[x * y]](t) = [[x]](t) * [[y]](t)
+
+[[x / y]](t) = [[x]](t) / [[y]](t)
+
+[[-x]](t) = -[[x]](t)
+```
+
+### Software
+
+This library is an implementation of Quant DSL in Python.
+
+In addition to the Quant DSL expressions above, function `def`
+statements are supported. User defined functions can be used
+to generate an extensive dependency graph of Quant DSL expressions
+that efficiently model complex optionality.
+
+The `import` statement is also supported, to allow Quant DSL function 
+definitions and expressions to be used and maintained in a library as
+normal Python code.
+
+
+## Examples
+
+The work of a quantitative analyst involves modelling the value of a derivative,
+calibrating a stochastic process for the underlying prices, simulating future prices
+of the underlyings, and evaluating of the model of the derivative against the simulation.
+
+This library provides an application object class `QuantDslApplication` which has methods that
+support this work: `compile()`, `simulate()` and `evaluate()`.
+
+During compilation of Quant DSL source code, the application constructs a
+dependency graph of Quant DSL expressions. The simulation is generated by a calibrated price process,
+according to requirements derived from the compiled dependency graph. During evaluation, the nodes of
+the dependency graph are evaluated when they are ready to be evaluated, and intermediate call results
+are discarded as soon as they are no longer required, such that memory usage is mostly constant during
+evaluation. For the delta calculations, nodes are selectively re-evaluated with perturbed values,
+according to the periods and markets they involve.
+
+### calc()
+
+The examples below use the library function `calc()` to evaluate Quant DSL source code. It uses the methods of the 
+`QuantDslApplication` described above.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc
 ```
 
-## Introduction
-
-Simple calculations.
-
-```python
-results = calc("2 + 3 * 4 - 10 / 5")
-
-assert results.fair_value == 12, results.fair_value
-```
-
-Other binary operations.
+`calc()` returns a results object, with an attribute `fair_value` that is the computed value of the given 
+Quant DSL expression. 
 
 ```python
-results = calc("Max(9 // 2, Min(2**2, 12 % 7))")
-
-assert results.fair_value == 4, results.fair_value
+results = calc("2 + 3")
+assert results.fair_value == 5
 ```
 
-Boolean operations.
+### Settlement
+
+The `Settlement` element discounts the value of the included `Expression` from its given `Date` to the effective 
+present time (`t` in the semantics above) when the element is evaluated, which defaults to the
+`observation_date` passed to `calc()` (see below).
+
+```
+<Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
+```
+
+For example, with a continuously compounding `interest_rate` of `2.5` percent per year, the value `10` settled on 
+`'2111-1-1'` has a present value of `82.08` on `'2011-1-1'`.
 
 ```python
-assert calc("1 and 2").fair_value == True
-assert calc("0 and 2").fair_value == False
-assert calc("2 and 0").fair_value == False
-assert calc("0 and 0").fair_value == False
+results = calc("Settlement('2111-1-1', 1000)",
+    observation_date='2011-1-1',
+    interest_rate=2.5,
+)
 
-assert calc("1 or 1").fair_value == True
-assert calc("1 or 0").fair_value == True
-assert calc("0 or 1").fair_value == True
-assert calc("0 or 0").fair_value == False
+assert round(results.fair_value, 2) == 82.08, results.fair_value
 ```
 
-Date and time values and operations.
+Similarly, the value of `82.085` settled in `'2011-1-1'` has a present value of `1000.00` on `'2111-1-1'` 
+.
 
 ```python
-import datetime
+results = calc("Settlement('2011-1-1', 82.085)",
+    observation_date='2111-1-1',
+    interest_rate=2.5,
+)
 
-
-results = calc("Date('2011-1-1')")
-assert results.fair_value == datetime.datetime(2011, 1, 1), results.fair_value
-
-results = calc("Date('2011-1-10') - Date('2011-1-1')")
-assert results.fair_value == datetime.timedelta(days=9), results.fair_value
-
-results = calc("Date('2011-1-1') + 5 * TimeDelta('1d') < Date('2011-1-10')")
-assert results.fair_value == True, results.fair_value
-
-results = calc("Date('2011-1-1') + 10 * TimeDelta('1d') < Date('2011-1-10')")
-assert results.fair_value == False, results.fair_value
+assert round(results.fair_value, 2) == 1000.00, results.fair_value
 ```
 
-### Function definitions
+Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
+element and the effective present time `t` of its evaluation. The formula used for discounting by the `Settlement` 
+element is `e**-rt`. The `interest_rate` is the therefore the continuously compounding risk free rate (not the 
+annual equivalent rate).
 
-Function definitions can be used to structure complex expressions.
+
+### Fixing
+
+The `Fixing` element conditions the effective present time of its included `Expression` with its given `Date`.
+
+```
+<Fixing> ::= "Fixing(" <Date> "," <Expression> ")"
+```
+
+For example, if a `Fixing` element includes a `Settlement` element, then the effective present time of the 
+included `Settlement` element will be the given date of the `Fixing`.
+
+The expression below represents the present value in `'2051-1-1'` of the value of `1000` to be settled on 
+`'2111-1-1'`.
+
+```python
+results = calc("Fixing('2051-1-1', Settlement('2111-1-1', 1000))",
+    interest_rate=2.5,
+)
+
+assert round(results.fair_value, 2) == 223.13, results.fair_value
+```   
+
+
+### Market
+
+The `Market` element effectively estimates prices that could be agreed in the future.
+
+```
+<Market> ::= "Market(" <MarketId> ")"
+```
+
+When a `Market` element is evaluated, it returns a random variable selected from a simulation
+ of market prices.
  
-When evaluating an expression that involves calls to function definitions, the call to the function definition is 
-firstly replaced with the expression 
-ed by the function definition, so that a larger expression is formed.
+Selecting an estimated price from the simulation requires the ID (or name)
+ of the market, and a fixing date (when the price would be agreed) and a delivery date (when
+ the goods would be delivered).
+ 
+The ID of the `Market` is included in the element (e.g. `'GAS'`
+ or `'POWER'`). With the `Market` element, both the fixing date and the delivery date are determined
+ by the "effective present time" when the element is evaluated (see `Fixing`).
+
+The price simulation is generated by a price process. In this example, the library's one-factor
+multi-market Black  Scholes price process `BlackScholesPriceProcess` is used to generate correlated
+geometric Brownian motions.
+
+The calibration parameters required by `BlackScholesPriceProcess` are `market` (a list of market names), and 
+`sigma`, (a list of annualised historical volatilities, expressed as a fraction of 1, rather than as a 
+percentage).
+
+```python
+price_process = {
+    'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+    'market': ['GAS', 'POWER'],
+    'sigma': [0.02, 0.02],
+    'rho': [
+        [1.0, 0.8],
+        [0.8, 1.0]
+    ],
+    'curve': {
+        'GAS': [
+            ('2011-1-1', 10),
+            ('2111-1-1', 1000)
+        ],
+        'POWER': [
+            ('2011-1-1', 11),
+            ('2111-1-1', 1100)
+        ]
+    },
+}
+```
+
+When a simulation to be generated by this price process involves two or more markets, an additional
+parameter `rho` is  required, which represents the correlation between the markets (a symmetric
+matrix expressed as a list of lists).
+
+A forward `curve` is required to provide estimates of current prices for each market at the given 
+`observation_date`. The prices in the forward curve are prices that can be agreed at the `observation_date` for 
+delivery at the specified dates. These prices are evolved into estimates of prices that could be agreed at future 
+dates.
+
+Requirements for the simulation (dates and markets) are derived from the expression to be evaluated. If the 
+expression only involves the price in a particular market for goods to be delivered and agreed at a particular 
+date, the simulation will provide that value.
+
+A `Market` element evaluated at the `observation_date` will simply return the last value from the given forward
+ curve for that market at the given `observation_date`.
+ 
+```python
+results = calc("Market('GAS')",
+    observation_date='2011-1-1',
+    price_process=price_process,
+)
+```
+
+Since the `Market` element uses random variables from the price simulation, so the results are random variables, and
+ we need to take the `mean()` to obtain a scalar value.
+
+```python
+assert results.fair_value.mean() == 10
+```
+
+If the forward curve doesn't contain a price at the required delivery date, a price at 
+an earlier delivery date is used (with zero order hold).
+
+```python
+results = calc("Market('GAS')",
+    observation_date='2012-3-4',
+    price_process=price_process,
+)
+
+assert results.fair_value.mean() == 10
+```
+
+Evaluating at a much later observation date will return the later value from the forward curve.
+ 
+```python
+results = calc("Market('GAS')",
+    observation_date='2111-1-1',
+    price_process=price_process,
+)
+assert results.fair_value.mean() == 1000
+```
+
+The number of samples in the random variable corresponds to the number of paths in the Monte Carlo simulation used 
+to evaluate the expression, which defaults to `20000`.
+
+```python
+assert len(results.fair_value) == 20000
+```
+The number of paths in the Monte Carlo simulation can be adjusted by setting `path_count`. The accuracy of results 
+can be doubled by increasing the path count by a factor of four.
+
+```python
+results = calc("Market('GAS')",
+    observation_date='2011-1-1',
+    price_process=price_process,
+    path_count=80000,
+)
+assert len(results.fair_value) == 80000
+```
+
+Values at particular dates are selected from the given forward curve, with zero-order hold from the last known 
+value. For example, using the `price_process` defined above, evaluating with `observation_date` of `2051-1-1` will 
+fall back onto the value in the forward curve for `2011-1-1`, which is `10`.
+
+```python
+results = calc("Market('GAS')",
+    observation_date='2051-1-1',
+    price_process=price_process,
+)
+assert results.fair_value.mean() == 10
+```
+
+In the examples so far, there has been no difference between the effective present time of the `Market` element and 
+the `observation_date` of the evaluation. Therefore, there is no stochastic evolution of the forward curve, and the 
+standard deviation of the result value is zero.
+
+```python
+assert results.fair_value.std() == 0.0
+```
+
+If a `Market` element is included within a `Fixing` element, the value of the expression will be the price 
+that could be agreed at the date provided by the `Fixing` element, as expected at the effective present time.
+
+With Brownian motion provided by the price process, the random variable used to estimate a price that could be 
+agreed in the future has a statistical distribution with non-zero standard deviation. The mean value of the 
+expected price will only approximate to the value taken from the forward `curve`.
+
+```python
+results = calc("Fixing('2051-1-1', Market('GAS'))",
+    observation_date='2011-1-1',
+    price_process=price_process,
+)
+assert results.fair_value.std() > 0.0
+assert results.fair_value.mean() != 10
+```
+
+The `ForwardMarket` element can be used to specify a delivery date that is different from the fixing date (when the 
+price for that delivery would be agreed).
+
+For each price that is required, the simulation uses the delivery date to select from the forward `curve` a price 
+that can be agreed at the `observation_date`, and then evolves that price through the fixing dates, according to the 
+configured `price_process`.
+
+
+### Wait
+
+The `Wait` element combines `Settlement` and `Fixing`, so that its `Date` is used both to condition the 
+effective present time of the included `Expression`, and also the value of that expression is discounted to the 
+effective present time when evaluating the `Wait` element.
+
+```
+<Wait> ::= "Wait(" <Date> "," <Expression> ")"
+```
+
+For example, the present value at the `observation_date` of `'2011-1-1'` of one unit of `'GAS'` delivered on 
+`'2111-1-1'` is approximately `82.18`.
+
+```python
+import scipy
+# Setting random seed makes test results repeatable.
+scipy.random.seed(1234)
+
+results = calc("Wait('2111-1-1', Market('GAS'))",
+    price_process=price_process,
+    observation_date='2011-1-1',
+    interest_rate=2.5,
+)
+
+assert round(results.fair_value.mean(), 2) == 82.18, round(results.fair_value.mean(), 2)
+```
+
+
+### Choice
+
+The `Choice` element uses the least-squares Monte Carlo approach proposed by Longstaff and 
+Schwartz (1998) to compare the conditional expected value of each alternative `Expression`.
+
+```
+<Choice> ::= "Choice(" <Expression> "," <Expression> ")"
+```
+
+For example, the value of the choice at `observation_date` of `'2011-1-1'` between one unit of `'GAS'` either on 
+`'2051-1-1'` or `'2111-1-1'` is `217.39`.
+
+```python
+source_code = """
+Choice(
+    Wait('2051-1-1', Market('GAS')),
+    Wait('2111-1-1', Market('GAS'))
+)
+"""
+
+results = calc(source_code,
+    observation_date='2011-1-1',
+    price_process=price_process,
+    interest_rate=2.5,
+)
+assert round(results.fair_value.mean(), 2) == 82.06, round(results.fair_value.mean(), 2)
+```
+
+### Functions definitions
+
+Quant DSL source code can include function definitions. Expressions can involve calls to functions.
+
+When evaluating an expression that involves a call to a function definitions, the call to the 
+function definition is effectively replaced with the expression returned by the function definition,
+so that a larger expression is formed.
 
 The call args of the function definition can be used as names in the function definition's expressions. The call arg 
 values will be used to evaluate the expression returned by the function.
 
 ```python
 results = calc("""
-def Contract1(a):
-    a * Contract2() + 1000 * Contract3(a)
+def Function(a):
+    2 * a
 
-
-def Contract2():
-    25
-
-
-def Contract3(a):
-    a * 1.1
-
-
-Contract1(10)
+Function(10)
 """)
 
-assert results.fair_value == 11250, results.fair_value
+assert results.fair_value == 20
 ```   
 
 The call args of the function definition can be used in an if-else block, so that different expressions can be 
 returned depending upon the function call argument values.
 
-Please note, the expressions preceding the colon in the if-else block must be simple expressions involving the call 
-args and must not involve any Quant DSL stochastic elements, such as `Market`, `Choice`, `Wait`, `Settlement`,
-`Fixing`. Calls to function definitions from these expressions are currently not supported.
-
-Each call to a (non-inlined) function definition becomes a node on a dependency graph. Each call is internally  
-memoised, so it is only called once with the same argument values, and the result of such a call is reused.
-
-
+Each function call becomes a node on a dependency graph. For efficiency, each call is internally memoised, so if a 
+function is called many times with the same argument values (and at the same effective present time), the function 
+is only evaluated once, and the result is memoised and reused. This allows branched calculations to recombine 
+efficienctly. For example, the following Finboncci function definition will evaluate in linear time (proportional to
+ `n`).
 
 ```python
 results = calc("""
@@ -164,269 +463,215 @@ def Fib(n):
 Fib(60)
 """)
 
-assert results.fair_value == 1548008755920, results.fair_value
+assert results.fair_value == 1548008755920
 ```   
 
-### Market
-
-Underlying prices are expressed with the `Market` element. A price process is used to simulate future 
-prices.
+Function definitions can be used to refactor complex expressions. For example, if the expression is the sum of a 
+series of settlements on different dates, the expression without a function definition might be:
 
 ```python
-
-results = calc("Market('GAS')",
+source_code = """
+Settlement(Date('2011-1-1'), 10) + Settlement(Date('2011-2-1'), 10) + Settlement(Date('2011-3-1'), 10) + \
+Settlement(Date('2011-4-1'), 10) + Settlement(Date('2011-5-1'), 10) + Settlement(Date('2011-6-1'), 10) + \
+Settlement(Date('2011-8-1'), 10) + Settlement(Date('2011-8-1'), 10) + Settlement(Date('2011-9-1'), 10) + \
+Settlement(Date('2011-10-1'), 10) + Settlement(Date('2011-11-1'), 10) + Settlement(Date('2011-12-1'), 10)
+"""
+results = calc(source_code,
     observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.0],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10)
-            ]
-        },
-    }
+    interest_rate=10,
 )
-
-assert results.fair_value.mean() == 10, results.fair_value
+assert round(results.fair_value, 2) == 114.59
 ```
-
-### Fixing
-
-The `Fixing` element is used to condition the effective present time of included expressions. In the example below, 
-the expression evaluates to the 'GAS' market price on '2112-1-1'.
-
-The forward curve is used to estimate future prices, with zero-order hold from the last known value.
-
+ 
+Instead the expression could be refactored with a function definition.
+ 
 ```python
-
-results = calc("Fixing('2112-1-1', Market('GAS'))",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.0],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert results.fair_value.mean() == 1000, results.fair_value.mean()
-```   
-
-With geometric brownian motion, there may be future price movements.
-
-```python
-
-results = calc("Fixing('2112-1-1', Max(1000, Market('GAS')))",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.2],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert results.fair_value.mean() > 1000, results.fair_value.mean()
-```   
-
-### Settlement
-
-Discounting to net present value with `Settlement`. A hundred years at 2.5% gives heavy discounting from 10 to less 
-than 1.
-
-```python
-results = calc("Settlement('2111-1-1', 10)",
-    observation_date='2011-1-1',
-    interest_rate=2.5,
-)
-
-assert results.fair_value < 1, results.fair_value
-```
-
-If the effective present time is the same as the settlement date, there is no discounting.
-
-```python
-results = calc("Settlement('2111-1-1', 10)",
-    observation_date='2111-1-1',
-    interest_rate=2.5,
-)
-assert results.fair_value == 10, results.fair_value
-
-results = calc("Fixing('2111-1-1', Settlement('2111-1-1', 10))",
-    observation_date='2011-1-1',
-    interest_rate=2.5,
-)
-assert results.fair_value == 10, results.fair_value
-```
-
-### Wait
-
-The `Wait` element combines `Settlement` and `Fixing`, so that a single date value is used both to condition the 
-effective present time of the included expression, and also the value of that expression is discounted to the 
-effective present time of the including expression.
-
-```python
-
-results = calc("Wait('2112-1-1', Market('GAS'))",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.2],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert results.fair_value.mean() < 100, results.fair_value.mean()
-```   
-
-### Choice
-
-The `Choice` element uses the least-squares Monte Carlo approach proposed by Longstaff and 
-Schwartz (1998) to compare the conditional expected value of each alternative.
-
-```python
-results = calc("""
-Choice(
-    Wait('2012-1-1', Market('GAS')),
-    Wait('2112-1-1', Market('GAS')),
-)
-""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.2],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-                ('2111-1-1', 1000)
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-
-assert 70 < results.fair_value.mean() < 100, results.fair_value.mean()
-```   
-
-### European and american options
-
-In general, an option can be expressed as a "wait" until a date for a "choice" between, on one hand, the 
-difference between the price of an underlying and a strike price, and, on the other hand, an alternative expression.
-
-```python
-
-def Option(date, strike, underlying, alternative):
-    Wait(date, Choice(underlying - strike, alternative))
-
-```
-
-A european option can then be expressed as an option to buy an underlying commodity at a given strike price 
-on a given date, the alternative being to do nothing.
-
-```python
-def European(date, strike, underlying):
-    Option(date, strike, underlying, 0)
-```
-
-Similarly, an american option is an option to exercise at a given strike price on the start date, with an alternative being
- an american option starting the next date (after a `step` in time, such as one day), and so on until the end date.
-
-
-```python
-def American(start, end, strike, underlying, step):
+source_code = """
+def Repayments(start, end, installment):
     if start <= end:
+        Settlement(start, installment) + Repayments(start + TimeDelta('1m'), end, installment)
+    else:
+        0
+        
+Repayments(Date('2011-1-1'), Date('2011-12-1'), 10)
+"""
+results = calc(source_code,
+    observation_date='2011-1-1',
+    interest_rate=10,
+)
+assert round(results.fair_value, 2) == 114.67
+```
+
+Please note, any `if` statement test expressions (the expressions preceding the colons in the `if` statement) must be 
+simple expressions involving the call args, and must not involve any Quant DSL stochastic elements, such 
+as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in `if` 
+statements is supported, but the function definitions must not contain any of the stochastic elements.
+
+### Other args of calc()
+
+The deltas can be obtained by setting the `periodisation` arg of `calc()`.
+
+You can adjust the `perturbation_factor` used to calculated deltas. If the `path_count` is larger, a smaller
+perturbation factor may give better results.
+
+You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the
+`max_dependency_graph_size` arg of `calc()`.
+
+You can set a calculation to `timeout` after a given number of seconds.
+
+Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
+
+### European and American options
+
+In general, an option can be expressed as waiting until an `expiry` date to choose between, on one hand, the 
+difference between the value of an `underlying` expression and a `strike` expression,
+and, on the other hand, an `alternative` expression.
+
+```python
+def Option(expiry, strike, underlying, alternative):
+    Wait(expiry, Choice(underlying - strike, alternative))
+```
+
+A European option can then be expressed simply as an `Option` with zero alternative.
+
+```python
+def EuropeanOption(expiry, strike, underlying):
+    Option(expiry, strike, underlying, 0)
+   
+```
+The `AmericanOption` can be expressed as an `Option` to exercise at a given `strike` price on 
+the `start` date, with the alternative being another `AmericanOption` starting on the next date - and so on until the 
+`expiry` date, when the `alternative` becomes zero.
+
+```python
+def AmericanOption(start, expiry, strike, underlying, step):
+    if start <= expiry:
         Option(start, strike, underlying,
-            American(start + step, end, strike, underlying, step)
+            AmericanOption(start + step, expiry, strike, underlying, step)
         )
     else:
         0
 ```
 
-If the strike price is the same as the underlying, without any volatility (`sigma`) there is no value holding an 
-option.
+A European put option can be expressed as a `EuropeanOption`, with negated underlying and strike expressions.
 
 ```python
-results = calc("""from quantdsl.lib.american1 import American
-
-American(Date('2011-1-1'), Date('2011-1-10'), 10, Market('GAS'), TimeDelta('1d'))
-""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.0],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-assert results.fair_value.mean() == 0, results.fair_value.mean()
+def EuropeanPut(expiry, strike, underlying):
+    EuropeanOption(expiry, -strike, -underlying)
 ```
 
-If the strike price is the same as the underlying, with some volatility in the price of the underlying (`sigma`) there
+A European stock option can be expressed as a `EuropeanOption`, with the `underlying` being the spot price at the 
+start of the contract, discounted forward from `start`, and observed at the option `expiry` time.
+
+```python
+def EuropeanStockOption(expiry, strike, stock):
+    EuropeanOption(expiry, strike, StockMarket(stock))
+
+def StockMarket(stock):
+    Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
+```
+
+The built-in `ObservationDate` element evaluates to the `observation_date` passed to the the `calc()` function.
+
+Let's evaluate a European stock option at different strike prices, volatilities, and interest rates.
+
+The following function `calc_european` will make it easier to evaluate the option several times.
+
+```python
+def calc_european(spot, strike, sigma, rate):
+    source_code = """
+def Option(expiry, strike, underlying, alternative):
+    Wait(expiry, Choice(underlying - strike, alternative))
+
+def EuropeanOption(expiry, strike, underlying):
+    Option(expiry, strike, underlying, 0)
+   
+def EuropeanStockOption(expiry, strike, stock):
+    EuropeanOption(expiry, strike, StockMarket(stock))
+
+def StockMarket(stock):
+    Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
+    
+EuropeanStockOption(Date('2012-1-1'), {strike}, 'ACME')
+    """.format(strike=strike)
+    
+    results = calc(
+        source_code=source_code,
+        observation_date='2011-1-1',
+        price_process={
+            'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+            'market': ['ACME'],
+            'sigma': [sigma],
+            'curve': {
+                'ACME': [
+                    ('2011-1-1', spot),
+                ]
+            },
+        },
+        interest_rate=rate,
+    )
+    return round(results.fair_value.mean(), 2)
+```
+
+If the strike price of a European option is the same as the price of the underlying, without any volatility (`sigma` 
+is `0`) the value is zero.
+
+```python
+assert calc_european(spot=10, strike=10, sigma=0, rate=0) == 0.0
+```
+
+If the strike price is less than the underlying, without any volatility, the value is the difference between the 
+strike and the underlying.
+
+```python
+assert calc_european(spot=10, strike=8, sigma=0, rate=0) == 2.0
+```
+
+If the strike price is greater than the underlying, without any volatility, the value is zero.
+
+```python
+assert calc_european(spot=10, strike=12, sigma=0, rate=0) == 0.0
+```
+
+If the strike price is the same as the underlying, with some volatility in the price of the underlying, there
  is some value in the option.
 
 ```python
-results = calc("""from quantdsl.lib.american1 import American
-
-American(Date('2012-1-1'), Date('2012-1-10'), 10, Market('GAS'), TimeDelta('1d'))
-""",
-    observation_date='2011-1-1',
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.9],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 10),
-            ]
-        },
-    },
-    interest_rate=2.5,
-)
-assert results.fair_value.mean() > 3, results.fair_value.mean()
+assert calc_european(spot=10, strike=10, sigma=0.9, rate=0) == 3.42
 ```
 
-
-### Lift
-
-The examples below use the `Lift` element to specify deltas with respect to each market and each period (e.g. 
-daily, monthly, or yearly) across the term of the contract.
- 
-
-## Examples of usage
-
-The examples below use the library function `calc_print_plot()` to evaluate contracts, and print and plot results.
+If the strike price is less than the underlying, with some volatility in the price of the underlying (`sigma`) there
+ is more value in the option than without volatility.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc_print_plot
+assert calc_european(spot=10, strike=8, sigma=0.9, rate=0) == 4.23
 ```
 
-If you run these examples, the deltas for each market in each period will be calculated, and estimated risk neutral 
+If the strike price is greater than the underlying, with some volatility in the price of the underlying (`sigma`) there
+ is still a little bit of value in the option.
+
+```python
+assert calc_european(spot=10, strike=12, sigma=0.9, rate=0) == 2.90
+```
+
+These results compare well with results from the Black-Scholes analytic formula for European stock options.
+
+
+### Gas storage
+
+An evaluation of a gas storage facility. The value obtained is the extrinsic value. The intrinstic value can be 
+obtained by setting the volatility `sigma` to `0`, and evaluating with `path_count` of `1`.
+
+This example uses a forward curve that has seasonal variation (prices are high in winter and low in 
+summer).
+
+This example uses the library function `calc_print()` to calculate and then print results.
+
+```python
+from quantdsl.interfaces.calcandplot import calc_print
+```
+
+The deltas for each market in each period will be calculated, and estimated risk neutral 
  hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
  displayed showing underlying prices and the cumulative hedge positions for each underlying, and the net cash from the 
  hedge positions (profit and loss).
@@ -435,34 +680,25 @@ The plot will also show the statistical distribution of the simulated prices, an
  positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
  how well the deltas are performing.
 
-
-### Gas storage
-
-An evaluation of a gas storage facility. This example uses a forward curve that reflects seasonal variations across 
-the term of the contract. 
-
 ```python
-results = calc_print_plot(
-    title="Gas Storage",
-    
-    source_code="""
-def GasStorage(start, end, commodity_name, quantity, target, limit, step, period):
+source_code = """
+def GasStorage(start, end, market, quantity, target, limit, step):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
             Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, target, limit, step, period),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
+                Continue(start, end, market, quantity, target, limit, step),
+                Inject(start, end, market, quantity, target, limit, step, 1),
             ))
         elif quantity >= limit:
             Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, target, limit, step, period),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
+                Continue(start, end, market, quantity, target, limit, step),
+                Inject(start, end, market, quantity, target, limit, step, -1),
             ))
         else:
             Wait(start, Choice(
-                Continue(start, end, commodity_name, quantity, target, limit, step, period),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, 1),
-                Inject(start, end, commodity_name, quantity, target, limit, step, period, -1),
+                Continue(start, end, market, quantity, target, limit, step),
+                Inject(start, end, market, quantity, target, limit, step, 1),
+                Inject(start, end, market, quantity, target, limit, step, -1),
             ))
     else:
         if target < 0 or target == quantity:
@@ -472,30 +708,38 @@ def GasStorage(start, end, commodity_name, quantity, target, limit, step, period
 
 
 @inline
-def Continue(start, end, commodity_name, quantity, target, limit, step, period):
-    GasStorage(start + step, end, commodity_name, quantity, target, limit, step, period)
+def Continue(start, end, market, quantity, target, limit, step):
+    GasStorage(start + step, end, market, quantity, target, limit, step)
 
 
 @inline
-def Inject(start, end, commodity_name, quantity, target, limit, step, period, vol):
-    Continue(start, end, commodity_name, quantity + vol, target, limit, step, period) - \
-    vol * Lift(commodity_name, period, Market(commodity_name))
+def Inject(start, end, market, quantity, target, limit, step, vol):
+    Continue(start, end, market, quantity + vol, target, limit, step) - \
+    vol * market
 
 
 @inline
 def BreachOfContract():
     -10000000000000000
 
+@inline
+def Empty():
+    0
 
-GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 'monthly')
-""",
+@inline
+def Full():
+    50000
 
+
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), Market('GAS'), Empty(), Empty(), Full(), TimeDelta('1m'))
+"""
+
+results = calc_print(
+    source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
-    path_count=20000,
-    perturbation_factor=0.01,
     periodisation='monthly',
-
+    verbose=True,
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
         'market': ['GAS'],
@@ -532,8 +776,68 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     }
 )
 
-assert 5 < results.fair_value.mean() < 7, results.fair_value.mean()
+assert round(results.fair_value.mean(), 2) == 6.08
 ```
+
+These are the results printed by `calc_and_print()`, showing
+deltas for each month for each market, and the fair value.
+
+The recommended hedge positions suggest injecting gas when
+the price is low, and withdrawing when the price is high.
+
+The net cash position across all hedges is very similar to
+the fair value, which suggests the deltas are performing well.
+
+```
+
+Compiled 29 nodes 
+Compilation in 0.100s
+Simulation in 0.034s
+Starting 153 node evaluations, please wait...
+153/153 100.00% complete 206.36 eval/s running 1s eta 0s
+Evaluation in 0.770s
+
+
+GAS-2011-6
+Price: 7.00
+Hedge: 0.90 ± 0.06 units
+Cash: -6.41 ± 0.49
+
+GAS-2011-7
+Price: 6.51
+Hedge: 1.08 ± 0.07 units
+Cash: -7.00 ± 0.52
+
+GAS-2011-8
+Price: 7.51
+Hedge: 0.89 ± 0.07 units
+Cash: -6.41 ± 0.59
+
+GAS-2011-9
+Price: 8.49
+Hedge: -0.86 ± 0.07 units
+Cash: 7.00 ± 0.78
+
+GAS-2011-10
+Price: 9.99
+Hedge: -0.93 ± 0.06 units
+Cash: 8.79 ± 0.85
+
+GAS-2011-11
+Price: 11.49
+Hedge: -0.92 ± 0.04 units
+Cash: 10.00 ± 0.61
+
+Net GAS: 0.17 ± 0.12
+
+Net cash: 5.96 ± 1.10
+
+Fair value: 6.08 ± 0.09
+```
+
+An alternative to `calc_print()` is the function in the same module `calc_print_plot()` which will also plot the 
+prices, positions, and cash. You will need to install matplotlib to use `calc_print_plot()`.
+
 
 ### Power station
 
@@ -541,20 +845,18 @@ An evaluation of a power station. This example imports a power station model fro
 uses a market model with two correlated markets. The source code for the power station model is copied in below.
 
 ```python
-results = calc_print_plot(
-    title="Power Station",
-
-    source_code="""from quantdsl.lib.powerplant2 import PowerPlant, Running
+source_code = """
+from quantdsl.lib.powerplant2 import PowerPlant, Running
         
 PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
-""",
+"""
 
+results = calc_print(
+    source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
-    path_count=20000,
-    perturbation_factor=0.01,
     periodisation='daily',
-
+    verbose=True,
     price_process={
         'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
         'market': ['GAS', 'POWER'],
@@ -581,26 +883,100 @@ PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
     }
 )
 
-assert 8 < results.fair_value.mean() < 10, results.fair_value.mean()
+assert round(results.fair_value.mean(), 2) == 9.11
 ```
 
-### Library
+These are the results printed by `calc_and_print()`, showing
+monthly deltas for each of the two markets. Again, the net
+cash position across all hedges is very similar to the fair value.
+
+The recommended hedge positions suggest running the plant only when
+the price of power is high and the price of gas is low.
+
+```
+Compiled 22 nodes 
+Compilation in 0.048s
+Simulation in 0.039s
+Starting 182 node evaluations, please wait...
+181/182 100.00% complete 204.95 eval/s running 1s eta 0s
+Evaluation in 0.894s
+
+
+POWER-2012-1-1
+Price: 5.59
+Hedge: -0.01 ± 0.01 units
+Cash: 0.06 ± 0.06
+
+GAS-2012-1-1
+Price: 12.92
+Hedge: 0.01 ± 0.01 units
+Cash: -0.06 ± 0.07
+
+POWER-2012-1-2
+Price: 5.59
+Hedge: -0.10 ± 0.01 units
+Cash: 0.46 ± 0.08
+
+GAS-2012-1-2
+Price: 13.02
+Hedge: 0.11 ± 0.01 units
+Cash: -0.61 ± 0.10
+
+POWER-2012-1-3
+Price: 12.88
+Hedge: -0.67 ± 0.01 units
+Cash: 8.06 ± 0.11
+
+GAS-2012-1-3
+Price: 12.72
+Hedge: 0.85 ± 0.01 units
+Cash: -9.09 ± 0.14
+
+POWER-2012-1-4
+Price: 26.86
+Hedge: -0.85 ± 0.01 units
+Cash: 21.61 ± 0.25
+
+GAS-2012-1-4
+Price: 15.79
+Hedge: 0.85 ± 0.01 units
+Cash: -11.31 ± 0.16
+
+POWER-2012-1-5
+Price: 1.80
+Hedge: 0.00 ± 0.00 units
+Cash: 0.00 ± 0.00
+
+GAS-2012-1-5
+Price: 13.02
+Hedge: 0.00 ± 0.00 units
+Cash: 0.00 ± 0.00
+
+Net GAS: 1.82 ± 0.03
+Net POWER: -1.62 ± 0.02
+
+Net cash: 9.11 ± 0.18
+
+Fair value: 9.11 ± 0.14
+```
+
+## Library
 
 There is a small collection of Quant DSL modules in a library under `quantdsl.lib`. Putting Quant DSL source code in 
-dedicated Python files makes it much easier to develop and maintain Quant DSL function definitions in a Python IDE.
+dedicated Python files makes it much easier to use a Python IDE to develop and maintain Quant DSL function definitions.
 
 Below is a copy of the Quant DSL source code for the library's power plant model `quantdsl.lib.powerplant2`, as used
  in the example above.
 
 ```python
-from quantdsl.semantics import Choice, Lift, Market, TimeDelta, Wait, inline
+from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline
 
 
 def PowerPlant(start, end, duration_off):
     if (start < end):
         Wait(start,
             Choice(
-                ProfitFromRunning(duration_off) + PowerPlant(
+                ProfitFromRunning(start, duration_off) + PowerPlant(
                     Tomorrow(start), end, Running()
                 ),
                 PowerPlant(
@@ -613,23 +989,23 @@ def PowerPlant(start, end, duration_off):
 
 
 @inline
-def ProfitFromRunning(duration_off):
+def ProfitFromRunning(start, duration_off):
     if duration_off > 1:
-        0.75 * Power() - Gas()
+        0.75 * Power(start) - Gas(start)
     elif duration_off == 1:
-        0.90 * Power() - Gas()
+        0.90 * Power(start) - Gas(start)
     else:
-        1.00 * Power() - Gas()
+        1.00 * Power(start) - Gas(start)
 
 
 @inline
-def Power():
-    Lift('POWER', 'daily', Market('POWER'))
+def Power(start):
+    Market('POWER', start + TimeDelta('1d'))
 
 
 @inline
-def Gas():
-    Lift('GAS', 'daily', Market('GAS'))
+def Gas(start):
+    Market('GAS', start + TimeDelta('1d'))
 
 
 @inline
@@ -645,5 +1021,17 @@ def Stopped(duration_off):
 @inline
 def Tomorrow(today):
     today + TimeDelta('1d')
-
 ```
+
+## Acknowledgments
+
+The *Quant DSL* language was partly inspired by the paper
+*[Composing contracts: an adventure in financial engineering (functional pearl)](
+http://research.microsoft.com/en-us/um/people/simonpj/Papers/financial-contracts/contracts-icfp.htm
+)* by Simon Peyton Jones and others. The idea of orchestrating evaluations with a dependency graph,
+to help with parallel and distributed execution, was inspired by a [talk about dependency graphs by
+Kirat Singh](https://www.youtube.com/watch?v=lTOP_shhVBQ). The `quantdsl` Python package makes lots
+of use of design patterns, the NumPy and SciPy packages, and the Python `ast` ("Absract Syntax Trees")
+module. We have also been encourged by members of the [London Financial Python User Group](
+https://www.google.co.uk/search?q=London+Financial+Python+User+Group), where the  *Quant DSL*
+expression syntax and semantics were first presented.
