@@ -15,6 +15,7 @@ import dateutil.parser
 import numpy
 import six
 from eventsourcing.domain.model.events import subscribe, unsubscribe
+from numpy.lib.nanfunctions import nanpercentile
 
 from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, QuantDslApplication
 from quantdsl.application.with_multithreading_and_python_objects import \
@@ -25,10 +26,11 @@ from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
-from quantdsl.domain.model.simulated_price import make_simulated_price_id
+from quantdsl.domain.model.simulated_price import make_simulated_price_id, SimulatedPrice
 from quantdsl.domain.model.simulated_price_requirements import SimulatedPriceRequirements
 from quantdsl.exceptions import TimeoutError, InterruptSignalReceived
 from quantdsl.priceprocess.base import datetime_from_date, get_duration_years
+from quantdsl.semantics import discount
 
 
 class Results(object):
@@ -93,10 +95,11 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
     return results
 
 
-def calc(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-         price_process=None, periodisation=None, dsl_classes=None,
+def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
+         perturbation_factor=0.01, price_process=None, periodisation=None, dsl_classes=None,
          max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
          timeout=None, verbose=False):
+
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -313,24 +316,39 @@ class Calculate(object):
                 if len(perturbed_name_split) > 3:
                     day = int(perturbed_name_split[3])
                     price_date = datetime.date(year, month, day)
-                else:
-                    price_date = datetime.date(year, month, 1)
-                simulated_price_id = make_simulated_price_id(market_simulation.id, commodity_name, price_date,
-                                                             price_date)
-                try:
+                    simulated_price_id = make_simulated_price_id(
+                        market_simulation.id, commodity_name, price_date, price_date
+                    )
                     simulated_price = app.simulated_price_repo[simulated_price_id]
-                except KeyError as e:
-                    raise Exception("Simulated price for date {} is unavailable".format(price_date, e))
+                    simulated_price_value = simulated_price.value
+                else:
+                    sum_simulated_prices = 0
+                    count_simulated_prices = 0
+                    for i in range(1, 32):
+                        try:
+                            price_date = datetime.date(year, month, i)
+                        except ValueError:
+                            continue
+                        else:
+                            simulated_price_id = make_simulated_price_id(
+                                market_simulation.id, commodity_name, price_date, price_date
+                            )
+                            try:
+                                simulated_price = app.simulated_price_repo[simulated_price_id]
+                            except KeyError:
+                                pass
+                            else:
+                                sum_simulated_prices += simulated_price.value
+                                count_simulated_prices += 1
+                    assert count_simulated_prices, "Can't find any simulated prices for {}-{}".format(year, month)
+                    simulated_price_value = sum_simulated_prices / count_simulated_prices
 
                 dy = perturbed_value - perturbed_value_negative
-                price = simulated_price.value
+                price = simulated_price_value
                 dx = 2 * market_simulation.perturbation_factor * price
                 contract_delta = dy / dx
-                years = get_duration_years(market_simulation.observation_date, price_date)
                 # Todo: Refactor this w.r.t the discount() method of DslExpression.
-                interest_rate = market_simulation.interest_rate / 100.0
-                discount_rate = math.exp(-interest_rate * years)
-                hedge_units = - contract_delta / discount_rate
+                hedge_units = - discount(contract_delta, price_date, market_simulation.observation_date, market_simulation.interest_rate)
                 cash_in = contract_delta * price
                 periods.append({
                     'commodity': perturbed_name,
@@ -554,6 +572,11 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
     else:
         return
 
+    NUM_STD_DEVS = 2
+    OUTER_COLOUR = 'y'
+    MID_COLOUR = 'g'
+    INNER_COLOUR = 'b'
+    MEAN_COLOUR = '0.1'
     for i, name in enumerate(names):
 
         _periods = [p for p in periods if p['commodity'].startswith(name)]
@@ -567,8 +590,8 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         # prices_3 = [p['price'][2] for p in _periods]
         # prices_4 = [p['price'][3] for p in _periods]
         prices_std = [p['price'].std() for p in _periods]
-        prices_plus = list(numpy.array(prices_mean) + 2 * numpy.array(prices_std))
-        prices_minus = list(numpy.array(prices_mean) - 2 * numpy.array(prices_std))
+        prices_plus = list(numpy.array(prices_mean) + NUM_STD_DEVS * numpy.array(prices_std))
+        prices_minus = list(numpy.array(prices_mean) - NUM_STD_DEVS * numpy.array(prices_std))
 
         price_plot.set_title('Prices - {}'.format(name))
         price_plot.plot(
@@ -592,22 +615,37 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
                 pos += cum_pos[-1]
             cum_pos.append(pos)
         cum_pos_mean = [p.mean() for p in cum_pos]
+        cum_pos_p5 = [nanpercentile(p, 5) for p in cum_pos]
+        cum_pos_p10 = [nanpercentile(p, 10) for p in cum_pos]
+        cum_pos_p25 = [nanpercentile(p, 25) for p in cum_pos]
+        cum_pos_p75 = [nanpercentile(p, 75) for p in cum_pos]
+        cum_pos_p90 = [nanpercentile(p, 90) for p in cum_pos]
+        cum_pos_p95 = [nanpercentile(p, 95) for p in cum_pos]
+
         cum_pos_std = [p.std() for p in cum_pos]
         cum_pos_stderr = [p / math.sqrt(path_count) for p in cum_pos_std]
-        cum_pos_std_plus = list(numpy.array(cum_pos_mean) + 1 * numpy.array(cum_pos_std))
-        cum_pos_std_minus = list(numpy.array(cum_pos_mean) - 1 * numpy.array(cum_pos_std))
-        cum_pos_stderr_plus = list(numpy.array(cum_pos_mean) + 3 * numpy.array(cum_pos_stderr))
-        cum_pos_stderr_minus = list(numpy.array(cum_pos_mean) - 3 * numpy.array(cum_pos_stderr))
+        cum_pos_std_offset = NUM_STD_DEVS * numpy.array(cum_pos_std)
+        cum_pos_std_plus = list(numpy.array(cum_pos_mean) + cum_pos_std_offset)
+        cum_pos_std_minus = list(numpy.array(cum_pos_mean) - cum_pos_std_offset)
+        com_pos_stderr_offset = NUM_STD_DEVS * numpy.array(cum_pos_stderr)
+        cum_pos_stderr_plus = list(numpy.array(cum_pos_mean) + com_pos_stderr_offset)
+        cum_pos_stderr_minus = list(numpy.array(cum_pos_mean) - com_pos_stderr_offset)
 
         pos_plot = subplots[len(names) + i]
         pos_plot.set_title('Position - {}'.format(name))
 
         pos_plot.plot(
-            dates, cum_pos_std_plus, '0.85',
-            dates, cum_pos_std_minus, '0.85',
-            dates, cum_pos_stderr_plus, '0.5',
-            dates, cum_pos_stderr_minus, '0.5',
-            dates, cum_pos_mean, '0.1',
+            # dates, cum_pos_std_plus, '0.85',
+            # dates, cum_pos_std_minus, '0.85',
+            dates, cum_pos_p5, OUTER_COLOUR,
+            dates, cum_pos_p10, MID_COLOUR,
+            dates, cum_pos_p25, INNER_COLOUR,
+            dates, cum_pos_p75, INNER_COLOUR,
+            dates, cum_pos_p90, MID_COLOUR,
+            dates, cum_pos_p95, OUTER_COLOUR,
+            # dates, cum_pos_stderr_plus, '0.5',
+            # dates, cum_pos_stderr_minus, '0.5',
+            dates, cum_pos_mean, MEAN_COLOUR,
         )
 
         ymin = min(0, min(cum_pos_std_minus)) - 1
@@ -633,20 +671,36 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
             cash_in += cum_cash_in[-1]
         cum_cash_in.append(cash_in)
 
+    cum_cash_p5 = [nanpercentile(p, 5) for p in cum_cash_in]
+    cum_cash_p10 = [nanpercentile(p, 10) for p in cum_cash_in]
+    cum_cash_p25 = [nanpercentile(p, 25) for p in cum_cash_in]
+    cum_cash_p75 = [nanpercentile(p, 75) for p in cum_cash_in]
+    cum_cash_p90 = [nanpercentile(p, 90) for p in cum_cash_in]
+    cum_cash_p95 = [nanpercentile(p, 95) for p in cum_cash_in]
     cum_cash_mean = [p.mean() for p in cum_cash_in]
     cum_cash_std = [p.std() for p in cum_cash_in]
     cum_cash_stderr = [p / math.sqrt(path_count) for p in cum_cash_std]
-    cum_cash_std_plus = list(numpy.array(cum_cash_mean) + 1 * numpy.array(cum_cash_std))
-    cum_cash_std_minus = list(numpy.array(cum_cash_mean) - 1 * numpy.array(cum_cash_std))
-    cum_cash_stderr_plus = list(numpy.array(cum_cash_mean) + 3 * numpy.array(cum_cash_stderr))
-    cum_cash_stderr_minus = list(numpy.array(cum_cash_mean) - 3 * numpy.array(cum_cash_stderr))
+
+    cum_cash_std_offset = NUM_STD_DEVS * numpy.array(cum_cash_std)
+    cum_cash_std_plus = list(numpy.array(cum_cash_mean) + cum_cash_std_offset)
+    cum_cash_std_minus = list(numpy.array(cum_cash_mean) - cum_cash_std_offset)
+
+    cum_cash_stderr_offset = NUM_STD_DEVS * numpy.array(cum_cash_stderr)
+    cum_cash_stderr_plus = list(numpy.array(cum_cash_mean) + cum_cash_stderr_offset)
+    cum_cash_stderr_minus = list(numpy.array(cum_cash_mean) - cum_cash_stderr_offset)
 
     profit_plot.plot(
-        dates, cum_cash_std_plus, '0.8',
-        dates, cum_cash_std_minus, '0.8',
-        dates, cum_cash_stderr_plus, '0.5',
-        dates, cum_cash_stderr_minus, '0.5',
-        dates, cum_cash_mean, '0.1'
+        # dates, cum_cash_std_plus, '0.8',
+        # dates, cum_cash_std_minus, '0.8',
+        dates, cum_cash_p5, OUTER_COLOUR,
+        dates, cum_cash_p10, MID_COLOUR,
+        dates, cum_cash_p25, INNER_COLOUR,
+        dates, cum_cash_p75, INNER_COLOUR,
+        dates, cum_cash_p90, MID_COLOUR,
+        dates, cum_cash_p95, OUTER_COLOUR,
+        # dates, cum_cash_stderr_plus, '0.5',
+        # dates, cum_cash_stderr_minus, '0.5',
+        dates, cum_cash_mean, MEAN_COLOUR
     )
 
     f.autofmt_xdate(rotation=60)

@@ -1,6 +1,9 @@
 
 __version__ = '1.2.0dev0'
 
+# Todo: Option to switch between single- and double-sided deltas (currently always double-sided).
+# Todo: Tidy up how args are passed into evaluate(), it seems correct, but also a bit ad hoc.
+# Todo: Support names in expressions being resolved by evaluation args (e.g. like 'observation_date' but more general).
 # Todo: StockMarket element.
 # Todo: Better report object.
 # Todo: Warning when a built-in is being overridden by a user defined function. Or perhaps that would be useful? In any case, make sure this is handled properly (currently the user defined function will just be ignore?).

@@ -213,6 +213,16 @@ class DslObject(six.with_metaclass(ABCMeta)):
                 dsl_arg.identify_perturbation_dependencies(dependencies, **kwds)
 
 
+def discount(value, start_date, end_date, interest_rate):
+    r = interest_rate / 100
+    T = get_duration_years(start_date, end_date)
+    # Assumes continuous compounding rate.
+    discount_factor = math.exp(- r * T)
+    return value * discount_factor
+    # Not annualised equivalent rate.
+    # return value / (1 + r) ** T
+
+
 class DslExpression(DslObject):
     relative_cost = 1
 
@@ -221,15 +231,6 @@ class DslExpression(DslObject):
         """
         Returns the value of the expression.
         """
-
-    def discount(self, value, start_date, end_date, **kwds):
-        r = float(kwds['interest_rate']) / 100
-        T = get_duration_years(start_date, end_date)
-        # Assumes continuous compounding rate.
-        discount_factor = math.exp(- r * T)
-        return value * discount_factor
-        # Not annualised equivalent rate.
-        # return value / (1 + r) ** T
 
     def cost_element(self):
         return self.relative_cost
@@ -1392,7 +1393,8 @@ class Settlement(StochasticObject, DatedDslObject, DslExpression):
         included_value = self._args[1].evaluate(**kwds)
 
         present_time = self.get_present_time(kwds)
-        discounted_value = self.discount(included_value, present_time, self.get_date(**kwds), **kwds)
+        interest_rate = kwds['interest_rate']
+        discounted_value = discount(included_value, present_time, self.get_date(**kwds), interest_rate)
         return discounted_value
 
 
@@ -1463,6 +1465,7 @@ class On(Fixing):
 
 
 class Wait(Fixing):
+# class Wait(Settlement, Fixing):
     """
     A fixing with discounting of the resulting value from date arg to present_time.
 
@@ -1471,9 +1474,11 @@ class Wait(Fixing):
     relative_cost = 10
 
     def evaluate(self, **kwds):
+        # return super(Wait, self).evaluate(**kwds)
         value = super(Wait, self).evaluate(**kwds)
         present_time = self.get_present_time(kwds)
-        return self.discount(value, present_time, self.get_date(**kwds), **kwds)
+        interest_rate = kwds['interest_rate']
+        return discount(value, present_time, self.get_date(**kwds), interest_rate)
 
 
 class Choice(StochasticObject, DslExpression):
