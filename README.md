@@ -141,8 +141,9 @@ assert results.fair_value == 5
 
 ### Settlement
 
-The `Settlement` element discounts the value of the included `Expression` from its given `Date` to the "effective 
-present time" when the element is evaluated (see below).
+The `Settlement` element discounts the value of the included `Expression` from its given `Date` to the effective 
+present time (`t` in the semantics above) when the element is evaluated, which defaults to the
+`observation_date` passed to `calc()` (see below).
 
 ```
 <Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
@@ -173,7 +174,7 @@ assert round(results.fair_value, 2) == 1000.00, results.fair_value
 ```
 
 Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
-element and the effective present time of its evaluation. The formula used for discounting by the `Settlement` 
+element and the effective present time `t` of its evaluation. The formula used for discounting by the `Settlement` 
 element is `e**-rt`. The `interest_rate` is the therefore the continuously compounding risk free rate (not the 
 annual equivalent rate).
 
@@ -780,6 +781,65 @@ results = calc_print(
 assert round(results.fair_value.mean(), 2) == 6.08
 ```
 
+These are the results printed by `calc_and_print()`, showing
+deltas for each month for each market, and the fair value.
+
+The recommended hedge positions suggest injecting gas when
+the price is low, and withdrawing when the price is high.
+
+The net cash position across all hedges is very similar to
+the fair value, which suggests the deltas are performing well.
+
+```
+
+Compiled 29 nodes 
+Compilation in 0.100s
+Simulation in 0.034s
+Starting 153 node evaluations, please wait...
+153/153 100.00% complete 206.36 eval/s running 1s eta 0s
+Evaluation in 0.770s
+
+
+GAS-2011-6
+Price: 7.00
+Hedge: 0.90 ± 0.06 units
+Cash: -6.41 ± 0.49
+
+GAS-2011-7
+Price: 6.51
+Hedge: 1.08 ± 0.07 units
+Cash: -7.00 ± 0.52
+
+GAS-2011-8
+Price: 7.51
+Hedge: 0.89 ± 0.07 units
+Cash: -6.41 ± 0.59
+
+GAS-2011-9
+Price: 8.49
+Hedge: -0.86 ± 0.07 units
+Cash: 7.00 ± 0.78
+
+GAS-2011-10
+Price: 9.99
+Hedge: -0.93 ± 0.06 units
+Cash: 8.79 ± 0.85
+
+GAS-2011-11
+Price: 11.49
+Hedge: -0.92 ± 0.04 units
+Cash: 10.00 ± 0.61
+
+Net GAS: 0.17 ± 0.12
+
+Net cash: 5.96 ± 1.10
+
+Fair value: 6.08 ± 0.09
+```
+
+An alternative to `calc_print()` is the function in the same module `calc_print_plot()` which will also plot the 
+prices, positions, and cash. You will need to install matplotlib to use `calc_print_plot()`.
+
 
 ### Power station
 
@@ -826,6 +886,80 @@ results = calc_print(
 )
 
 assert round(results.fair_value.mean(), 2) == 9.11
+```
+
+These are the results printed by `calc_and_print()`, showing
+monthly deltas for each of the two markets. Again, the net
+cash position across all hedges is very similar to the fair value.
+
+The recommended hedge positions suggest running the plant only when
+the price of power is high and the price of gas is low.
+
+```
+Compiled 22 nodes 
+Compilation in 0.048s
+Simulation in 0.039s
+Starting 182 node evaluations, please wait...
+181/182 100.00% complete 204.95 eval/s running 1s eta 0s
+Evaluation in 0.894s
+
+
+POWER-2012-1-1
+Price: 5.59
+Hedge: -0.01 ± 0.01 units
+Cash: 0.06 ± 0.06
+
+GAS-2012-1-1
+Price: 12.92
+Hedge: 0.01 ± 0.01 units
+Cash: -0.06 ± 0.07
+
+POWER-2012-1-2
+Price: 5.59
+Hedge: -0.10 ± 0.01 units
+Cash: 0.46 ± 0.08
+
+GAS-2012-1-2
+Price: 13.02
+Hedge: 0.11 ± 0.01 units
+Cash: -0.61 ± 0.10
+
+POWER-2012-1-3
+Price: 12.88
+Hedge: -0.67 ± 0.01 units
+Cash: 8.06 ± 0.11
+
+GAS-2012-1-3
+Price: 12.72
+Hedge: 0.85 ± 0.01 units
+Cash: -9.09 ± 0.14
+
+POWER-2012-1-4
+Price: 26.86
+Hedge: -0.85 ± 0.01 units
+Cash: 21.61 ± 0.25
+
+GAS-2012-1-4
+Price: 15.79
+Hedge: 0.85 ± 0.01 units
+Cash: -11.31 ± 0.16
+
+POWER-2012-1-5
+Price: 1.80
+Hedge: 0.00 ± 0.00 units
+Cash: 0.00 ± 0.00
+
+GAS-2012-1-5
+Price: 13.02
+Hedge: 0.00 ± 0.00 units
+Cash: 0.00 ± 0.00
+
+Net GAS: 1.82 ± 0.03
+Net POWER: -1.62 ± 0.02
+
+Net cash: 9.11 ± 0.18
+
+Fair value: 9.11 ± 0.14
 ```
 
 ### Library
