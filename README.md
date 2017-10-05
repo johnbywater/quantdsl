@@ -105,7 +105,7 @@ definitions and expressions to be used and maintained in a library as
 normal Python code.
 
 
-## Introduction
+## Examples
 
 The work of a quantitative analyst involves modelling the value of a derivative,
 calibrating a stochastic process for the underlying prices, simulating future prices
@@ -520,8 +520,6 @@ You can adjust the limit on the maximum number of nodes the can be compiled from
 You can set a calculation to `timeout` after a given number of seconds.
 
 Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
-
-## Examples
 
 ### Derivative options
 
@@ -962,7 +960,7 @@ Net cash: 9.11 ± 0.18
 Fair value: 9.11 ± 0.14
 ```
 
-### Library
+## Library
 
 There is a small collection of Quant DSL modules in a library under `quantdsl.lib`. Putting Quant DSL source code in 
 dedicated Python files makes it much easier to develop and maintain Quant DSL function definitions in a Python IDE.
