@@ -514,7 +514,7 @@ The deltas can be obtained by setting the `periodisation` arg of `calc()`.
 You can adjust the `perturbation_factor` used to calculated deltas. If the `path_count` is larger, a smaller
 perturbation factor may give better results.
 
-You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the `
+You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the
 `max_dependency_graph_size` arg of `calc()`.
 
 You can set a calculation to `timeout` after a given number of seconds.
