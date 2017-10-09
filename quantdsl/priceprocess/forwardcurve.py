@@ -20,6 +20,6 @@ class ForwardCurve(object):
             # Search for earlier date.
             index = searchsorted(self.sorted, date) - 1
             if index < 0:
-                raise KeyError("Fixing date {} not found in '{}' forward curve.".format(date, self.name))
+                raise KeyError("Delivery date {} not found in '{}' forward curve.".format(date, self.name))
             price = self.by_date[self.sorted[index]]
         return price

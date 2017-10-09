@@ -1,3 +1,6 @@
+import datetime
+
+import scipy
 import six
 from eventsourcing.application.base import EventSourcingApplication
 
@@ -8,10 +11,11 @@ from quantdsl.domain.model.call_dependents import register_call_dependents
 from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_result import make_call_result_id
 from quantdsl.domain.model.contract_specification import ContractSpecification, register_contract_specification
-from quantdsl.domain.model.contract_valuation import start_contract_valuation
+from quantdsl.domain.model.contract_valuation import ContractValuation, start_contract_valuation
 from quantdsl.domain.model.market_calibration import register_market_calibration
 from quantdsl.domain.model.market_simulation import register_market_simulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
+from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.contract_valuations import evaluate_call_and_queue_next_calls, loop_on_evaluation_queue
 from quantdsl.domain.services.simulated_prices import identify_simulation_requirements
@@ -30,6 +34,7 @@ from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo 
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
+from quantdsl.semantics import discount
 
 DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
@@ -212,6 +217,121 @@ class QuantDslApplication(EventSourcingApplication):
     def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
         return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
 
+    def read_results(self, evaluation):
+        assert isinstance(evaluation, ContractValuation)
+
+        market_simulation = self.market_simulation_repo[evaluation.market_simulation_id]
+
+        call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
+        call_result = self.call_result_repo[call_result_id]
+
+        fair_value = call_result.result_value
+
+        perturbation_names = call_result.perturbed_values.keys()
+        perturbation_names = [i for i in perturbation_names if not i.startswith('-')]
+        perturbation_names = sorted(perturbation_names, key=lambda x: [int(i) for i in x.split('-')[1:]])
+
+        periods = []
+        for perturbation_name in perturbation_names:
+
+            perturbed_value = call_result.perturbed_values[perturbation_name]
+            perturbed_value_negative = call_result.perturbed_values['-' + perturbation_name]
+            # Assumes format: NAME-YEAR-MONTH
+            perturbed_name_split = perturbation_name.split('-')
+            market_name = perturbed_name_split[0]
+
+            if market_name == perturbation_name:
+                simulated_price_id = make_simulated_price_id(market_simulation.id, market_name,
+                                                             market_simulation.observation_date,
+                                                             market_simulation.observation_date)
+
+                simulated_price = self.simulated_price_repo[simulated_price_id]
+                price = simulated_price.value
+                dy = perturbed_value - perturbed_value_negative
+                dx = 2 * market_simulation.perturbation_factor * price
+                delta = dy / dx
+                hedge_units = - delta
+                cash_in = - hedge_units * price
+                periods.append({
+                    'market': market_name,
+                    'delivery_date': None,
+                    'delta': delta,
+                    'perturbation_name': perturbation_name,
+                    'hedge_units': hedge_units,
+                    'price': price,
+                    'cash_in': cash_in,
+                })
+
+            elif len(perturbed_name_split) > 2:
+                year = int(perturbed_name_split[1])
+                month = int(perturbed_name_split[2])
+                if len(perturbed_name_split) > 3:
+                    day = int(perturbed_name_split[3])
+                    delivery_date = datetime.date(year, month, day)
+                    simulated_price_id = make_simulated_price_id(
+                        market_simulation.id, market_name, delivery_date, delivery_date
+                    )
+                    simulated_price = self.simulated_price_repo[simulated_price_id]
+                    simulated_price_value = simulated_price.value
+                else:
+                    sum_simulated_prices = 0
+                    count_simulated_prices = 0
+                    for i in range(1, 32):
+                        try:
+                            delivery_date = datetime.date(year, month, i)
+                        except ValueError:
+                            continue
+                        else:
+                            simulated_price_id = make_simulated_price_id(
+                                market_simulation.id, market_name, delivery_date, delivery_date
+                            )
+                            try:
+                                simulated_price = self.simulated_price_repo[simulated_price_id]
+                            except KeyError:
+                                pass
+                            else:
+                                sum_simulated_prices += simulated_price.value
+                                count_simulated_prices += 1
+                    assert count_simulated_prices, "Can't find any simulated prices for {}-{}".format(year, month)
+                    simulated_price_value = sum_simulated_prices / count_simulated_prices
+
+                # Perturbed values should be already discounted to observation date.
+                dy = perturbed_value - perturbed_value_negative
+
+                # Discount simulated price value to observation date.
+                discount_rate = discount(
+                    value=1,
+                    present_date=market_simulation.observation_date,
+                    value_date=delivery_date,
+                    interest_rate=market_simulation.interest_rate
+                )
+                discounted_simulated_price_value = simulated_price_value * discount_rate
+
+                dx = 2 * market_simulation.perturbation_factor * discounted_simulated_price_value
+                delta = dy / dx
+                # The delta of a forward contract at the observation date
+                # is the discount factor at the delivery date. Accordingly,
+                # inflate the hedge units to flatten the book.
+                hedge_units = -delta / discount_rate
+
+                # No need to inflate and then discount the cash.
+                cash_in = delta * discounted_simulated_price_value
+
+                periods.append({
+                    'market': market_name,
+                    'delivery_date': delivery_date,
+                    'delta': delta,
+                    'perturbation_name': perturbation_name,
+                    'hedge_units': hedge_units,
+                    'price': discounted_simulated_price_value,
+                    'cash_in': cash_in,
+                })
+
+        return Results(fair_value, periods)
+
+    def wait_results(self, contract_valuation):
+        self.get_result(contract_valuation)
+
     def get_result(self, contract_valuation):
         call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
         return self.call_result_repo[call_result_id]
@@ -248,3 +368,21 @@ class QuantDslApplication(EventSourcingApplication):
 
     def check_has_thread_errored(self):
         return False
+
+
+class Results(object):
+    def __init__(self, fair_value, periods):
+        assert isinstance(periods, list)
+        self.fair_value = fair_value
+        self.periods = periods
+
+        self.deltas = {p['perturbation_name']: p['delta'] for p in self.periods}
+
+
+    @property
+    def fair_value_mean(self):
+        if isinstance(self.fair_value, scipy.ndarray):
+            fair_value_mean = self.fair_value.mean()
+        else:
+            fair_value_mean = self.fair_value
+        return fair_value_mean

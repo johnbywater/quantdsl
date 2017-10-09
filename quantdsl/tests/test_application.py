@@ -2,16 +2,16 @@ import datetime
 import unittest
 
 import scipy
+from copy import deepcopy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
+from quantdsl.application.base import Results
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
-from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.contract_valuation import ContractValuation
-from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.market_simulation import MarketSimulation
-from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.exceptions import CallLimitError, RecursionDepthError, DslCompareArgsError, DslBinOpArgsError, \
     DslTestExpressionCannotBeEvaluated
+from quantdsl.semantics import discount
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
@@ -24,7 +24,7 @@ class ApplicationTestCase(unittest.TestCase):
     MAX_DEPENDENCY_GRAPH_SIZE = 2000
 
     price_process_name = DEFAULT_PRICE_PROCESS_NAME
-    calibration_params = {
+    CALIBRATION_PARAMS = {
         'market': ['#1', '#2', 'NBP', 'TTF', 'SPARKSPREAD'],
         'sigma': [0.5, 0.5, 0.5, 0.4, 0.4],
         'curve': {
@@ -61,6 +61,10 @@ class ApplicationTestCase(unittest.TestCase):
 
         self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
 
+        self.calibration_params = deepcopy(self.CALIBRATION_PARAMS)
+        self.observation_date = datetime.datetime(2011, 1, 1)
+        self.interest_rate = 2.5
+
     def tearDown(self):
         if self.app is not None:
             self.app.close()
@@ -75,10 +79,9 @@ class ApplicationTestCase(unittest.TestCase):
                               expected_call_count=None, periodisation=None):
 
         # Set the observation date.
-        observation_date = datetime.datetime(2011, 1, 1)
 
         # Register the specification (creates call dependency graph).
-        contract_specification = self.app.compile(source_code=specification, observation_date=observation_date)
+        contract_specification = self.app.compile(source_code=specification, observation_date=self.observation_date)
 
         # Check the call count (the number of nodes of the call dependency graph).
         call_count = self.calc_call_count(contract_specification.id)
@@ -91,9 +94,9 @@ class ApplicationTestCase(unittest.TestCase):
             contract_specification=contract_specification,
             price_process_name=self.price_process_name,
             calibration_params=self.calibration_params,
-            observation_date=observation_date,
+            observation_date=self.observation_date,
             path_count=self.PATH_COUNT,
-            interest_rate=2.5,
+            interest_rate=self.interest_rate,
             perturbation_factor=0.001,
             periodisation=periodisation,
         )
@@ -106,14 +109,16 @@ class ApplicationTestCase(unittest.TestCase):
         )
         assert isinstance(contract_valuation, ContractValuation)
 
-        main_result = self.get_result(contract_valuation)
+        self.app.wait_results(contract_valuation)
+
+        results = self.app.read_results(contract_valuation)
+        assert isinstance(results, Results)
 
         if expected_value is None:
             return
 
-        # Check the call result.
-        assert isinstance(main_result, CallResult)
-        actual_value = self.scalar(main_result.result_value)
+        # Check the results.
+        actual_value = results.fair_value_mean
         if isinstance(actual_value, float):
             self.assertAlmostEqual(actual_value, expected_value, places=2)
         else:
@@ -122,41 +127,22 @@ class ApplicationTestCase(unittest.TestCase):
         if expected_deltas is None:
             return
 
-        # Generate the contract valuation deltas.
+        # Check the deltas.
         assert isinstance(market_simulation, MarketSimulation)
-        for perturbation in expected_deltas.keys():
+        for perturbed_name in expected_deltas.keys():
 
-            # Get the deltas.
-            if perturbation not in main_result.perturbed_values:
-                self.fail("There isn't a perturbed value for '{}': {}"
-                          "".format(perturbation, list(main_result.perturbed_values.keys())))
-
-            perturbed_value = main_result.perturbed_values[perturbation].mean()
-            market_calibration = self.app.market_calibration_repo[market_simulation.market_calibration_id]
-            assert isinstance(market_calibration, MarketCalibration)
-            commodity_name = perturbation.split('-')[0]
-            simulated_price_id = make_simulated_price_id(market_simulation.id, commodity_name,
-                                                         market_simulation.observation_date,
-                                                         market_simulation.observation_date)
-            simulated_price = self.app.simulated_price_repo[simulated_price_id]
-
-            dy = perturbed_value - main_result.result_value
-            dx = market_simulation.perturbation_factor * simulated_price.value
-            contract_delta = dy / dx
-
-            # Check the delta.
-            actual_value = contract_delta.mean()
-            expected_value = expected_deltas[perturbation]
-            error_msg = "{}: {} != {}".format(perturbation, actual_value, expected_value)
-            self.assertAlmostEqual(actual_value, expected_value, places=2, msg=error_msg)
+            try:
+                actual_delta = results.deltas[perturbed_name]
+            except KeyError:
+                raise KeyError((perturbed_name, results.deltas.keys()))
+            else:
+                actual_value = actual_delta.mean()
+                expected_value = expected_deltas[perturbed_name]
+                error_msg = "{}: {} != {}".format(perturbed_name, actual_value, expected_value)
+                self.assertAlmostEqual(actual_value, expected_value, places=2, msg=error_msg)
 
     def calc_call_count(self, contract_specification_id):
         return self.app.calc_call_count(contract_specification_id)
-
-    def scalar(self, contract_value):
-        if isinstance(contract_value, scipy.ndarray):
-            contract_value = contract_value.mean()
-        return contract_value
 
     def get_result(self, contract_valuation):
         return self.app.get_result(contract_valuation)
@@ -187,11 +173,47 @@ class ExpressionTests(ApplicationTestCase):
 
     def test_fixing(self):
         specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.1083)
+        self.assert_contract_value(specification, 10.1083, expected_deltas={'NBP': 1.010}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 10.194, expected_deltas={'NBP': 1.019}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.9376, expected_deltas={'NBP': 0.9937}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 10.065, expected_deltas={'NBP': 1.006}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 10.040, expected_deltas={'NBP': 1.004}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.939, expected_deltas={'NBP': 0.997}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
+        self.assert_contract_value(specification, 10.047, expected_deltas={'NBP': 1.0047}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-02'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.718, expected_deltas={'NBP': 0.971}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-03'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.9859, expected_deltas={'NBP': 0.997}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-04'), Market('NBP'))"
+        self.assert_contract_value(specification, 10.159, expected_deltas={'NBP': 1.0159}, periodisation='alltime')
+        specification = "Fixing(Date('2012-01-05'), Market('NBP'))"
+        self.assert_contract_value(specification, 9.970, expected_deltas={'NBP': 0.997}, periodisation='alltime')
+        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
+        self.assert_contract_value(specification, 6.796, expected_deltas={'NBP': 0.679}, periodisation='alltime')
+        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
+        self.assert_contract_value(specification, 0.508, expected_deltas={'NBP': 0.050}, periodisation='alltime')
+        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
+        self.assert_contract_value(specification, 0.364, expected_deltas={'NBP': 0.0364}, periodisation='alltime')
+        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
+        self.assert_contract_value(specification, 0.371, expected_deltas={'NBP': 0.037}, periodisation='alltime')
+        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
+        self.assert_contract_value(specification, 0.464, expected_deltas={'NBP': 0.046}, periodisation='alltime')
 
     def test_wait(self):
         specification = "Wait(Date('2012-01-01'), Market('NBP'))"
         self.assert_contract_value(specification, 9.8587)
+
+        # Check the delta equals the discount rate.
+        self.calibration_params['sigma'] = [0.0, 0.0, 0.0, 0.0, 0.0]
+        specification = "Wait('2022-1-1', Market('#1'))"
+        discount_rate = discount(1, self.observation_date, datetime.datetime(2022, 1, 1), self.interest_rate)
+        self.assert_contract_value(specification, 7.60, expected_deltas={'#1': discount_rate}, periodisation='alltime')
 
     def test_settlement(self):
         specification = "Settlement(Date('2012-01-01'), Market('NBP'))"
@@ -227,8 +249,18 @@ Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
 Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
     Fixing(Date('2012-01-01'), Choice(Market('NBP') - 9, 0))))
 """
-        self.assert_contract_value(specification, 2.6093,
-                                   expected_deltas={'NBP-2011-6': 0.105},
+        self.assert_contract_value(specification, 2.609,
+                                   expected_deltas={
+                                       'NBP-2011-6': 0.273,
+                                       'NBP-2012-1': -0.177,
+                                   },
+                                   periodisation='monthly')
+
+        self.assert_contract_value(specification, 2.501,
+                                   expected_deltas={
+                                       'NBP-2011-6': 0,
+                                       'NBP-2012-1': 0.502,
+                                   },
                                    periodisation='monthly')
 
     def test_identical_fixings(self):
@@ -340,6 +372,32 @@ Max(
 )
 """
         self.assert_contract_value(specification, 0.00, expected_deltas={'#1': 0.00}, periodisation='alltime')
+
+    def test_max_vs_choice(self):
+        specification = """
+Max(
+    Fixing(
+        Date('2012-01-01'),
+        Market('#1')
+    ) /
+    Fixing(
+        Date('2011-01-01'),
+        Market('#1')
+    ),
+    1.0
+) - Choice(
+    Fixing(
+        Date('2012-01-01'),
+        Market('#1')
+    ) /
+    Fixing(
+        Date('2011-01-01'),
+        Market('#1')
+    ),
+    1.0
+)
+"""
+        self.assert_contract_value(specification,  0.196, expected_deltas={'#1': 0.00}, periodisation='alltime')
 
 
 
@@ -1218,20 +1276,21 @@ Swing(Date('2011-01-01'), Date('2011-01-02'), TimeDelta('1d'), Market('NBP'), 1)
 
     def test_value_swing_option_with_forward_markets(self):
         specification = """
-def Swing(start_date, end_date, quantity):
-    if (quantity != 0) and (start_date < end_date):
-        return Settlement(start_date, Fixing(start_date, Choice(
-            Swing(start_date + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket(start_date, 'NBP'),
-            Swing(start_date + TimeDelta('1m'), end_date, quantity)
-        )))
+def Swing(start, end_date, quantity):
+    if (quantity != 0) and (start < end_date):
+        return Wait(start, Choice(
+            Swing(start + TimeDelta('1m'), end_date, quantity-1) + ForwardMarket(start + TimeDelta('1m'), 'NBP'),
+            Swing(start + TimeDelta('1m'), end_date, quantity)
+        ))
     else:
         return 0
 
-Swing(Date('2011-01-01'), Date('2011-4-1'), 30)
+Swing(Date('2011-2-1'), Date('2011-5-1'), 30)
 """
-        self.assert_contract_value(specification, 29.9575, {
-            'NBP-2011-2': 1.0,
-            'NBP-2011-3': 1.0,
+        self.assert_contract_value(specification, 29.898, {
+            'NBP-2011-3': 1.015,
+            'NBP-2011-4': 1.029,
+            'NBP-2011-5': 1.025,
         }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):

@@ -29,7 +29,7 @@ class BlackScholesPriceProcess(PriceProcess):
             delivery_date = requirement[2]
             delivery_dates[fixing_date].add(delivery_date)
 
-        delivery_dates[observation_date].add(observation_date)
+        # delivery_dates[observation_date].add(observation_date)
 
         # Compute simulated market prices using the correlated Brownian
         # motions, the actual historical volatility, and the last price.

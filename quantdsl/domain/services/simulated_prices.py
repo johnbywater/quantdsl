@@ -61,7 +61,8 @@ def identify_simulation_requirements(contract_specification_id, call_requirement
         dsl_expr.identify_price_simulation_requirements(
             requirements=simulation_requirements,
             present_time=present_time,
-            observation_date=observation_date
+            observation_date=observation_date,
+            periodisation=periodisation,
         )
 
         # Register the simulation requirements for each call (needed during evaluation).

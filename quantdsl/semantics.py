@@ -213,9 +213,9 @@ class DslObject(six.with_metaclass(ABCMeta)):
                 dsl_arg.identify_perturbation_dependencies(dependencies, **kwds)
 
 
-def discount(value, start_date, end_date, interest_rate):
+def discount(value, present_date, value_date, interest_rate):
     r = interest_rate / 100
-    T = get_duration_years(start_date, end_date)
+    T = get_duration_years(present_date, value_date)
     # Assumes continuous compounding rate.
     discount_factor = math.exp(- r * T)
     return value * discount_factor
@@ -1306,8 +1306,15 @@ class AbstractMarket(StochasticObject, DslExpression):
         assert isinstance(requirements, set)
         # Get the effective present time (needed to form the simulation requirement).
         fixing_date, delivery_date = self.get_fixing_and_delivery_dates(kwds)
-        requirement = (self.commodity_name, fixing_date, delivery_date)
-        requirements.add(requirement)
+        requirements.add((self.commodity_name, fixing_date, delivery_date))
+
+        # Support calculating deltas using.
+        if fixing_date != delivery_date:
+            requirements.add((self.commodity_name, delivery_date, delivery_date))
+        if kwds['periodisation'] == 'alltime':
+            observation_date = kwds['observation_date']
+            requirements.add((self.commodity_name, observation_date, observation_date))
+
         super(AbstractMarket, self).identify_price_simulation_requirements(requirements, **kwds)
 
     def identify_perturbation_dependencies(self, dependencies, **kwds):
@@ -1317,7 +1324,7 @@ class AbstractMarket(StochasticObject, DslExpression):
         super(AbstractMarket, self).identify_perturbation_dependencies(dependencies, **kwds)
 
     def get_perturbation(self, **kwds):
-        present_time = self.get_present_time(kwds)
+        _, delivery_date = self.get_fixing_and_delivery_dates(kwds)
         periodisation = kwds.get('periodisation')
         perturbation = None
         if periodisation is not None:
@@ -1325,12 +1332,12 @@ class AbstractMarket(StochasticObject, DslExpression):
             if periodisation.startswith('alltime'):
                 perturbation = commodity_name
             elif periodisation.startswith('year'):
-                perturbation = "{}-{}".format(commodity_name, present_time.year)
+                perturbation = "{}-{}".format(commodity_name, delivery_date.year)
             elif periodisation.startswith('mon'):
-                perturbation = "{}-{}-{}".format(commodity_name, present_time.year, present_time.month)
+                perturbation = "{}-{}-{}".format(commodity_name, delivery_date.year, delivery_date.month)
             elif periodisation.startswith('da'):
-                perturbation = "{}-{}-{}-{}".format(commodity_name, present_time.year, present_time.month,
-                                                    present_time.day)
+                perturbation = "{}-{}-{}-{}".format(commodity_name, delivery_date.year, delivery_date.month,
+                                                    delivery_date.day)
         return perturbation
 
     def get_fixing_and_delivery_dates(self, kwds):

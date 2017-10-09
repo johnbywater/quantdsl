@@ -61,35 +61,64 @@ for the `Choice` element.
 The validity of Monte Carlo simulation for all possible expressions in the language is
 [proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
-In the table below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
-variable in a probability space. For market `i`, the last price `Si` and volatility `σi` are determined
-using only market price data generated before `t0`. Brownian motion `z` is used in diffusion.
-Constant interest rate `r` is used in discounting. Expectation `E` is conditioned
-on filtration `F`.
+
+In the definitions below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
+variable in a probability space. 
+
 
 ```
 [[Settlement(d, x)]](t) = e ** (r * (t−d)) * [[x]](t)
+```
 
+```
 [[Fixing(d, x)]](t) = [[x]](d)
+```
 
+```
 [[Market(i)]](t) = Si * e ** (σi * z(t−t0)) − 0.5 * σi ** 2 * (t−t0)
+```
 
+```
 [[Wait(d, x)]](t) = [[Settlement(d, Fixing(d, x))]](t)
+```
 
+```
 [[Choice(x, y)]](t) = max(E[[[x]](t)|F(t)], E[[[y]](t)|F(t)])
+```
 
+
+```
 [[Max(x, y)]](t) = max([[x]](t), [[y]](t))
+```
 
+```
 [[x + y]](t) = [[x]](t) + [[y]](t)
+```
 
+```
 [[x - y]](t) = [[x]](t) - [[y]](t)
+```
 
+```
 [[x * y]](t) = [[x]](t) * [[y]](t)
+```
 
+```
 [[x / y]](t) = [[x]](t) / [[y]](t)
+```
 
+```
 [[-x]](t) = -[[x]](t)
 ```
+
+Constant interest rate `r` is used in discounting settlements.
+For market `i`, the last price `Si` and volatility `σi` are determined
+using only market price data generated before `t0`. Geometric Brownian
+motion `z` is used in diffusion.
+
+Choices are made using conditioning, expectation `E` is conditioned
+on filtration `F` at `t`, so that choices are made only with
+information at the time of the choice. 
 
 ### Software
 
@@ -539,15 +568,17 @@ def EuropeanOption(expiry, strike, underlying):
     Option(expiry, strike, underlying, 0)
    
 ```
-The `AmericanOption` can be expressed as an `Option` to exercise at a given `strike` price on 
+An American option can be expressed as an `Option` to exercise at a given `strike` price on 
 the `start` date, with the alternative being another `AmericanOption` starting on the next date - and so on until the 
 `expiry` date, when the `alternative` becomes zero.
 
 ```python
 def AmericanOption(start, expiry, strike, underlying, step):
     if start <= expiry:
-        Option(start, strike, underlying,
-            AmericanOption(start + step, expiry, strike, underlying, step)
+        Option(
+            start, strike, underlying, AmericanOption(
+                start + step, expiry, strike, underlying, step
+            )
         )
     else:
         0
@@ -565,9 +596,9 @@ start of the contract, discounted forward from `start`, and observed at the opti
 
 ```python
 def EuropeanStockOption(expiry, strike, stock):
-    EuropeanOption(expiry, strike, StockMarket(stock))
+    EuropeanOption(expiry, strike, IndexAtMaturity(stock))
 
-def StockMarket(stock):
+def IndexAtMaturity(stock):
     Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
 ```
 
@@ -587,9 +618,9 @@ def EuropeanOption(expiry, strike, underlying):
     Option(expiry, strike, underlying, 0)
    
 def EuropeanStockOption(expiry, strike, stock):
-    EuropeanOption(expiry, strike, StockMarket(stock))
+    EuropeanOption(expiry, strike, IndexAtMaturity(stock))
 
-def StockMarket(stock):
+def IndexAtMaturity(stock):
     Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
     
 EuropeanStockOption(Date('2012-1-1'), {strike}, 'ACME')
@@ -659,26 +690,14 @@ These results compare well with results from the Black-Scholes analytic formula 
 
 ### Gas storage
 
-An evaluation of a gas storage facility. The value obtained is the extrinsic value. The intrinstic value can be 
-obtained by setting the volatility `sigma` to `0`, and evaluating with `path_count` of `1`.
+An evaluation of a gas storage facility. The value of the
+gas storage facility follows from the difference between the price
+when gas is injected and the price when gas is withdrawn.
 
-This example uses a forward curve that has seasonal variation (prices are high in winter and low in 
-summer).
-
-This example uses the library function `calc_print()` to calculate and then print results.
-
-```python
-from quantdsl.interfaces.calcandplot import calc_print
-```
-
-The deltas for each market in each period will be calculated, and estimated risk neutral 
- hedge positions will be printed for each market in each period, along with the overall fair value. A plot will be 
- displayed showing underlying prices and the cumulative hedge positions for each underlying, and the net cash from the 
- hedge positions (profit and loss).
-
-The plot will also show the statistical distribution of the simulated prices, and the statistical error of the hedge 
- positions and the cash flow. Comparing the resulting net cash position with the fair value gives an indication of 
- how well the deltas are performing.
+The Quant DSL source code below models a gas storage facility as
+a lattice of choices to inject or withdraw a quantity of gas.
+If the facility is full, injecting gas is not an option. Similarly,
+if the facility is empty, withdrawing gas is not an option.
 
 ```python
 source_code = """
@@ -731,56 +750,154 @@ def Full():
     50000
 
 
-GasStorage(Date('2011-6-1'), Date('2011-12-1'), Market('GAS'), Empty(), Empty(), Full(), TimeDelta('1m'))
+GasStorage(Date('2011-4-1'), Date('2012-4-1'), Market('GAS'), Empty(), Empty(), Full(), TimeDelta('1m'))
 """
+```
 
+This example uses a forward curve that has seasonal variation (prices are high in winter and low in 
+summer).
+
+```python
+price_process = {
+    'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+    'market': ['GAS'],
+    'sigma': [0.25],
+    'curve': {
+        'GAS': (
+            ('2011-1-1', 13.5),
+            ('2011-2-1', 11.0),
+            ('2011-3-1', 10.0),
+            ('2011-4-1', 9.0),
+            ('2011-5-1', 7.5),
+            ('2011-6-1', 7.0),
+            ('2011-7-1', 6.5),
+            ('2011-8-1', 7.5),
+            ('2011-9-1', 8.5),
+            ('2011-10-1', 10.0),
+            ('2011-11-1', 11.5),
+            ('2011-12-1', 12.0),
+            ('2012-1-1', 13.5),
+            ('2012-2-1', 11.0),
+            ('2012-3-1', 10.0),
+            ('2012-4-1', 9.0),
+            ('2012-5-1', 7.5),
+            ('2012-6-1', 7.0),
+            ('2012-7-1', 6.5),
+            ('2012-8-1', 7.5),
+            ('2012-9-1', 8.5),
+            ('2012-10-1', 10.0),
+            ('2012-11-1', 11.5),
+            ('2012-12-1', 12.0)
+        )
+    }
+}
+```
+
+This example uses the library function `calc_print()` to calculate and then print results.
+
+```python
+from quantdsl.interfaces.calcandplot import calc_print
+```
+
+Because the `periodisation` argument is set to `'monthly'`, the deltas for each market in each month will be 
+calculated, and estimated risk neutral hedge positions will be printed for each market in each period, along
+with the overall fair value.
+
+```python
 results = calc_print(
     source_code=source_code,
     observation_date='2011-1-1',
     interest_rate=2.5,
     periodisation='monthly',
-    verbose=True,
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS'],
-        'sigma': [0.5],
-        'rho': [[1.0]],
-        'curve': {
-            'GAS': (
-                ('2011-1-1', 13.5),
-                ('2011-2-1', 11.0),
-                ('2011-3-1', 10.0),
-                ('2011-4-1', 9.0),
-                ('2011-5-1', 7.5),
-                ('2011-6-1', 7.0),
-                ('2011-7-1', 6.5),
-                ('2011-8-1', 7.5),
-                ('2011-9-1', 8.5),
-                ('2011-10-1', 10.0),
-                ('2011-11-1', 11.5),
-                ('2011-12-1', 12.0),
-                ('2012-1-1', 13.5),
-                ('2012-2-1', 11.0),
-                ('2012-3-1', 10.0),
-                ('2012-4-1', 9.0),
-                ('2012-5-1', 7.5),
-                ('2012-6-1', 7.0),
-                ('2012-7-1', 6.5),
-                ('2012-8-1', 7.5),
-                ('2012-9-1', 8.5),
-                ('2012-10-1', 10.0),
-                ('2012-11-1', 11.5),
-                ('2012-12-1', 12.0)
-            )
-        }
-    }
+    price_process=price_process,
+    verbose=True
 )
 
-assert round(results.fair_value.mean(), 2) == 6.08
+assert round(results.fair_value.mean(), 2) == 15.83
 ```
 
-These are the results printed by `calc_and_print()`, showing
+Below are the results printed by `calc_and_print()`, showing
 deltas for each month for each market, and the fair value.
+
+```
+Compiled 92 nodes 
+Compilation in 0.426s
+Simulation in 0.093s
+Starting 844 node evaluations, please wait...
+844/844 100.00% complete 170.15 eval/s running 5s eta 0s
+Evaluation in 4.976s
+
+
+GAS-2011-4
+Price: 9.00
+Hedge: 0.42 ± 0.03 units
+Cash: -3.75 ± 0.31
+
+GAS-2011-5
+Price: 7.50
+Hedge: 1.12 ± 0.08 units
+Cash: -8.28 ± 0.58
+
+GAS-2011-6
+Price: 7.00
+Hedge: 1.21 ± 0.10 units
+Cash: -8.43 ± 0.74
+
+GAS-2011-7
+Price: 6.49
+Hedge: 1.10 ± 0.10 units
+Cash: -7.04 ± 0.72
+
+GAS-2011-8
+Price: 7.49
+Hedge: 1.04 ± 0.10 units
+Cash: -7.64 ± 0.78
+
+GAS-2011-9
+Price: 8.49
+Hedge: 0.79 ± 0.09 units
+Cash: -6.49 ± 0.86
+
+GAS-2011-10
+Price: 9.98
+Hedge: -1.35 ± 0.13 units
+Cash: 13.91 ± 1.42
+
+GAS-2011-11
+Price: 11.47
+Hedge: -0.82 ± 0.09 units
+Cash: 8.82 ± 1.25
+
+GAS-2011-12
+Price: 11.98
+Hedge: -0.87 ± 0.07 units
+Cash: 9.74 ± 1.02
+
+GAS-2012-1
+Price: 13.47
+Hedge: -0.86 ± 0.05 units
+Cash: 10.81 ± 0.79
+
+GAS-2012-2
+Price: 10.98
+Hedge: -0.96 ± 0.08 units
+Cash: 10.30 ± 1.13
+
+GAS-2012-3
+Price: 9.99
+Hedge: -0.46 ± 0.09 units
+Cash: 3.98 ± 0.98
+
+Net GAS: 0.37 ± 0.26
+
+Net cash: 15.93 ± 2.35
+
+Fair value: 15.83 ± 0.12
+```
+
+The value obtained is the extrinsic value. The intrinsic value can be 
+obtained by setting the volatility `sigma` to `0`, and can be evaluated
+with `path_count` of `1`.
 
 The recommended hedge positions suggest injecting gas when
 the price is low, and withdrawing when the price is high.
@@ -788,199 +905,31 @@ the price is low, and withdrawing when the price is high.
 The net cash position across all hedges is very similar to
 the fair value, which suggests the deltas are performing well.
 
-```
-
-Compiled 29 nodes 
-Compilation in 0.100s
-Simulation in 0.034s
-Starting 153 node evaluations, please wait...
-153/153 100.00% complete 206.36 eval/s running 1s eta 0s
-Evaluation in 0.770s
+An alternative to `calc_print()` is the function in the same module
+`calc_print_plot()` which will also plot the prices, positions, and
+cash. You will need to install matplotlib to use `calc_print_plot()`.
 
 
-GAS-2011-6
-Price: 7.00
-Hedge: 0.90 ± 0.06 units
-Cash: -6.41 ± 0.49
+### Gas fired power station
 
-GAS-2011-7
-Price: 6.51
-Hedge: 1.08 ± 0.07 units
-Cash: -7.00 ± 0.52
+An evaluation of a gas fired power station. The value of a gas fired power
+station follows from selling generated power whilst paying for gas. 
 
-GAS-2011-8
-Price: 7.51
-Hedge: 0.89 ± 0.07 units
-Cash: -6.41 ± 0.59
+The Quant DSL source code below models a gas fired power station as
+a lattice of choices whether or not to run the power station. The efficiency
+of generation is modelled to be lower if the power station has been stopped.
 
-GAS-2011-9
-Price: 8.49
-Hedge: -0.86 ± 0.07 units
-Cash: 7.00 ± 0.78
+Dispatch decisions are made daily, with gas and power traded one day ahead.
 
-GAS-2011-10
-Price: 9.99
-Hedge: -0.93 ± 0.06 units
-Cash: 8.79 ± 0.85
-
-GAS-2011-11
-Price: 11.49
-Hedge: -0.92 ± 0.04 units
-Cash: 10.00 ± 0.61
-
-Net GAS: 0.17 ± 0.12
-
-Net cash: 5.96 ± 1.10
-
-Fair value: 6.08 ± 0.09
-```
-
-An alternative to `calc_print()` is the function in the same module `calc_print_plot()` which will also plot the 
-prices, positions, and cash. You will need to install matplotlib to use `calc_print_plot()`.
-
-
-### Power station
-
-An evaluation of a power station. This example imports a power station model from the library. It 
-uses a market model with two correlated markets. The source code for the power station model is copied in below.
 
 ```python
-source_code = """
-from quantdsl.lib.powerplant2 import PowerPlant, Running
-        
-PowerPlant(Date('2012-1-1'), Date('2012-1-6'), Running())
-"""
-
-results = calc_print(
-    source_code=source_code,
-    observation_date='2011-1-1',
-    interest_rate=2.5,
-    periodisation='daily',
-    verbose=True,
-    price_process={
-        'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
-        'market': ['GAS', 'POWER'],
-        'sigma': [0.5, 0.3],
-        'rho': [[1.0, 0.8], [0.8, 1.0]],
-        'curve': {
-            'GAS': [
-                ('2011-1-1', 13.0),
-                ('2012-1-1', 13.0),
-                ('2012-1-2', 13.1),
-                ('2012-1-3', 12.8),
-                ('2012-1-4', 15.9),
-                ('2012-1-5', 13.1),
-            ],
-            'POWER': [
-                ('2011-1-1', 2.5),
-                ('2012-1-1', 5.6),
-                ('2012-1-2', 5.6),
-                ('2012-1-3', 12.9),
-                ('2012-1-4', 26.9),
-                ('2012-1-5', 1.8),
-            ]
-        }
-    }
-)
-
-assert round(results.fair_value.mean(), 2) == 9.11
-```
-
-These are the results printed by `calc_and_print()`, showing
-monthly deltas for each of the two markets. Again, the net
-cash position across all hedges is very similar to the fair value.
-
-The recommended hedge positions suggest running the plant only when
-the price of power is high and the price of gas is low.
-
-```
-Compiled 22 nodes 
-Compilation in 0.048s
-Simulation in 0.039s
-Starting 182 node evaluations, please wait...
-181/182 100.00% complete 204.95 eval/s running 1s eta 0s
-Evaluation in 0.894s
-
-
-POWER-2012-1-1
-Price: 5.59
-Hedge: -0.01 ± 0.01 units
-Cash: 0.06 ± 0.06
-
-GAS-2012-1-1
-Price: 12.92
-Hedge: 0.01 ± 0.01 units
-Cash: -0.06 ± 0.07
-
-POWER-2012-1-2
-Price: 5.59
-Hedge: -0.10 ± 0.01 units
-Cash: 0.46 ± 0.08
-
-GAS-2012-1-2
-Price: 13.02
-Hedge: 0.11 ± 0.01 units
-Cash: -0.61 ± 0.10
-
-POWER-2012-1-3
-Price: 12.88
-Hedge: -0.67 ± 0.01 units
-Cash: 8.06 ± 0.11
-
-GAS-2012-1-3
-Price: 12.72
-Hedge: 0.85 ± 0.01 units
-Cash: -9.09 ± 0.14
-
-POWER-2012-1-4
-Price: 26.86
-Hedge: -0.85 ± 0.01 units
-Cash: 21.61 ± 0.25
-
-GAS-2012-1-4
-Price: 15.79
-Hedge: 0.85 ± 0.01 units
-Cash: -11.31 ± 0.16
-
-POWER-2012-1-5
-Price: 1.80
-Hedge: 0.00 ± 0.00 units
-Cash: 0.00 ± 0.00
-
-GAS-2012-1-5
-Price: 13.02
-Hedge: 0.00 ± 0.00 units
-Cash: 0.00 ± 0.00
-
-Net GAS: 1.82 ± 0.03
-Net POWER: -1.62 ± 0.02
-
-Net cash: 9.11 ± 0.18
-
-Fair value: 9.11 ± 0.14
-```
-
-## Library
-
-There is a small collection of Quant DSL modules in a library under `quantdsl.lib`. Putting Quant DSL source code in 
-dedicated Python files makes it much easier to use a Python IDE to develop and maintain Quant DSL function definitions.
-
-Below is a copy of the Quant DSL source code for the library's power plant model `quantdsl.lib.powerplant2`, as used
- in the example above.
-
-```python
-from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline
-
-
+power_plant = """
 def PowerPlant(start, end, duration_off):
     if (start < end):
         Wait(start,
             Choice(
-                ProfitFromRunning(start, duration_off) + PowerPlant(
-                    Tomorrow(start), end, Running()
-                ),
-                PowerPlant(
-                    Tomorrow(start), end, Stopped(duration_off)
+                PowerPlant(Tomorrow(start), end, Running()) + ProfitFromRunning(start, duration_off),
+                PowerPlant(Tomorrow(start), end, Stopped(duration_off)
                 )
             )
         )
@@ -991,27 +940,28 @@ def PowerPlant(start, end, duration_off):
 @inline
 def ProfitFromRunning(start, duration_off):
     if duration_off > 1:
-        0.75 * Power(start) - Gas(start)
+        0.3 * Power(start) - Gas(start)
     elif duration_off == 1:
-        0.90 * Power(start) - Gas(start)
+        0.6 * Power(start) - Gas(start)
     else:
         1.00 * Power(start) - Gas(start)
 
 
 @inline
 def Power(start):
-    Market('POWER', start + TimeDelta('1d'))
-
+    DayAhead(start, 'POWER')
 
 @inline
 def Gas(start):
-    Market('GAS', start + TimeDelta('1d'))
+    DayAhead(start, 'GAS')
 
+@inline
+def DayAhead(start, name):
+    ForwardMarket(start + TimeDelta('1d'), name)
 
 @inline
 def Running():
     0
-
 
 @inline
 def Stopped(duration_off):
@@ -1021,7 +971,128 @@ def Stopped(duration_off):
 @inline
 def Tomorrow(today):
     today + TimeDelta('1d')
+    
+
+PowerPlant(Date('2012-1-1'), Date('2012-1-5'), Stopped(2))
+"""
 ```
+
+The prices process is calibrated with two correlated markets.
+
+```python
+gas_and_power = {
+    'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+    'market': ['GAS', 'POWER'],
+    'sigma': [0.3, 0.3],
+    'rho': [[1.0, 0.8], [0.8, 1.0]],
+    'curve': {
+            'GAS': [
+                ('2012-1-1', 11.0),
+                ('2012-1-2', 11.0),
+                ('2012-1-3', 1.0),
+                ('2012-1-4', 1.0),
+                ('2012-1-5', 11.0),
+            ],
+            'POWER': [
+                ('2012-1-1', 1.0),
+                ('2012-1-2', 1.0),
+                ('2012-1-3', 11.0),
+                ('2012-1-4', 11.0),
+                ('2012-1-5', 10.0),
+            ]
+        }
+}
+```
+
+Because the `periodisation` is set to `'daily'`, the deltas for each market in each day will be 
+calculated, and estimated risk neutral hedge positions will be printed for each market in each period, along
+with the overall fair value.
+
+```python
+results = calc_print(
+    source_code=power_plant,
+    observation_date='2011-1-1',
+    interest_rate=2.5,
+    periodisation='daily',
+    price_process=gas_and_power,
+    verbose=True
+)
+
+assert round(results.fair_value.mean(), 2) == 12.38
+```
+
+These are the results printed by `calc_and_print()`, showing
+monthly deltas for each of the two markets.
+
+```
+Compiled 16 nodes 
+Compilation in 0.152s
+Simulation in 0.071s
+Starting 112 node evaluations, please wait...
+112/112 100.00% complete 156.63 eval/s running 1s eta 0s
+Evaluation in 0.770s
+
+
+POWER-2012-1-2
+Price: 0.97
+Hedge: -0.01 ± 0.01 units
+Cash: 0.01 ± 0.01
+
+GAS-2012-1-2
+Price: 10.71
+Hedge: 0.04 ± 0.01 units
+Cash: -0.31 ± 0.07
+
+POWER-2012-1-3
+Price: 10.71
+Hedge: -0.33 ± 0.01 units
+Cash: 3.54 ± 0.08
+
+GAS-2012-1-3
+Price: 0.97
+Hedge: 1.02 ± 0.00 units
+Cash: -0.97 ± 0.01
+
+POWER-2012-1-4
+Price: 10.71
+Hedge: -1.03 ± 0.00 units
+Cash: 10.70 ± 0.07
+
+GAS-2012-1-4
+Price: 0.97
+Hedge: 1.02 ± 0.00 units
+Cash: -0.97 ± 0.01
+
+POWER-2012-1-5
+Price: 9.73
+Hedge: -0.32 ± 0.01 units
+Cash: 3.37 ± 0.12
+
+GAS-2012-1-5
+Price: 10.70
+Hedge: 0.32 ± 0.01 units
+Cash: -2.99 ± 0.10
+
+Net GAS: 2.40 ± 0.02
+Net POWER: -1.68 ± 0.01
+
+Net cash: 12.37 ± 0.10
+
+Fair value: 12.38 ± 0.09
+```
+
+The recommended hedge positions suggest running the plant when
+the price of power is high and the price of gas is low.
+
+Again, the net cash position across all hedges is very similar to the fair value.
+
+
+## Library
+
+There is a small collection of Quant DSL modules in a library under `quantdsl.lib`.
+Putting Quant DSL source code in dedicated Python files makes it much easier to use
+a Python IDE to develop and maintain Quant DSL function definitions.
+
 
 ## Acknowledgments
 
