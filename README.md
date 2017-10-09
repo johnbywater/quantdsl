@@ -26,18 +26,15 @@ pip install --upgrade pip
 
 Quant DSL is domain specific language for quantitative analytics in finance and trading.
 
-At the heart of Quant DSL is a set of elements (e.g. `Settlement`, `Fixing`, `Market`, `Wait`,
-`Choice`) which encapsulate maths used in finance and trading. The elements of the language can
-be freely composed into expressions of value.
-
+At the heart of Quant DSL is a set of elements (e.g. "Settlement", "Fixing", "Market", "Choice").
 The elements involve mathematical expressions commonly used within quantitative analytics, 
 such as: 
-[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element;
-[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element; and 
-[least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
-for the `Choice` element.
+[present value discounting](https://en.wikipedia.org/wiki/Present_value);
+[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion); and 
+[least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo).
 
-The validity of Monte Carlo simulation for all possible expressions in the language is
+The elements of the language can be freely composed into expressions of value. The validity of
+Monte Carlo simulation for all possible expressions in the language is
 [proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
 
 
@@ -63,8 +60,9 @@ The syntax of Quant DSL expressions is defined with
 
 ### Semantics
 
-Quant DSL expression `v` defines a function `[[v]](t)` from present time `t` to a random
-variable in a probability space. 
+In the definitions below, Quant DSL expression `v` defines a
+function `[[v]](t)` from present time `t` to a random
+variable in a probability space.
 
 
 ```
@@ -150,6 +148,7 @@ the dependency graph are evaluated when they are ready to be evaluated, and inte
 are discarded as soon as they are no longer required, such that memory usage is mostly constant during
 evaluation. For the delta calculations, nodes are selectively re-evaluated with perturbed values,
 according to the periods and markets they involve.
+
 
 ### calc()
 
