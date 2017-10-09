@@ -29,8 +29,8 @@ from quantdsl.priceprocess.base import datetime_from_date
 
 
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
-                    path_count=20000, perturbation_factor=0.01, price_process=None, supress_plot=False,
-                    dsl_classes=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+                    path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
+                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
                     timeout=None, verbose=False):
     # Calculate and print the results.
     results = calc_print(source_code,
@@ -413,38 +413,51 @@ def print_results(results, path_count):
         fair_value_stderr = results.fair_value.std() / sqrt_path_count
 
     if results.periods:
-        net_cash_in = 0
+        net_hedge_cost = 0.0
         net_hedge_units = defaultdict(int)
-        for period in results.periods:
-            perturbation_name = period['perturbation_name']
-            market_name = period['market']
-            # delivery_date = period['delivery_date']
-            print(perturbation_name)
-            print("Price: {:.2f}".format(period['price'].mean()))
-            hedge_units = period['hedge_units']
-            hedge_units_mean = hedge_units.mean()
-            hedge_units_stderr = hedge_units.std() / sqrt_path_count
-            if len(dates) > 1:
-                net_hedge_units[market_name.split('-')[0]] += hedge_units
-            cash_in = period['cash_in']
-            cash_in_mean = cash_in.mean()
-            cash_in_stderr = cash_in.std() / sqrt_path_count
-            net_cash_in += cash_in
-            print("Hedge: {:.2f} ± {:.2f} units".format(hedge_units_mean, 3 * hedge_units_stderr))
-            print("Cash: {:.2f} ± {:.2f}".format(cash_in_mean, 3 * cash_in_stderr))
+
+        market_name_width = max([len(k) for k in results.by_market_name.keys()])
+        for delivery_date, markets_results in sorted(results.by_delivery_date.items()):
+            print("Delivery {}:".format(delivery_date))
+
+            for market_result in markets_results:
+                market_name = market_result['market_name']
+                hedge_units = market_result['hedge_units']
+                hedge_units_mean = hedge_units.mean()
+                hedge_units_stderr = hedge_units.std() / sqrt_path_count
+                hedge_cost = market_result['hedge_cost']
+                hedge_cost_mean = hedge_cost.mean()
+                hedge_cost_stderr = hedge_cost.std() / sqrt_path_count
+                net_hedge_cost += hedge_cost
+                # print("Cash:  {:.2f} ± {:.2f}".format(hedge_cost_mean, 3 * hedge_cost_stderr))
+                if len(dates) > 1:
+                    market_name = market_result['market_name']
+                    net_hedge_units[market_name] += hedge_units
+                price_simulated_mean = market_result['price_simulated'].mean()
+                print(
+                    (
+                        "{:"+str(market_name_width)+"} price {:.2f}, "
+                        "hedge {:.2f} ± {:.2f} units"
+                        ", cost {:.2f}"
+                ).format(
+                        market_name, price_simulated_mean,
+                        hedge_units_mean, 3 * hedge_units_stderr,
+                        hedge_cost_mean, 3 * hedge_cost_stderr
+                ))
+
             print()
 
         for commodity in sorted(net_hedge_units.keys()):
             units = net_hedge_units[commodity]
-            print("Net {}: {:.2f} ± {:.2f}".format(
-                commodity, units.mean(), 3 * units.std() / sqrt_path_count)
+            print("Net {:10} {:.2f} ± {:.2f}".format(
+                commodity+':', units.mean(), 3 * units.std() / sqrt_path_count)
             )
 
-        net_cash_in_mean = net_cash_in.mean()
-        net_cash_in_stderr = net_cash_in.std() / sqrt_path_count
+        net_hedge_cost_mean = net_hedge_cost.mean()
+        net_hedge_cost_stderr = net_hedge_cost.std() / sqrt_path_count
 
         print()
-        print("Net cash: {:.2f} ± {:.2f}".format(net_cash_in_mean, 3 * net_cash_in_stderr))
+        print("Net hedge cost: {:.2f} ± {:.2f}".format(net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
         print()
     # if isinstance(results.fair_value, ndarray):
     #     print("nans: {}".format(isnan(results.fair_value).sum()))
@@ -454,7 +467,7 @@ def print_results(results, path_count):
 def plot_periods(periods, title, periodisation, interest_rate, path_count, perturbation_factor):
     from matplotlib import dates as mdates, pylab as plt
 
-    names = set([p['market'] for p in periods])
+    names = set([p['market_name'] for p in periods])
 
     f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
     f.canvas.set_window_title(title)
@@ -477,17 +490,17 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
     MEAN_COLOUR = '0.1'
     for i, name in enumerate(names):
 
-        _periods = [p for p in periods if p['market'] == name]
+        _periods = [p for p in periods if p['market_name'] == name]
 
         dates = [p['delivery_date'] for p in _periods]
         price_plot = subplots[i]
 
-        prices_mean = [p['price'].mean() for p in _periods]
+        prices_mean = [p['price_simulated'].mean() for p in _periods]
         # prices_1 = [p['price'][0] for p in _periods]
         # prices_2 = [p['price'][1] for p in _periods]
         # prices_3 = [p['price'][2] for p in _periods]
         # prices_4 = [p['price'][3] for p in _periods]
-        prices_std = [p['price'].std() for p in _periods]
+        prices_std = [p['price_simulated'].std() for p in _periods]
         prices_plus = list(numpy.array(prices_mean) + NUM_STD_DEVS * numpy.array(prices_std))
         prices_minus = list(numpy.array(prices_mean) - NUM_STD_DEVS * numpy.array(prices_std))
 
@@ -553,30 +566,30 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
     profit_plot = subplots[-1]
     profit_plot.set_title('Profit')
 
-    cash_in_by_date = defaultdict(list)
+    hedge_cost_by_date = defaultdict(list)
 
     dates = []
     for period in periods:
         date = period['delivery_date']
         if date not in dates:
             dates.append(date)
-        cash_in_by_date[date].append(period['cash_in'])
+        hedge_cost_by_date[date].append(period['hedge_cost'])
 
-    cum_cash_in = []
+    cum_hedge_cost = []
     for date in dates:
-        cash_in = sum(cash_in_by_date[date])
-        if cum_cash_in:
-            cash_in += cum_cash_in[-1]
-        cum_cash_in.append(cash_in)
+        hedge_cost = sum(hedge_cost_by_date[date])
+        if cum_hedge_cost:
+            hedge_cost += cum_hedge_cost[-1]
+        cum_hedge_cost.append(hedge_cost)
 
-    cum_cash_p5 = [nanpercentile(p, 5) for p in cum_cash_in]
-    cum_cash_p10 = [nanpercentile(p, 10) for p in cum_cash_in]
-    cum_cash_p25 = [nanpercentile(p, 25) for p in cum_cash_in]
-    cum_cash_p75 = [nanpercentile(p, 75) for p in cum_cash_in]
-    cum_cash_p90 = [nanpercentile(p, 90) for p in cum_cash_in]
-    cum_cash_p95 = [nanpercentile(p, 95) for p in cum_cash_in]
-    cum_cash_mean = [p.mean() for p in cum_cash_in]
-    cum_cash_std = [p.std() for p in cum_cash_in]
+    cum_cash_p5 = [nanpercentile(p, 5) for p in cum_hedge_cost]
+    cum_cash_p10 = [nanpercentile(p, 10) for p in cum_hedge_cost]
+    cum_cash_p25 = [nanpercentile(p, 25) for p in cum_hedge_cost]
+    cum_cash_p75 = [nanpercentile(p, 75) for p in cum_hedge_cost]
+    cum_cash_p90 = [nanpercentile(p, 90) for p in cum_hedge_cost]
+    cum_cash_p95 = [nanpercentile(p, 95) for p in cum_hedge_cost]
+    cum_cash_mean = [p.mean() for p in cum_hedge_cost]
+    cum_cash_std = [p.std() for p in cum_hedge_cost]
     cum_cash_stderr = [p / math.sqrt(path_count) for p in cum_cash_std]
 
     cum_cash_std_offset = NUM_STD_DEVS * numpy.array(cum_cash_std)

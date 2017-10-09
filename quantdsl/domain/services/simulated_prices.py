@@ -57,7 +57,7 @@ def identify_simulation_requirements(contract_specification_id, call_requirement
 
         # Identify this call's requirements for simulated prices.
         simulation_requirements = set()
-        present_time = call_requirement.effective_present_time or observation_date
+        present_time = call_requirement.present_time
         dsl_expr.identify_price_simulation_requirements(
             requirements=simulation_requirements,
             present_time=present_time,

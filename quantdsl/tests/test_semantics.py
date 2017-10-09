@@ -411,7 +411,7 @@ class TestFunctionCall(TestCase):
         self.assertNotEqual(fd.create_hash(fc1), fd.create_hash(fc2))
 
         t1 = datetime.datetime(2011, 1, 1)
-        expr = fc1.call_functions(pending_call_stack=queue, effective_present_time=t1)
+        expr = fc1.call_functions(pending_call_stack=queue, present_time=t1)
 
         # Check we got a stub.
         self.assertIsInstance(expr, Stub)
@@ -423,7 +423,7 @@ class TestFunctionCall(TestCase):
         self.assertEqual(first_call[2]['stacked_function_def'], fd)
         self.assertEqual(first_call[2]['stacked_globals'], {})
         self.assertEqual(first_call[2]['stacked_locals'], {'a': 1234})  # Maybe this should be Number(1234)?
-        self.assertEqual(first_call[2]['effective_present_time'], t1)
+        self.assertEqual(first_call[2]['present_time'], t1)
 
     def test_must_substitute_names_before_call_functions(self):
         fc = FunctionCall(Name('f'), [Name('x')])
@@ -432,4 +432,4 @@ class TestFunctionCall(TestCase):
         queue = Mock()
         t1 = datetime.datetime(2011, 1, 1)
         with self.assertRaises(DslSystemError):
-            fc.call_functions(pending_call_stack=queue, effective_present_time=t1)
+            fc.call_functions(pending_call_stack=queue, present_time=t1)

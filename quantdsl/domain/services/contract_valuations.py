@@ -198,7 +198,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
     # assert isinstance(call_result_repo, CallResultRepository)
     # assert isinstance(simulated_price_dict, SimulatedPriceRepository)
 
-    present_time = call_requirement.effective_present_time or market_simulation.observation_date
+    present_time = call_requirement.present_time
 
     simulated_value_dict = {}
 

@@ -399,6 +399,33 @@ Max(
 """
         self.assert_contract_value(specification,  0.196, expected_deltas={'#1': 0.00}, periodisation='alltime')
 
+    def test_is_day_of_month(self):
+        # Detects true and false.
+        self.assert_contract_value("IsDayOfMonth(1)", True)
+        self.assert_contract_value("IsDayOfMonth(2)", False)
+
+        # Can be fixed.
+        self.assert_contract_value("Fixing('2011-1-1', IsDayOfMonth(1))", True)
+        self.assert_contract_value("Fixing('2011-1-2', IsDayOfMonth(1))", False)
+
+        # Can be used in an if test condition.
+        self.assert_contract_value("1 if IsDayOfMonth(1) else 0", 1)
+        self.assert_contract_value("1 if Fixing(Date('2011-1-1'), IsDayOfMonth(1)) else 0", 1)
+        self.assert_contract_value("1 if Fixing(Date('2011-1-2'), IsDayOfMonth(1)) else 0", 0)
+
+        # Can be used in a function test expression, with function arg as date.
+        self.assert_contract_value("""
+def f(d):
+    1 if Fixing(d, IsDayOfMonth(1)) else 0
+    
+f(Date('2011-1-1'))
+""", 1)
+        self.assert_contract_value("""
+def f(d):
+    1 if Fixing(d, IsDayOfMonth(1)) else 0
+    
+f(Date('2011-1-2'))
+""", 0)
 
 
 class FunctionTests(ApplicationTestCase):
@@ -742,7 +769,7 @@ fib(%s)
         with self.assertRaises(DslBinOpArgsError):
             self.assert_contract_value(code)
 
-    def test_function_call_as_call_arg_gets_correct_effective_present_time_when_inlined(self):
+    def test_function_call_as_call_arg_gets_correct_present_time_when_inlined(self):
         dsl_source = """
 def MyFixing(end, underlying):
     return Fixing(end, underlying)
@@ -755,7 +782,7 @@ MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
 """
         self.assert_contract_value(dsl_source, 1.025, expected_call_count=2)
 
-    def test_function_call_as_call_arg_gets_correct_effective_present_time_when_not_inlined(self):
+    def test_function_call_as_call_arg_gets_correct_present_time_when_not_inlined(self):
         dsl_source = """
 def MyFixing(end, underlying):
     return Fixing(end, underlying)
@@ -767,7 +794,7 @@ MyFixing(Date('2012-01-01'), Discount(Date('2011-01-01')))
 """
         self.assert_contract_value(dsl_source, 1.025, expected_call_count=None)
 
-    def test_function_as_call_arg_gets_correct_effective_present_time(self):
+    def test_function_as_call_arg_gets_correct_present_time(self):
         # Novelty here is passing a function as a
         # call arg, and then calling the arg name.
         dsl_source = """
