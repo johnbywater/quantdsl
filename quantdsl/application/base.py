@@ -274,16 +274,17 @@ class QuantDslApplication(EventSourcingApplication):
                     simulated_price = self.simulated_price_repo[simulated_price_id]
                     simulated_price_value = simulated_price.value
                 else:
+                    delivery_date = datetime.date(year, month, 1)
                     sum_simulated_prices = 0
                     count_simulated_prices = 0
                     for i in range(1, 32):
                         try:
-                            delivery_date = datetime.date(year, month, i)
+                            _delivery_date = datetime.date(year, month, i)
                         except ValueError:
                             continue
                         else:
                             simulated_price_id = make_simulated_price_id(
-                                market_simulation.id, market_name, delivery_date, delivery_date
+                                market_simulation.id, market_name, _delivery_date, _delivery_date
                             )
                             try:
                                 simulated_price = self.simulated_price_repo[simulated_price_id]
@@ -377,7 +378,6 @@ class Results(object):
         self.periods = periods
 
         self.deltas = {p['perturbation_name']: p['delta'] for p in self.periods}
-
 
     @property
     def fair_value_mean(self):

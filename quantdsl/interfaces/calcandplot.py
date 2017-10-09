@@ -416,9 +416,10 @@ def print_results(results, path_count):
         net_cash_in = 0
         net_hedge_units = defaultdict(int)
         for period in results.periods:
+            perturbation_name = period['perturbation_name']
             market_name = period['market']
-            delivery_date = period['delivery_date']
-            print(market_name, delivery_date)
+            # delivery_date = period['delivery_date']
+            print(perturbation_name)
             print("Price: {:.2f}".format(period['price'].mean()))
             hedge_units = period['hedge_units']
             hedge_units_mean = hedge_units.mean()
@@ -453,7 +454,7 @@ def print_results(results, path_count):
 def plot_periods(periods, title, periodisation, interest_rate, path_count, perturbation_factor):
     from matplotlib import dates as mdates, pylab as plt
 
-    names = set([p['commodity'].split('-')[0] for p in periods])
+    names = set([p['market'] for p in periods])
 
     f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
     f.canvas.set_window_title(title)
@@ -476,9 +477,9 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
     MEAN_COLOUR = '0.1'
     for i, name in enumerate(names):
 
-        _periods = [p for p in periods if p['commodity'].startswith(name)]
+        _periods = [p for p in periods if p['market'] == name]
 
-        dates = [p['date'] for p in _periods]
+        dates = [p['delivery_date'] for p in _periods]
         price_plot = subplots[i]
 
         prices_mean = [p['price'].mean() for p in _periods]
@@ -556,7 +557,7 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
 
     dates = []
     for period in periods:
-        date = period['date']
+        date = period['delivery_date']
         if date not in dates:
             dates.append(date)
         cash_in_by_date[date].append(period['cash_in'])
