@@ -221,8 +221,9 @@ class DslObject(six.with_metaclass(ABCMeta)):
                 ", ".join(kwds.keys()),
                 node=self.node
             )
-        assert present_time is not None
-        return present_time
+        else:
+            assert isinstance(present_time, datetime.date), type(present_time)
+            return present_time
 
 
 def discount(value, present_date, value_date, interest_rate):

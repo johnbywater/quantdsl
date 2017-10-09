@@ -30,6 +30,17 @@ At the heart of Quant DSL is a set of elements (e.g. `Settlement`, `Fixing`, `Ma
 `Choice`) which encapsulate maths used in finance and trading. The elements of the language can
 be freely composed into expressions of value.
 
+The elements involve mathematical expressions commonly used within quantitative analytics, 
+such as: 
+[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element;
+[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element; and 
+[least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
+for the `Choice` element.
+
+The validity of Monte Carlo simulation for all possible expressions in the language is
+[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
+
+
 ### Syntax
 
 The syntax of Quant DSL expressions is defined with
@@ -52,17 +63,7 @@ The syntax of Quant DSL expressions is defined with
 
 ### Semantics
 
-The semantics of the elements are defined with mathematical expressions commonly used within quantitative analytics, 
-such as: 
-[present value discounting](https://en.wikipedia.org/wiki/Present_value) for the `Settlement` element;
-[geometric Brownian motion](https://en.wikipedia.org/wiki/Geometric_Brownian_motion) for the `Market` element; and 
-[least squares Monte Carlo](https://en.wikipedia.org/wiki/Monte_Carlo_methods_for_option_pricing#Least_Square_Monte_Carlo)
-for the `Choice` element.
-The validity of Monte Carlo simulation for all possible expressions in the language is
-[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
-
-
-In the definitions below, expression `v` defines a function `[[v]](t)` from present time `t` to a random
+Quant DSL expression `v` defines a function `[[v]](t)` from present time `t` to a random
 variable in a probability space. 
 
 
@@ -85,7 +86,6 @@ variable in a probability space.
 ```
 [[Choice(x, y)]](t) = max(E[[[x]](t)|F(t)], E[[[y]](t)|F(t)])
 ```
-
 
 ```
 [[Max(x, y)]](t) = max([[x]](t), [[y]](t))
