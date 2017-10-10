@@ -159,9 +159,9 @@ this work: `compile()`, `simulate()`, and `evaluate()`.
 
 In addition to the Quant DSL expressions above, function `def`
 statements are supported. User defined functions can be used
-to refactor complex or extensive Quant DSL expressions, to concisely model complex
-optionality. The `import` statement is also supported, so Quant
-DSL function definitions and expressions to be developed and maintained as
+to refactor complex Quant DSL expressions, in order to model complex
+optionality concisely. The `import` statement is also supported, so Quant
+DSL function definitions and expressions can be developed and maintained as
 Python files. Since Quant DSL syntax is a strict subset of Python, the
 full power of Python IDEs can be used to write, navigate and refactor
 Quant DSL source code.
@@ -572,10 +572,11 @@ Quant DSL source code can include function definitions. Expressions can involve 
 
 When evaluating an expression that involves a call to a function definitions, the call to the 
 function definition is effectively replaced with the expression returned by the function definition,
-so that a larger expression is formed.
+so that a larger expression is formed. Hence, the body of a function can have only one statement.
 
-The call args of the function definition can be used as names in the function definition's expressions. The call arg 
-values will be used to evaluate the expression returned by the function.
+The call args of the function definition can be used as names in the function definition's
+expressions. The call arg values will be substituted for those names in the expression when
+the expression is returned by the function.
 
 ```python
 results = calc("""
@@ -588,14 +589,16 @@ Function(10)
 assert results.fair_value == 20
 ```   
 
-The call args of the function definition can be used in an if-else block, so that different expressions can be 
-returned depending upon the function call argument values.
+Although the function body can have only one statement, that statement can be an if-else block.
+The call args of the function definition can be used in an if-else block, to select different
+expressions according to the value of the function call arguments. This is effectively implements
+a "case branch".
 
-Each function call becomes a node on a dependency graph. For efficiency, each call is internally memoised, so if a 
-function is called many times with the same argument values (and at the same effective present time), the function 
-is only evaluated once, and the result is memoised and reused. This allows branched calculations to recombine 
-efficienctly. For example, the following Finboncci function definition will evaluate in linear time (proportional to
- `n`).
+Each function call becomes a node on a dependency graph. For efficiency, each call is cached, so if a 
+function is called many times with the same argument values (and at the same effective present time),
+the function is only evaluated once, and the result reused. This allows branched
+calculations to recombine efficiently. For example, the following Fibonacci function definition will
+evaluate in linear time (proportional to `n`).
 
 ```python
 results = calc("""
