@@ -62,7 +62,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 19.9857, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 19.998, {}, expected_call_count=10)
 
         # Capacity, and inventory to discharge in future.
         specification = specification_tmpl % {
@@ -72,7 +72,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 15.3496, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=10)
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {
@@ -82,4 +82,4 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 2
         }
-        self.assert_contract_value(specification, 0.0123, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.0024, {}, expected_call_count=6)
