@@ -674,7 +674,6 @@ A European option can then be expressed simply as an `Option` with zero alternat
 ```python
 def EuropeanOption(expiry, strike, underlying):
     Option(expiry, strike, underlying, 0)
-   
 ```
 An American option can be expressed as an `Option` to exercise at a given `strike` price on 
 the `start` date, with the alternative being another `AmericanOption` starting on the next date - and so on until the 
