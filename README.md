@@ -155,7 +155,7 @@ The scope of the work of a quantitative analyst involves modelling optionality,
 simulating future prices, and evaluating the model against the simulation. In
 implementing the syntax and semantics of Quant DSL, this software provides an
 application object class `QuantDslApplication` which has methods that support
-this work: `compile()`, `simulate()` and `evaluate()`.
+this work: `compile()`, `simulate()`, and `evaluate()`.
 
 In addition to the Quant DSL expressions above, function `def`
 statements are supported. User defined functions can be used
