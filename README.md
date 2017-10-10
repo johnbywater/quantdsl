@@ -228,7 +228,10 @@ You can set a calculation to `timeout` after a given number of seconds.
 
 Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
 
+**`is_verbose`**
 
+Setting `is_verbose` to a `True` value will cause progress of a calculation to
+be printed to standard output.
 
 ### Settlement
 
