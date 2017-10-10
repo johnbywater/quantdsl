@@ -31,7 +31,7 @@ from quantdsl.priceprocess.base import datetime_from_date
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
                     max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                    timeout=None, verbose=False):
+                    timeout=None, verbose=False, is_double_sided_deltas=False):
     # Calculate and print the results.
     results = calc_print(source_code,
                          max_dependency_graph_size=max_dependency_graph_size,
@@ -44,6 +44,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
                          dsl_classes=dsl_classes,
                          timeout=timeout,
                          verbose=verbose,
+                         is_double_sided_deltas=is_double_sided_deltas
                          )
 
     # Plot the results.
@@ -62,7 +63,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                price_process=None, periodisation=None, dsl_classes=None,
                max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None, verbose=False):
+               timeout=None, verbose=False, is_double_sided_deltas=False):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -76,6 +77,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
+        is_double_sided_deltas=is_double_sided_deltas
     )
 
     # Print the results.
@@ -86,7 +88,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
          perturbation_factor=0.01, price_process=None, periodisation=None, dsl_classes=None,
          max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None, verbose=False):
+         timeout=None, verbose=False, is_double_sided_deltas=False):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -99,6 +101,7 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
+        is_double_sided_deltas=is_double_sided_deltas
     )
     with cmd:
         try:
@@ -114,7 +117,7 @@ class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, dsl_classes=None,
                  max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None, verbose=False):
+                 timeout=None, verbose=False, is_double_sided_deltas=False):
         self.timeout = timeout
         self.source_code = source_code
         if observation_date is not None:
@@ -132,6 +135,7 @@ class Calculate(object):
         # Todo: Repetitions - number of times the computation will be repeated (multiprocessing).
         # self.repetitions = repetitions
         self.dsl_classes = dsl_classes
+        self.is_double_sided_deltas = is_double_sided_deltas
 
     def __enter__(self):
         self.orig_sigterm_handler = signal.signal(signal.SIGTERM, self.shutdown)
@@ -223,6 +227,7 @@ class Calculate(object):
                     contract_specification_id=contract_specification.id,
                     market_simulation_id=market_simulation.id,
                     periodisation=self.periodisation,
+                    is_double_sided_deltas=self.is_double_sided_deltas
                 )
 
                 # Wait for the result.

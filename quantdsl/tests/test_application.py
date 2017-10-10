@@ -76,7 +76,7 @@ class ApplicationTestCase(unittest.TestCase):
         self.app = QuantDslApplicationWithPythonObjects(**kwargs)
 
     def assert_contract_value(self, specification, expected_value=None, expected_deltas=None,
-                              expected_call_count=None, periodisation=None):
+                              expected_call_count=None, periodisation=None, is_double_sided_deltas=True):
 
         # Set the observation date.
 
@@ -106,6 +106,7 @@ class ApplicationTestCase(unittest.TestCase):
             contract_specification_id=contract_specification.id,
             market_simulation_id=market_simulation.id,
             periodisation=periodisation,
+            is_double_sided_deltas=is_double_sided_deltas
         )
         assert isinstance(contract_valuation, ContractValuation)
 
@@ -213,7 +214,12 @@ class ExpressionTests(ApplicationTestCase):
         self.calibration_params['sigma'] = [0.0, 0.0, 0.0, 0.0, 0.0]
         specification = "Wait('2022-1-1', Market('#1'))"
         discount_rate = discount(1, self.observation_date, datetime.datetime(2022, 1, 1), self.interest_rate)
-        self.assert_contract_value(specification, 7.60, expected_deltas={'#1': discount_rate}, periodisation='alltime')
+        self.assert_contract_value(specification, 7.60, expected_deltas={'#1': discount_rate},
+                                   periodisation='alltime', is_double_sided_deltas=True)
+
+        # Single sided delta.
+        self.assert_contract_value(specification, 7.60, expected_deltas={'#1': discount_rate},
+                                   periodisation='alltime', is_double_sided_deltas=False)
 
     def test_settlement(self):
         specification = "Settlement(Date('2012-01-01'), Market('NBP'))"

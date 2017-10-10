@@ -23,7 +23,7 @@ from quantdsl.semantics import DslNamespace
 def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, call_evaluation_queue, call_leafs_repo,
                                 call_link_repo, call_requirement_repo, call_result_repo, contract_valuation_repo,
                                 market_simulation_repo, simulated_price_repo, perturbation_dependencies_repo,
-                                simulated_price_dependencies_repo):
+                                simulated_price_dependencies_repo, is_double_sided_deltas):
     if not call_evaluation_queue:
         evaluate_contract_in_series(
             contract_valuation_id=contract_valuation_id,
@@ -36,6 +36,7 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             call_result_repo=call_result_repo,
             perturbation_dependencies_repo=perturbation_dependencies_repo,
             simulated_price_dependencies_repo=simulated_price_dependencies_repo,
+            is_double_sided_deltas=is_double_sided_deltas,
         )
     else:
         evaluate_contract_in_parallel(
@@ -43,13 +44,14 @@ def generate_contract_valuation(contract_valuation_id, call_dependencies_repo, c
             contract_valuation_repo=contract_valuation_repo,
             call_leafs_repo=call_leafs_repo,
             call_evaluation_queue=call_evaluation_queue,
+            is_double_sided_deltas=is_double_sided_deltas,
         )
 
 
 def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, market_simulation_repo,
                                 simulated_price_repo, call_requirement_repo, call_dependencies_repo,
                                 call_link_repo, call_result_repo, perturbation_dependencies_repo,
-                                simulated_price_dependencies_repo):
+                                simulated_price_dependencies_repo, is_double_sided_deltas):
     """
     Computes value of contract by following the series execution order of its call dependency graph
     in directly evaluating each call in turn until the whole graph has been evaluated.
@@ -87,6 +89,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             call_result_repo=call_result_repo,
             simulated_price_repo=simulated_price_repo,
             simulation_requirements=simulation_requirements,
+            is_double_sided_deltas=is_double_sided_deltas,
         )
 
         # Register the result.
@@ -96,11 +99,12 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
             contract_specification_id=contract_specification_id,
+            is_double_sided_deltas=is_double_sided_deltas
         )
 
 
 def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo, call_leafs_repo,
-                                  call_evaluation_queue):
+                                  call_evaluation_queue, is_double_sided_deltas):
     """
     Computes value of contract by putting the dependency graph leaves on an evaluation queue and expecting
     there is at least one worker loop evaluating the queued calls and putting satisfied dependents on the queue.
@@ -115,7 +119,7 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
     # assert isinstance(call_leafs, CallLeafs)
 
     for call_id in call_leafs.leaf_ids:
-        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id))
+        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id, is_double_sided_deltas))
 
 
 def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, call_requirement_repo,
@@ -124,7 +128,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
     while True:
         item = call_evaluation_queue.get()
         try:
-            contract_specification_id, contract_valuation_id, call_id = item
+            contract_specification_id, contract_valuation_id, call_id, is_double_sided_deltas = item
 
             evaluate_call_and_queue_next_calls(
                 contract_valuation_id=contract_valuation_id,
@@ -138,6 +142,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
                 simulated_price_repo=simulated_price_repo,
                 perturbation_dependencies_repo=perturbation_dependencies_repo,
                 simulated_price_requirements_repo=simulated_price_requirements_repo,
+                is_double_sided_deltas=is_double_sided_deltas
             )
         finally:
             call_evaluation_queue.task_done()
@@ -146,7 +151,8 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
 def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specification_id, call_id,
                                        contract_valuation_repo, call_requirement_repo, market_simulation_repo,
                                        call_dependencies_repo, call_result_repo, simulated_price_repo,
-                                       perturbation_dependencies_repo, simulated_price_requirements_repo):
+                                       perturbation_dependencies_repo, simulated_price_requirements_repo,
+                                       is_double_sided_deltas):
     # Get the contract valuation.
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     assert isinstance(contract_valuation, ContractValuation)
@@ -174,6 +180,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
         call_result_repo=call_result_repo,
         simulated_price_repo=simulated_price_repo,
         simulation_requirements=simulation_requirements,
+        is_double_sided_deltas=is_double_sided_deltas,
     )
 
     # Register the call result.
@@ -183,11 +190,13 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
         perturbed_values=perturbed_values,
         contract_valuation_id=contract_valuation_id,
         contract_specification_id=contract_specification_id,
+        is_double_sided_deltas=is_double_sided_deltas,
     )
 
 
 def compute_call_result(contract_valuation, call_requirement, market_simulation, perturbation_dependencies,
-                        call_dependencies_repo, call_result_repo, simulated_price_repo, simulation_requirements):
+                        call_dependencies_repo, call_result_repo, simulated_price_repo, simulation_requirements,
+                        is_double_sided_deltas):
     """
     Parses, compiles and evaluates a call requirement.
     """
@@ -233,7 +242,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
                                                        contract_valuation.periodisation,
                                                        call_requirement.cost,
                                                        market_simulation.observation_date,
-                                                       )
+                                                       is_double_sided_deltas)
 
     # Return the result.
     return result_value, perturbed_values
@@ -241,7 +250,7 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 
 def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
                       perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation,
-                      estimated_cost_of_expr, observation_date):
+                      estimated_cost_of_expr, observation_date, is_double_sided_deltas):
 
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
@@ -258,7 +267,12 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
     result_value = None
     perturbed_values = {}
 
-    for perturbation in [None] + perturbation_dependencies + ['-' + p for p in perturbation_dependencies]:
+    # Decide perturbation names.
+    perturbation_names = [None] + perturbation_dependencies
+    if is_double_sided_deltas:
+        perturbation_names += ['-' + p for p in perturbation_dependencies]
+
+    for perturbation in perturbation_names:
 
         evaluation_kwds['active_perturbation'] = perturbation
 

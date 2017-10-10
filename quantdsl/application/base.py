@@ -163,8 +163,10 @@ class QuantDslApplication(EventSourcingApplication):
                                                 requirements,
                                                 periodisation)
 
-    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation):
-        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
+    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation,
+                                 is_double_sided_deltas):
+        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
+                                        is_double_sided_deltas)
 
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
@@ -215,8 +217,10 @@ class QuantDslApplication(EventSourcingApplication):
         )
         return market_simulation
 
-    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
-        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
+    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None,
+                 is_double_sided_deltas=False):
+        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
+                                             is_double_sided_deltas)
 
     def read_results(self, evaluation):
         assert isinstance(evaluation, ContractValuation)
@@ -236,7 +240,10 @@ class QuantDslApplication(EventSourcingApplication):
         for perturbation_name in perturbation_names:
 
             perturbed_value = call_result.perturbed_values[perturbation_name]
-            perturbed_value_negative = call_result.perturbed_values['-' + perturbation_name]
+            if evaluation.is_double_sided_deltas:
+                perturbed_value_negative = call_result.perturbed_values['-' + perturbation_name]
+            else:
+                perturbed_value_negative = None
             # Assumes format: NAME-YEAR-MONTH
             perturbed_name_split = perturbation_name.split('-')
             market_name = perturbed_name_split[0]
@@ -248,9 +255,17 @@ class QuantDslApplication(EventSourcingApplication):
 
                 simulated_price = self.simulated_price_repo[simulated_price_id]
                 price = simulated_price.value
-                dy = perturbed_value - perturbed_value_negative
-                dx = 2 * market_simulation.perturbation_factor * price
+                if evaluation.is_double_sided_deltas:
+                    dy = perturbed_value - perturbed_value_negative
+                else:
+                    dy = perturbed_value - fair_value
+
+                dx = market_simulation.perturbation_factor * price
+                if evaluation.is_double_sided_deltas:
+                    dx *= 2
+
                 delta = dy / dx
+
                 hedge_units = - delta
                 hedge_cost = hedge_units * price
                 periods.append({
@@ -275,6 +290,7 @@ class QuantDslApplication(EventSourcingApplication):
                     )
                     simulated_price = self.simulated_price_repo[simulated_price_id]
                     simulated_price_value = simulated_price.value
+
                 else:
                     delivery_date = datetime.date(year, month, 1)
                     sum_simulated_prices = 0
@@ -299,7 +315,11 @@ class QuantDslApplication(EventSourcingApplication):
                     simulated_price_value = sum_simulated_prices / count_simulated_prices
 
                 # Assume present time of perturbed values is observation date.
-                dy = perturbed_value - perturbed_value_negative
+                if evaluation.is_double_sided_deltas:
+                    dy = perturbed_value - perturbed_value_negative
+                else:
+                    dy = perturbed_value - simulated_price_value
+
 
                 discount_rate = discount(
                     value=1,
@@ -310,7 +330,9 @@ class QuantDslApplication(EventSourcingApplication):
 
                 discounted_simulated_price_value = simulated_price_value * discount_rate
 
-                dx = 2 * market_simulation.perturbation_factor * discounted_simulated_price_value
+                dx = market_simulation.perturbation_factor * discounted_simulated_price_value
+                if evaluation.is_double_sided_deltas:
+                    dx *= 2
                 delta = dy / dx
 
                 # The delta of a forward contract at the observation date
