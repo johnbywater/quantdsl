@@ -165,13 +165,70 @@ methods of the `QuantDslApplication` described above.
 from quantdsl.interfaces.calcandplot import calc
 ```
 
-`calc()` returns a results object, with an attribute `fair_value` that is the computed value of the given 
-Quant DSL expression. 
+When called, the function `calc()` returns a results object, with an attribute `fair_value` that is the
+simulated value, under the semantics, of the given Quant DSL expression.
 
 ```python
-results = calc("2 + 3")
+results = calc(source_code="2 + 3")
 assert results.fair_value == 5
 ```
+
+The function `calc()` has many optional arguments that can be used to control the evaluation of an expression. 
+
+**`source_code`**
+
+The Quant DSL module that will be evaluated. It must contain one expression, and may
+contain many function definitions. It may also contain import statements that import
+functions from Quant DSL modules saved as normal Python files.
+
+**`observation_date`**
+
+Sets the time `t0` from when the forward curve is evolved by the price process.
+Also conditions the effective present time `t` of the outermost element in 
+an evaluation.
+
+**`interest_rate`**
+
+The continuously compounding short run risk free rate used for discounting.
+
+
+**`price_process`**
+
+The name and configuration parameters for the price process that will estimate
+(by simulatation) prices that could be agreed in the future.
+
+**`periodisation`**
+
+The deltas can be obtained by setting the `periodisation` arg of `calc()`.
+
+**`is_double_sided_deltas`**
+
+Evaluate with either single- or double-sided deltas, with
+the `is_double_sided_deltas` argument (default `True`).
+
+**`path_count`**
+
+Adjust the accuracy of the simulated random variables by setting the `path_count` (default `20000`).
+
+**`perturbation_factor`**
+
+You can adjust the `perturbation_factor` used to calculate deltas. If the `path_count` is larger, a smaller
+perturbation factor may give better results. The default `perturbation_factor` is `0.01`.
+
+**`max_dependency_graph_size`**
+
+You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the
+`max_dependency_graph_size` arg of `calc()`.
+
+**`timeout`**
+
+You can set a calculation to `timeout` after a given number of seconds.
+
+**`dsl_classes`**
+
+Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
+
+
 
 ### Settlement
 
@@ -540,61 +597,6 @@ Please note, any `if` statement test expressions (the expressions preceding the 
 simple expressions involving the call args, and must not involve any Quant DSL stochastic elements, such 
 as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in `if` 
 statements is supported, but the function definitions must not contain any of the stochastic elements.
-
-### Other args of calc()
-
-**`source_code`**
-
-The Quant DSL module that will be evaluated. It must contain one expression, and may
-contain many function definitions, and import statements that include other modules.
-
-**`observation_date`**
-
-Sets the time `t0` from when the forward curve is evolved by the price process.
-Also conditions the effective present time `t` of the outermost element in 
-an evaluation.
-
-**`interest_rate`**
-
-The continuously compounding short run risk free rate used for discounting.
-
-
-**`price_process`**
-
-The name and configuration parameters for the price process that will estimate
-(by simulatation) prices that could be agreed in the future.
-
-**`periodisation`**
-
-The deltas can be obtained by setting the `periodisation` arg of `calc()`.
-
-**`is_double_sided_deltas`**
-
-Evaluate with either single- or double-sided deltas, with
-the `is_double_sided_deltas` argument (default `True`).
-
-**`path_count`**
-
-Adjust the accuracy of the simulated random variables by setting the `path_count` (default `20000`).
-
-**`perturbation_factor`**
-
-You can adjust the `perturbation_factor` used to calculate deltas. If the `path_count` is larger, a smaller
-perturbation factor may give better results. The default `perturbation_factor` is `0.01`.
-
-**`max_dependency_graph_size`**
-
-You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the
-`max_dependency_graph_size` arg of `calc()`.
-
-**`timeout`**
-
-You can set a calculation to `timeout` after a given number of seconds.
-
-**`dsl_classes`**
-
-Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`.
-
 
 
 ### European and American options
