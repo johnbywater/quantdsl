@@ -45,31 +45,18 @@ The syntax of Quant DSL expressions is defined with
 
 ```
 <Expression> ::= <Constant>
-
     | "Settlement(" <Date> "," <Expression> ")"
-
     | "Fixing(" <Date> "," <Expression> ")"
-
     | "Market(" <MarketName> ")"
-
     | "Wait(" <Date> "," <Expression> ")"
-
     | "Choice(" <Expression> "," <Expression> ")"
-
     | "Max(" <Expression> "," <Expression> ")"
-
     | <Expression> "+" <Expression>
-
     | <Expression> "-" <Expression>
-
     | <Expression> "*" <Expression>
-
     | <Expression> "/" <Expression>
-
     | "-" <Expression>
-```
 
-```
 <Constant> ::= <Float> | <Integer>
 
 <Date> ::= "'"<Year>"-"<Month>"-"<Day>"'"
