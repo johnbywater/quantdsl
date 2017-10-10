@@ -65,4 +65,5 @@ class EvaluationSubscriber(object):
                                     simulated_price_repo=self.simulated_price_repo,
                                     perturbation_dependencies_repo=self.perturbation_dependencies_repo,
                                     simulated_price_dependencies_repo=self.simulated_price_dependencies_repo,
+                                    is_double_sided_deltas=event.is_double_sided_deltas
                                     )

@@ -5,8 +5,7 @@ import six.moves.queue as queue
 
 from quantdsl.application.base import QuantDslApplication
 from quantdsl.domain.model.contract_valuation import ContractValuation
-from quantdsl.exceptions import DslError, TimeoutError, DslCompareArgsError, DslBinOpArgsError, \
-    DslIfTestExpressionError
+from quantdsl.exceptions import TimeoutError, DslCompareArgsError, DslBinOpArgsError, DslIfTestExpressionError
 
 
 class ServiceExit(Exception):
@@ -20,6 +19,7 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
         self.num_threads = num_threads
         self.has_thread_errored = Event()
         self.thread_exception = None
+        self.threads = []
 
         # Start evaluation worker threads.
         for _ in range(self.num_threads):
@@ -27,6 +27,7 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
             t.setDaemon(True)
             t.daemon = True
             t.start()
+            self.threads.append(t)
 
     def protected_loop_on_evaluation_queue(self):
         try:
@@ -49,7 +50,7 @@ class QuantDslApplicationWithMultithreading(QuantDslApplication):
                 return super(QuantDslApplicationWithMultithreading, self).get_result(contract_valuation)
             except KeyError:
                 sleep(0.1)
-            self.check_has_thread_errored()
+                self.check_has_thread_errored()
 
     def check_has_thread_errored(self):
         if self.has_thread_errored.is_set():

@@ -1,4 +1,8 @@
+import datetime
+
+import scipy
 import six
+from collections import defaultdict
 from eventsourcing.application.base import EventSourcingApplication
 
 from quantdsl.application.call_result_policy import CallResultPolicy
@@ -8,10 +12,11 @@ from quantdsl.domain.model.call_dependents import register_call_dependents
 from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_result import make_call_result_id
 from quantdsl.domain.model.contract_specification import ContractSpecification, register_contract_specification
-from quantdsl.domain.model.contract_valuation import start_contract_valuation
+from quantdsl.domain.model.contract_valuation import ContractValuation, start_contract_valuation
 from quantdsl.domain.model.market_calibration import register_market_calibration
 from quantdsl.domain.model.market_simulation import register_market_simulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
+from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.contract_valuations import evaluate_call_and_queue_next_calls, loop_on_evaluation_queue
 from quantdsl.domain.services.simulated_prices import identify_simulation_requirements
@@ -30,6 +35,7 @@ from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo 
 from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_repo import \
     SimulatedPriceRequirementsRepo
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
+from quantdsl.semantics import discount
 
 DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
@@ -157,8 +163,10 @@ class QuantDslApplication(EventSourcingApplication):
                                                 requirements,
                                                 periodisation)
 
-    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation):
-        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
+    def start_contract_valuation(self, contract_specification_id, market_simulation_id, periodisation,
+                                 is_double_sided_deltas):
+        return start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
+                                        is_double_sided_deltas)
 
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
@@ -209,8 +217,150 @@ class QuantDslApplication(EventSourcingApplication):
         )
         return market_simulation
 
-    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None):
-        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation)
+    def evaluate(self, contract_specification_id, market_simulation_id, periodisation=None,
+                 is_double_sided_deltas=False):
+        return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
+                                             is_double_sided_deltas)
+
+    def read_results(self, evaluation):
+        assert isinstance(evaluation, ContractValuation)
+
+        market_simulation = self.market_simulation_repo[evaluation.market_simulation_id]
+
+        call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
+        call_result = self.call_result_repo[call_result_id]
+
+        fair_value = call_result.result_value
+
+        perturbation_names = call_result.perturbed_values.keys()
+        perturbation_names = [i for i in perturbation_names if not i.startswith('-')]
+        perturbation_names = sorted(perturbation_names, key=lambda x: [int(i) for i in x.split('-')[1:]])
+
+        periods = []
+        for perturbation_name in perturbation_names:
+
+            perturbed_value = call_result.perturbed_values[perturbation_name]
+            if evaluation.is_double_sided_deltas:
+                perturbed_value_negative = call_result.perturbed_values['-' + perturbation_name]
+            else:
+                perturbed_value_negative = None
+            # Assumes format: NAME-YEAR-MONTH
+            perturbed_name_split = perturbation_name.split('-')
+            market_name = perturbed_name_split[0]
+
+            if market_name == perturbation_name:
+                simulated_price_id = make_simulated_price_id(market_simulation.id, market_name,
+                                                             market_simulation.observation_date,
+                                                             market_simulation.observation_date)
+
+                simulated_price = self.simulated_price_repo[simulated_price_id]
+                price = simulated_price.value
+                if evaluation.is_double_sided_deltas:
+                    dy = perturbed_value - perturbed_value_negative
+                else:
+                    dy = perturbed_value - fair_value
+
+                dx = market_simulation.perturbation_factor * price
+                if evaluation.is_double_sided_deltas:
+                    dx *= 2
+
+                delta = dy / dx
+
+                hedge_units = - delta
+                hedge_cost = hedge_units * price
+                periods.append({
+                    'market_name': market_name,
+                    'delivery_date': None,
+                    'delta': delta,
+                    'perturbation_name': perturbation_name,
+                    'hedge_units': hedge_units,
+                    'price_simulated': price,
+                    'price_discounted': price,
+                    'hedge_cost': hedge_cost,
+                })
+
+            elif len(perturbed_name_split) > 2:
+                year = int(perturbed_name_split[1])
+                month = int(perturbed_name_split[2])
+                if len(perturbed_name_split) > 3:
+                    day = int(perturbed_name_split[3])
+                    delivery_date = datetime.date(year, month, day)
+                    simulated_price_id = make_simulated_price_id(
+                        market_simulation.id, market_name, delivery_date, delivery_date
+                    )
+                    simulated_price = self.simulated_price_repo[simulated_price_id]
+                    simulated_price_value = simulated_price.value
+
+                else:
+                    delivery_date = datetime.date(year, month, 1)
+                    sum_simulated_prices = 0
+                    count_simulated_prices = 0
+                    for i in range(1, 32):
+                        try:
+                            _delivery_date = datetime.date(year, month, i)
+                        except ValueError:
+                            continue
+                        else:
+                            simulated_price_id = make_simulated_price_id(
+                                market_simulation.id, market_name, _delivery_date, _delivery_date
+                            )
+                            try:
+                                simulated_price = self.simulated_price_repo[simulated_price_id]
+                            except KeyError:
+                                pass
+                            else:
+                                sum_simulated_prices += simulated_price.value
+                                count_simulated_prices += 1
+                    assert count_simulated_prices, "Can't find any simulated prices for {}-{}".format(year, month)
+                    simulated_price_value = sum_simulated_prices / count_simulated_prices
+
+                # Assume present time of perturbed values is observation date.
+                if evaluation.is_double_sided_deltas:
+                    dy = perturbed_value - perturbed_value_negative
+                else:
+                    dy = perturbed_value - simulated_price_value
+
+
+                discount_rate = discount(
+                    value=1,
+                    present_date=market_simulation.observation_date,
+                    value_date=delivery_date,
+                    interest_rate=market_simulation.interest_rate
+                )
+
+                discounted_simulated_price_value = simulated_price_value * discount_rate
+
+                dx = market_simulation.perturbation_factor * discounted_simulated_price_value
+                if evaluation.is_double_sided_deltas:
+                    dx *= 2
+                delta = dy / dx
+
+                # The delta of a forward contract at the observation date
+                # is the discount factor at the delivery date.
+                forward_contract_delta = discount_rate
+
+                # Delta hedging in forward markets.
+                hedge_units = -delta / forward_contract_delta
+
+                # No need to inflate and then discount the cash.
+                # cash_in = hedge_units * discounted_simulated_price_value * discount_rate
+                hedge_cost = -delta * discounted_simulated_price_value
+
+                periods.append({
+                    'market_name': market_name,
+                    'delivery_date': delivery_date,
+                    'delta': delta,
+                    'perturbation_name': perturbation_name,
+                    'hedge_units': hedge_units,
+                    'price_simulated': simulated_price_value,
+                    'price_discounted': discounted_simulated_price_value,
+                    'hedge_cost': hedge_cost,
+                })
+
+        return Results(fair_value, periods)
+
+    def wait_results(self, contract_valuation):
+        self.get_result(contract_valuation)
 
     def get_result(self, contract_valuation):
         call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
@@ -248,3 +398,24 @@ class QuantDslApplication(EventSourcingApplication):
 
     def check_has_thread_errored(self):
         return False
+
+
+class Results(object):
+    def __init__(self, fair_value, periods):
+        assert isinstance(periods, list)
+        self.fair_value = fair_value
+        self.periods = periods
+
+        self.deltas = {p['perturbation_name']: p['delta'] for p in self.periods}
+        self.by_delivery_date = defaultdict(list)
+        self.by_market_name = defaultdict(list)
+        [self.by_delivery_date[p['delivery_date']].append(p) for p in self.periods]
+        [self.by_market_name[p['market_name']].append(p) for p in self.periods]
+
+    @property
+    def fair_value_mean(self):
+        if isinstance(self.fair_value, scipy.ndarray):
+            fair_value_mean = self.fair_value.mean()
+        else:
+            fair_value_mean = self.fair_value
+        return fair_value_mean
