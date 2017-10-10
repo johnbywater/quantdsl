@@ -137,7 +137,6 @@ normal Python code.
 The work of a quantitative analyst involves modelling the value of a derivative,
 calibrating a stochastic process for the underlying prices, simulating future prices
 of the underlyings, and evaluating of the model of the derivative against the simulation.
-
 This library provides an application object class `QuantDslApplication` which has methods that
 support this work: `compile()`, `simulate()` and `evaluate()`.
 
@@ -152,8 +151,8 @@ according to the periods and markets they involve.
 
 ### calc()
 
-The examples below use the library function `calc()` to evaluate Quant DSL source code. It uses the methods of the 
-`QuantDslApplication` described above.
+The examples below use the library function `calc()` to evaluate Quant DSL source code. `calc()` uses the
+methods of the `QuantDslApplication` described above.
 
 ```python
 from quantdsl.interfaces.calcandplot import calc
