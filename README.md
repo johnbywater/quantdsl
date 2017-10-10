@@ -21,6 +21,12 @@ difficulty, please try again after upgrading pip.
 pip install --upgrade pip
 ```
 
+After successfully installing this library, the test suite should pass.
+
+```
+python -m unittest discover quantdsl
+```
+
 
 ## Overview
 
@@ -635,13 +641,13 @@ Instead the expression could be refactored with a function definition.
  
 ```python
 source_code = """
-def Repayments(start, end, installment):
+def Settlements(start, end, installment):
     if start <= end:
-        Settlement(start, installment) + Repayments(start + TimeDelta('1m'), end, installment)
+        Settlement(start, installment) + Settlements(start + TimeDelta('1m'), end, installment)
     else:
         0
         
-Repayments(Date('2011-1-1'), Date('2011-12-1'), 10)
+Settlements(Date('2011-1-1'), Date('2011-12-1'), 10)
 """
 results = calc(source_code,
     observation_date='2011-1-1',
@@ -649,11 +655,6 @@ results = calc(source_code,
 )
 assert round(results.fair_value, 2) == 114.67
 ```
-
-Please note, any `if` statement test expressions (the expressions preceding the colons in the `if` statement) must be 
-simple expressions involving the call args, and must not involve any Quant DSL stochastic elements, such 
-as `Market`, `Choice`, `Wait`, `Settlement`, `Fixing`. Calls to function definitions from test expressions in `if` 
-statements is supported, but the function definitions must not contain any of the stochastic elements.
 
 
 ### European and American options
