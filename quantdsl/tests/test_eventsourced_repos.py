@@ -45,19 +45,20 @@ class TestEventSourcedRepos(ApplicationTestCase):
         self.assertRaises(KeyError, self.app.call_requirement_repo.__getitem__, call_id)
 
         dsl_source = '1 + 1'
-        effective_present_time = datetime.datetime(2015, 9, 7, 0, 0, 0)
+        present_time = datetime.datetime(2015, 9, 7, 0, 0, 0)
 
         register_call_requirement(
             call_id=call_id,
             dsl_source=dsl_source,
-            effective_present_time=effective_present_time,
+            present_time=present_time,
             contract_specification_id=contract_specification_id,
+            cost=1,
         )
 
         call_requirement = self.app.call_requirement_repo[call_id]
         assert isinstance(call_requirement, CallRequirement)
         self.assertEqual(call_requirement.dsl_source, dsl_source)
-        self.assertEqual(call_requirement.effective_present_time, effective_present_time)
+        self.assertEqual(call_requirement.present_time, present_time)
         self.assertEqual(call_requirement.contract_specification_id, contract_specification_id)
 
     def test_register_call_dependencies(self):
@@ -96,7 +97,8 @@ class TestEventSourcedRepos(ApplicationTestCase):
 
         register_call_result(call_id=call_id, result_value=123, perturbed_values={},
                              contract_valuation_id=contract_valuation_id,
-                             contract_specification_id=contract_specification_id)
+                             contract_specification_id=contract_specification_id,
+                             is_double_sided_deltas=False)
 
         call_result = self.app.call_result_repo[call_result_id]
         assert isinstance(call_result, CallResult)

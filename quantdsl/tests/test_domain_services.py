@@ -176,15 +176,15 @@ class TestListMarketNamesAndFixingDates(unittest.TestCase):
                                           __getitem__=lambda self, x: {
                                               1: Mock(spec=CallRequirement,
                                                       dsl_source="Fixing('2011-01-01', Market('1'))",
-                                                      effective_present_time=datetime.datetime(2011, 1, 1),
+                                                      present_time=datetime.datetime(2011, 1, 1),
                                                       _dsl_expr=None),
                                               2: Mock(spec=CallRequirement,
                                                       dsl_source="Fixing('2012-02-02', Market('2'))",
-                                                      effective_present_time=datetime.datetime(2011, 2, 2),
+                                                      present_time=datetime.datetime(2011, 2, 2),
                                                       _dsl_expr=None),
                                               3: Mock(spec=CallRequirement,
                                                       dsl_source="Fixing('2013-03-03', Market('3'))",
-                                                      effective_present_time=datetime.datetime(2011, 3, 3),
+                                                      present_time=datetime.datetime(2011, 3, 3),
                                                       _dsl_expr=None),
                                           }[x])
         call_link_repo = MagicMock(spec=CallLinkRepository,

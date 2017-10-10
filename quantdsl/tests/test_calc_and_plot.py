@@ -17,7 +17,7 @@ class TestCalcPrint(TestCase):
 
         source_code = """from quantdsl.lib.storage2 import GasStorage
         
-GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
         results = calc_print(
@@ -67,7 +67,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     def test_periodisation_alltime(self):
         source_code = """from quantdsl.lib.storage2 import GasStorage
         
-GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
         results = calc_print(
@@ -116,7 +116,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     def test_periodisation_none(self):
         source_code = """from quantdsl.lib.storage2 import GasStorage
         
-GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
+GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
         results = calc_print(
@@ -164,10 +164,10 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     def test_timeout(self):
         source_code = """
 from quantdsl.lib.storage2 import GasStorage        
-GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
+GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        with self.assertRaises(TimeoutError):
+        with self.assertRaises(SystemExit):
             calc_print(
                 source_code=source_code,
                 observation_date='2011-1-1',
@@ -189,7 +189,7 @@ GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
     def test_dependency_graph_size_limit(self):
         source_code = """
 from quantdsl.lib.storage2 import GasStorage        
-GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'))
+GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
         with self.assertRaises(CallLimitError):

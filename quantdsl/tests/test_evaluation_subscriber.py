@@ -56,6 +56,7 @@ class TestEvaluationSubscriber(unittest.TestCase):
         contract_valuation_created = ContractValuation.Created(
             entity_id='1',
             market_calibration_id='1',
+            is_double_sided_deltas=False,
         )
         self.assertEqual(evaluate_contract_in_series.call_count, 0)
         publish(contract_valuation_created)

@@ -16,7 +16,7 @@ from quantdsl.lib.american1 import American
 
 American(Date('2012-01-01'), Date('2012-01-11'), 5, Market('NBP'), TimeDelta('1d'))
 """
-        self.assert_contract_value(specification, 5.229, {}, expected_call_count=None)
+        self.assert_contract_value(specification, 5.612, {}, expected_call_count=None)
 
     def test_storage1(self):
         specification_tmpl = """

@@ -1,5 +1,5 @@
 import dateutil.parser
-from numpy import sort, array, searchsorted
+from scipy import sort, array, searchsorted
 
 from quantdsl.priceprocess.base import datetime_from_date
 
@@ -11,7 +11,7 @@ class ForwardCurve(object):
         self.by_date = dict(
             [(datetime_from_date(dateutil.parser.parse(d)), v) for (d, v) in self.data]
         )
-        self.sorted = sort(array(self.by_date.keys()))
+        self.sorted = sort(array(list(self.by_date.keys())))
 
     def get_price(self, date):
         try:
@@ -20,6 +20,6 @@ class ForwardCurve(object):
             # Search for earlier date.
             index = searchsorted(self.sorted, date) - 1
             if index < 0:
-                raise KeyError("Fixing date {} not found in '{}' forward curve.".format(date, self.name))
+                raise KeyError("Delivery date {} not found in '{}' forward curve.".format(date, self.name))
             price = self.by_date[self.sorted[index]]
         return price
