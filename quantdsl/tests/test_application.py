@@ -1,16 +1,16 @@
 import datetime
 import unittest
+from copy import deepcopy
 
 import scipy
-from copy import deepcopy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.application.base import Results
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
-from quantdsl.exceptions import CallLimitError, RecursionDepthError, DslCompareArgsError, DslBinOpArgsError, \
-    DslTestExpressionCannotBeEvaluated
+from quantdsl.exceptions import CallLimitError, DslBinOpArgsError, DslCompareArgsError, \
+    DslTestExpressionCannotBeEvaluated, RecursionDepthError
 from quantdsl.semantics import discount
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -57,8 +57,6 @@ class ApplicationTestCase(unittest.TestCase):
         if not self.skip_assert_event_handers_empty:
             assert_event_handlers_empty()
 
-        scipy.random.seed(1354802735)
-
         self.setup_application(max_dependency_graph_size=self.MAX_DEPENDENCY_GRAPH_SIZE)
 
         self.calibration_params = deepcopy(self.CALIBRATION_PARAMS)
@@ -78,7 +76,7 @@ class ApplicationTestCase(unittest.TestCase):
     def assert_contract_value(self, specification, expected_value=None, expected_deltas=None,
                               expected_call_count=None, periodisation=None, is_double_sided_deltas=True):
 
-        # Set the observation date.
+        scipy.random.seed(1354802735)
 
         # Register the specification (creates call dependency graph).
         contract_specification = self.app.compile(source_code=specification, observation_date=self.observation_date)
@@ -174,37 +172,15 @@ class ExpressionTests(ApplicationTestCase):
 
     def test_fixing(self):
         specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.1083, expected_deltas={'NBP': 1.010}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.194, expected_deltas={'NBP': 1.019}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 9.9376, expected_deltas={'NBP': 0.9937}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.065, expected_deltas={'NBP': 1.006}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.040, expected_deltas={'NBP': 1.004}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 9.939, expected_deltas={'NBP': 0.997}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-01'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.047, expected_deltas={'NBP': 1.0047}, periodisation='alltime')
+        self.assert_contract_value(specification, 10.1083, expected_deltas={'NBP': 1.01}, periodisation='alltime')
         specification = "Fixing(Date('2012-01-02'), Market('NBP'))"
-        self.assert_contract_value(specification, 9.718, expected_deltas={'NBP': 0.971}, periodisation='alltime')
+        self.assert_contract_value(specification, 10.1085, expected_deltas={'NBP': 1.01}, periodisation='alltime')
         specification = "Fixing(Date('2012-01-03'), Market('NBP'))"
-        self.assert_contract_value(specification, 9.9859, expected_deltas={'NBP': 0.997}, periodisation='alltime')
+        self.assert_contract_value(specification, 10.1088, expected_deltas={'NBP': 1.01}, periodisation='alltime')
         specification = "Fixing(Date('2012-01-04'), Market('NBP'))"
-        self.assert_contract_value(specification, 10.159, expected_deltas={'NBP': 1.0159}, periodisation='alltime')
-        specification = "Fixing(Date('2012-01-05'), Market('NBP'))"
-        self.assert_contract_value(specification, 9.970, expected_deltas={'NBP': 0.997}, periodisation='alltime')
+        self.assert_contract_value(specification, 10.109, expected_deltas={'NBP': 1.01}, periodisation='alltime')
         specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
-        self.assert_contract_value(specification, 6.796, expected_deltas={'NBP': 0.679}, periodisation='alltime')
-        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
-        self.assert_contract_value(specification, 0.508, expected_deltas={'NBP': 0.050}, periodisation='alltime')
-        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
-        self.assert_contract_value(specification, 0.364, expected_deltas={'NBP': 0.0364}, periodisation='alltime')
-        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
-        self.assert_contract_value(specification, 0.371, expected_deltas={'NBP': 0.037}, periodisation='alltime')
-        specification = "Fixing(Date('2112-01-05'), Market('NBP'))"
-        self.assert_contract_value(specification, 0.464, expected_deltas={'NBP': 0.046}, periodisation='alltime')
+        self.assert_contract_value(specification, 1.451, expected_deltas={'NBP': 0.145}, periodisation='alltime')
 
     def test_wait(self):
         specification = "Wait(Date('2012-01-01'), Market('NBP'))"
@@ -262,12 +238,12 @@ Fixing(Date('2011-06-01'), Choice(Market('NBP') - 9,
                                    },
                                    periodisation='monthly')
 
-        self.assert_contract_value(specification, 2.501,
+        self.assert_contract_value(specification, 2.609,
                                    expected_deltas={
-                                       'NBP-2011-6': 0,
-                                       'NBP-2012-1': 0.502,
+                                       'NBP-2011-6': 0.273,
+                                       'NBP-2012-1': -0.177,
                                    },
-                                   periodisation='monthly')
+                                   periodisation='monthly',)
 
     def test_identical_fixings(self):
         specification = "Fixing(Date('2012-01-02'), Market('#1')) - Fixing(Date('2012-01-02'), Market('#1'))"
@@ -378,6 +354,8 @@ Max(
 )
 """
         self.assert_contract_value(specification, 0.00, expected_deltas={'#1': 0.00}, periodisation='alltime')
+        self.assert_contract_value(specification, -0.0075, expected_deltas={'#1': -0.00}, periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_max_vs_choice(self):
         specification = """
@@ -403,7 +381,9 @@ Max(
     1.0
 )
 """
-        self.assert_contract_value(specification,  0.196, expected_deltas={'#1': 0.00}, periodisation='alltime')
+        self.assert_contract_value(specification, 0.196, expected_deltas={'#1': 0.00}, periodisation='alltime')
+        self.assert_contract_value(specification, 0.196, expected_deltas={'#1': 0.00}, periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_is_day_of_month(self):
         # Detects true and false.
@@ -789,7 +769,6 @@ factorial(%s, 1)
         self.assert_contract_value(code % 1, 1, expected_call_count=2)
         self.assert_contract_value(code % 10, 3628800, expected_call_count=11)
 
-
     def test_compare_args_error(self):
         code = "TimeDelta('1d') > 1"
         with self.assertRaises(DslCompareArgsError):
@@ -858,8 +837,18 @@ def European(date, strike, underlying):
 
 European(Date('2012-01-01'), 9, Market('NBP'))
 """
-        self.assert_contract_value(specification, 2.4557, {'NBP': 0.6743}, expected_call_count=3,
+        self.assert_contract_value(specification,
+                                   expected_value=2.4557,
+                                   expected_deltas={'NBP': 0.6743},
+                                   expected_call_count=3,
                                    periodisation='alltime')
+
+        self.assert_contract_value(specification,
+                                   expected_value=2.4557,
+                                   expected_deltas={'NBP': 0.6743},
+                                   expected_call_count=3,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_functional_european_stock_option_definition(self):
         specification = """
@@ -874,8 +863,16 @@ def EuropeanStock(start, end, strike, name):
 
 EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
 """
-        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
+        self.assert_contract_value(specification, 2.6290,
+                                   expected_deltas={'NBP': 0.7101},
+                                   expected_call_count=4,
                                    periodisation='alltime')
+
+        self.assert_contract_value(specification, 2.6290,
+                                   expected_deltas={'NBP': 0.7101},
+                                   expected_call_count=4,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_functional_european_stock_option_definition_with_stock_market_def_inlined(self):
         specification = """
@@ -894,8 +891,16 @@ def StockMarket(start, name):
 
 EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
 """
-        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=4,
+        self.assert_contract_value(specification, 2.6290,
+                                   expected_deltas={'NBP': 0.7101},
+                                   expected_call_count=4,
                                    periodisation='alltime')
+
+        self.assert_contract_value(specification, 2.6290,
+                                   expected_deltas={'NBP': 0.7101},
+                                   expected_call_count=4,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_functional_european_stock_option_definition_with_stock_market_def_non_inlined(self):
         specification = """
@@ -913,8 +918,16 @@ def StockMarket(start, name):
 
 EuropeanStock(Date('2011-01-01'), Date('2012-01-01'), 9, 'NBP')
 """
-        self.assert_contract_value(specification, 2.6290, {'NBP': 0.7101}, expected_call_count=5,
+        self.assert_contract_value(specification, 2.6290,
+                                   expected_deltas={'NBP': 0.7101},
+                                   expected_call_count=5,
                                    periodisation='alltime')
+
+        self.assert_contract_value(specification, 2.6290,
+                                   expected_deltas={'NBP': 0.7101},
+                                   expected_call_count=5,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_american_option_with_market(self):
         american_option_tmpl = """
@@ -931,12 +944,20 @@ def Option(date, strike, underlying, alternative):
 
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, Market('%(underlying)s'))
 """
-        self.assert_contract_value(american_option_tmpl % {
-            'starts': '2011-01-01',
-            'ends': '2012-01-01',
-            'strike': 9,
-            'underlying': 'NBP'
-        }, 5.353, {'NBP': 1.425}, expected_call_count=734, periodisation='alltime')
+        code = american_option_tmpl % {'starts': '2011-01-01', 'ends': '2012-01-01', 'strike': 9, 'underlying': 'NBP'}
+
+        self.assert_contract_value(code,
+                                   expected_value=5.353,
+                                   expected_deltas={'NBP': 1.425},
+                                   expected_call_count=734,
+                                   periodisation='alltime')
+
+        self.assert_contract_value(code,
+                                   expected_value=5.353,
+                                   expected_deltas={'NBP': 1.425},
+                                   expected_call_count=734,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_american_option_with_stock_market(self):
         american_option_tmpl = """
@@ -956,14 +977,26 @@ def StockMarket(start, name):
 
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
 """
-        self.assert_contract_value(american_option_tmpl % {
+        code = american_option_tmpl % {
             'starts': '2011-01-01',
             # 'ends': '2011-01-04',
             'ends': '2012-01-01',
             'strike': 9,
             'underlying': 'NBP'
-        # }, 1.1874, {'#1': 1.0185}, expected_call_count=None, periodisation='alltime')
-        }, 5.534, {'NBP': 1.443}, expected_call_count=1100, periodisation='alltime')
+            # }, 1.1874, {'#1': 1.0185}, expected_call_count=None, periodisation='alltime')
+        }
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=1100,
+                                   periodisation='alltime')
+
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=1100,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_american_option_with_inlined_stockmarket_def(self):
         american_option_tmpl = """
@@ -984,12 +1017,18 @@ def StockMarket(start, name):
 
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
 """
-        self.assert_contract_value(american_option_tmpl % {
-            'starts': '2011-01-01',
-            'ends': '2012-01-01',
-            'strike': 9,
-            'underlying': 'NBP'
-        }, 5.534, {'NBP': 1.443}, expected_call_count=734, periodisation='alltime')
+        code = american_option_tmpl % {'starts': '2011-01-01', 'ends': '2012-01-01', 'strike': 9, 'underlying': 'NBP'}
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=734,
+                                   periodisation='alltime')
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=734,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_american_option_with_inlined_option_def(self):
         american_option_tmpl = """
@@ -1010,12 +1049,18 @@ def StockMarket(start, name):
 
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
 """
-        self.assert_contract_value(american_option_tmpl % {
-            'starts': '2011-01-01',
-            'ends': '2012-01-01',
-            'strike': 9,
-            'underlying': 'NBP'
-        }, 5.534, {'NBP': 1.443}, expected_call_count=734, periodisation='alltime')
+        code = american_option_tmpl % {'starts': '2011-01-01', 'ends': '2012-01-01', 'strike': 9, 'underlying': 'NBP'}
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=734,
+                                   periodisation='alltime')
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=734,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_american_option_with_inlined_stockmarket_and_option_def(self):
         american_option_tmpl = """
@@ -1037,12 +1082,18 @@ def StockMarket(start, name):
 
 American(Date('%(starts)s'), Date('%(ends)s'), %(strike)s, StockMarket('%(starts)s', '%(underlying)s'))
 """
-        self.assert_contract_value(american_option_tmpl % {
-            'starts': '2011-01-01',
-            'ends': '2012-01-01',
-            'strike': 9,
-            'underlying': 'NBP'
-        }, 5.534, {'NBP': 1.443}, expected_call_count=368, periodisation='alltime')
+        code = american_option_tmpl % {'starts': '2011-01-01', 'ends': '2012-01-01', 'strike': 9, 'underlying': 'NBP'}
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=368,
+                                   periodisation='alltime')
+        self.assert_contract_value(code,
+                                   expected_value=5.534,
+                                   expected_deltas={'NBP': 1.443},
+                                   expected_call_count=368,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_observation_date(self):
         specification = """ObservationDate()"""
@@ -1061,8 +1112,18 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-01-01'), Date('2011-01-05'), Market('NBP'), 3)
 """
-        self.assert_contract_value(specification, 30.20756, {'NBP': 3.02076}, expected_call_count=15,
+        self.assert_contract_value(specification,
+                                   expected_value=30.20756,
+                                   expected_deltas={'NBP': 3.02076},
+                                   expected_call_count=15,
                                    periodisation='alltime')
+
+        self.assert_contract_value(specification,
+                                   expected_value=30.20756,
+                                   expected_deltas={'NBP': 3.02076},
+                                   expected_call_count=15,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
 
 class LongerTests(ApplicationTestCase):
@@ -1080,7 +1141,18 @@ def Swing(start_date, end_date, underlying, quantity):
 
 Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 """
-        self.assert_contract_value(specification, 30.2081, expected_call_count=15)
+        self.assert_contract_value(specification,
+                                   expected_value=30.2081,
+                                   expected_call_count=15,
+                                   periodisation='daily',
+                                   expected_deltas={'NBP-2011-1-4': 0.583})
+
+        self.assert_contract_value(specification,
+                                   expected_value=30.2081,
+                                   expected_call_count=15,
+                                   periodisation='daily',
+                                   expected_deltas={'NBP-2011-1-4': 0.595},
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_power_plant_option(self):
         specification = """
@@ -1113,7 +1185,19 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
 
 PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), Running())
 """
-        self.assert_contract_value(specification, 11.771, expected_call_count=47)
+        self.assert_contract_value(specification,
+                                   expected_value=11.771,
+                                   expected_call_count=47,
+                                   periodisation='monthly',
+                                   expected_deltas={'SPARKSPREAD-2012-1': 11.978})
+
+        # Single-sided delta performs really badly with this model.
+        self.assert_contract_value(specification,
+                                   expected_value=11.771,
+                                   expected_call_count=47,
+                                   periodisation='monthly',
+                                   expected_deltas={'SPARKSPREAD-2012-1': 11.978},
+                                   is_double_sided_deltas=False)
 
     def test_call_recombinations_with_function_calls_advancing_values(self):
         # This wasn't working, because each function call was being carried into the next
@@ -1180,13 +1264,47 @@ f(ObservationDate())
 
 
 class SpecialTests(ApplicationTestCase):
+
+    def test_single_sided_delta(self):
+        dsl = "Market('NBP') * 2"
+        self.assert_contract_value(dsl,
+                                   expected_value=20,
+                                   expected_deltas={'NBP': 2},
+                                   periodisation='alltime',
+                                   )
+        self.assert_contract_value(dsl,
+                                   expected_value=20,
+                                   expected_deltas={'NBP': 2},
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False
+                                   )
+        self.assert_contract_value(dsl,
+                                   expected_value=20,
+                                   expected_deltas={'NBP-2011-1': 2},
+                                   periodisation='monthly',
+                                   )
+        self.assert_contract_value(dsl,
+                                   expected_value=20,
+                                   expected_deltas={'NBP-2011-1': 2},
+                                   periodisation='monthly',
+                                   is_double_sided_deltas=False
+                                   )
+
     def test_simple_expression_with_market(self):
         dsl = "Market('NBP') + 2 * Market('TTF')"
         self.assert_contract_value(dsl,
                                    expected_value=32,
                                    expected_deltas={'NBP-2011-1': 1, 'TTF-2011-1': 2},
                                    expected_call_count=1,
-                                   periodisation='monthly'
+                                   periodisation='monthly',
+                                   )
+
+        self.assert_contract_value(dsl,
+                                   expected_value=32,
+                                   expected_deltas={'NBP-2011-1': 1, 'TTF-2011-1': 2},
+                                   expected_call_count=1,
+                                   periodisation='monthly',
+                                   is_double_sided_deltas=False
                                    )
 
     def test_simple_function_with_market(self):
@@ -1196,7 +1314,18 @@ def F():
 
 F()
 """
-        self.assert_contract_value(dsl, 32, {'NBP': 1, 'TTF': 2}, expected_call_count=2, periodisation='alltime')
+        self.assert_contract_value(dsl,
+                                   expected_value=32,
+                                   expected_deltas={'NBP': 1, 'TTF': 2},
+                                   expected_call_count=2,
+                                   periodisation='alltime')
+
+        self.assert_contract_value(dsl,
+                                   expected_value=32,
+                                   expected_deltas={'NBP': 1, 'TTF': 2},
+                                   expected_call_count=2,
+                                   periodisation='alltime',
+                                   is_double_sided_deltas=False)
 
     def test_generate_valuation_swing_option(self):
         specification = """
@@ -1427,7 +1556,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 19.9857, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 19.9982, {}, expected_call_count=10)
 
         # Capacity, and inventory to discharge in future.
         specification = specification_tmpl % {
@@ -1437,7 +1566,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 15.3496, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=10)
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {
@@ -1447,7 +1576,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 2
         }
-        self.assert_contract_value(specification, 0.0123, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.0024, {}, expected_call_count=6)
 
 
 class SingleTests(ApplicationTestCase):
