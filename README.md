@@ -216,7 +216,7 @@ an evaluation.
 
 **`interest_rate`**
 
-The continuously compounding short run risk free rate, used for discounting.
+The continuously compounding short run risk free rate, used for discounting (default `0`).
 
 **`price_process`**
 
@@ -238,7 +238,7 @@ Determines the accuracy of the simulated random variables (default `20000`).
 **`perturbation_factor`**
 
 Used to calculate "greeks". If the `path_count` is larger, a smaller
-perturbation factor may give better results. The default `perturbation_factor` is `0.01`.
+perturbation factor may give better result (default `0.01`).
 
 **`max_dependency_graph_size`**
 
@@ -538,7 +538,9 @@ Schwartz, 1998) to compare the conditional expected value of each alternative `E
 
 ```
 <Choice> ::= "Choice(" <Expression> "," <Expression> ")"
+```
 
+```
 [[Choice(x, y)]](t) = max(E[[[x]](t) | F(t)], E[[[y]](t) | F(t)])
 ```
 
