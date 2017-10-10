@@ -928,76 +928,87 @@ deltas for each month for each market, and the fair value.
 
 ```
 Compiled 92 nodes 
-Compilation in 0.426s
-Simulation in 0.093s
+Compilation in 0.366s
+Simulation in 0.064s
 Starting 844 node evaluations, please wait...
-844/844 100.00% complete 170.15 eval/s running 5s eta 0s
-Evaluation in 4.976s
+844/844 100.00% complete 187.79 eval/s running 5s eta 0s
+Evaluation in 4.515s
 
 
-GAS-2011-4
-Price: 9.00
-Hedge: 0.42 ± 0.03 units
-Cash: -3.75 ± 0.31
+2011-04-01 GAS
+Delta:    -0.42
+Price:     9.00
+Hedge:     0.42 ± 0.01
+Cash:     -3.75 ± 0.31
 
-GAS-2011-5
-Price: 7.50
-Hedge: 1.12 ± 0.08 units
-Cash: -8.28 ± 0.58
+2011-05-01 GAS
+Delta:    -1.11
+Price:     7.50
+Hedge:     1.12 ± 0.03
+Cash:     -8.28 ± 0.58
 
-GAS-2011-6
-Price: 7.00
-Hedge: 1.21 ± 0.10 units
-Cash: -8.43 ± 0.74
+2011-06-01 GAS
+Delta:    -1.21
+Price:     7.00
+Hedge:     1.22 ± 0.03
+Cash:     -8.43 ± 0.74
 
-GAS-2011-7
-Price: 6.49
-Hedge: 1.10 ± 0.10 units
-Cash: -7.04 ± 0.72
+2011-07-01 GAS
+Delta:    -1.10
+Price:     6.49
+Hedge:     1.11 ± 0.04
+Cash:     -7.04 ± 0.72
 
-GAS-2011-8
-Price: 7.49
-Hedge: 1.04 ± 0.10 units
-Cash: -7.64 ± 0.78
+2011-08-01 GAS
+Delta:    -1.04
+Price:     7.49
+Hedge:     1.05 ± 0.03
+Cash:     -7.64 ± 0.78
 
-GAS-2011-9
-Price: 8.49
-Hedge: 0.79 ± 0.09 units
-Cash: -6.49 ± 0.86
+2011-09-01 GAS
+Delta:    -0.79
+Price:     8.49
+Hedge:     0.80 ± 0.03
+Cash:     -6.49 ± 0.86
 
-GAS-2011-10
-Price: 9.98
-Hedge: -1.35 ± 0.13 units
-Cash: 13.91 ± 1.42
+2011-10-01 GAS
+Delta:     1.34
+Price:     9.98
+Hedge:    -1.37 ± 0.04
+Cash:     13.91 ± 1.42
 
-GAS-2011-11
-Price: 11.47
-Hedge: -0.82 ± 0.09 units
-Cash: 8.82 ± 1.25
+2011-11-01 GAS
+Delta:     0.82
+Price:    11.47
+Hedge:    -0.84 ± 0.03
+Cash:      8.82 ± 1.25
 
-GAS-2011-12
-Price: 11.98
-Hedge: -0.87 ± 0.07 units
-Cash: 9.74 ± 1.02
+2011-12-01 GAS
+Delta:     0.86
+Price:    11.98
+Hedge:    -0.88 ± 0.02
+Cash:      9.74 ± 1.02
 
-GAS-2012-1
-Price: 13.47
-Hedge: -0.86 ± 0.05 units
-Cash: 10.81 ± 0.79
+2012-01-01 GAS
+Delta:     0.85
+Price:    13.47
+Hedge:    -0.88 ± 0.02
+Cash:     10.81 ± 0.79
 
-GAS-2012-2
-Price: 10.98
-Hedge: -0.96 ± 0.08 units
-Cash: 10.30 ± 1.13
+2012-02-01 GAS
+Delta:     0.96
+Price:    10.98
+Hedge:    -0.98 ± 0.03
+Cash:     10.30 ± 1.13
 
-GAS-2012-3
-Price: 9.99
-Hedge: -0.46 ± 0.09 units
-Cash: 3.98 ± 0.98
+2012-03-01 GAS
+Delta:     0.46
+Price:     9.99
+Hedge:    -0.47 ± 0.03
+Cash:      3.98 ± 0.98
 
-Net GAS: 0.37 ± 0.26
-
-Net cash: 15.93 ± 2.35
+Net hedge GAS:       0.31 ± 0.26
+Net hedge cash:     15.93 ± 2.35
 
 Fair value: 15.83 ± 0.12
 ```
@@ -1133,57 +1144,64 @@ monthly deltas for each of the two markets.
 
 ```
 Compiled 16 nodes 
-Compilation in 0.152s
-Simulation in 0.071s
+Compilation in 0.037s
+Simulation in 0.042s
 Starting 112 node evaluations, please wait...
-112/112 100.00% complete 156.63 eval/s running 1s eta 0s
-Evaluation in 0.770s
+112/112 100.00% complete 216.31 eval/s running 1s eta 0s
+Evaluation in 0.556s
 
 
-POWER-2012-1-2
-Price: 0.97
-Hedge: -0.01 ± 0.01 units
-Cash: 0.01 ± 0.01
+2012-01-02 POWER
+Delta:     0.01
+Price:     1.00
+Hedge:    -0.01 ± 0.00
+Cash:      0.01 ± 0.01
 
-GAS-2012-1-2
-Price: 10.71
-Hedge: 0.04 ± 0.01 units
-Cash: -0.31 ± 0.07
+2012-01-02 GAS
+Delta:    -0.04
+Price:    10.98
+Hedge:     0.04 ± 0.00
+Cash:     -0.31 ± 0.07
 
-POWER-2012-1-3
-Price: 10.71
-Hedge: -0.33 ± 0.01 units
-Cash: 3.54 ± 0.08
+2012-01-03 POWER
+Delta:     0.32
+Price:    10.98
+Hedge:    -0.33 ± 0.00
+Cash:      3.54 ± 0.08
 
-GAS-2012-1-3
-Price: 0.97
-Hedge: 1.02 ± 0.00 units
-Cash: -0.97 ± 0.01
+2012-01-03 GAS
+Delta:    -1.00
+Price:     1.00
+Hedge:     1.02 ± 0.00
+Cash:     -0.97 ± 0.01
 
-POWER-2012-1-4
-Price: 10.71
-Hedge: -1.03 ± 0.00 units
-Cash: 10.70 ± 0.07
+2012-01-04 POWER
+Delta:     1.00
+Price:    10.98
+Hedge:    -1.03 ± 0.00
+Cash:     10.70 ± 0.07
 
-GAS-2012-1-4
-Price: 0.97
-Hedge: 1.02 ± 0.00 units
-Cash: -0.97 ± 0.01
+2012-01-04 GAS
+Delta:    -1.00
+Price:     1.00
+Hedge:     1.02 ± 0.00
+Cash:     -0.97 ± 0.01
 
-POWER-2012-1-5
-Price: 9.73
-Hedge: -0.32 ± 0.01 units
-Cash: 3.37 ± 0.12
+2012-01-05 POWER
+Delta:     0.31
+Price:     9.98
+Hedge:    -0.32 ± 0.00
+Cash:      3.37 ± 0.12
 
-GAS-2012-1-5
-Price: 10.70
-Hedge: 0.32 ± 0.01 units
-Cash: -2.99 ± 0.10
+2012-01-05 GAS
+Delta:    -0.31
+Price:    10.98
+Hedge:     0.32 ± 0.00
+Cash:     -2.99 ± 0.10
 
-Net GAS: 2.40 ± 0.02
-Net POWER: -1.68 ± 0.01
-
-Net cash: 12.37 ± 0.10
+Net hedge GAS:       2.40 ± 0.02
+Net hedge POWER:    -1.68 ± 0.01
+Net hedge cash:     12.37 ± 0.10
 
 Fair value: 12.38 ± 0.09
 ```
