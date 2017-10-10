@@ -230,8 +230,12 @@ Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`
 
 **`is_verbose`**
 
-Setting `is_verbose` to a `True` value will cause progress of a calculation to
+Setting `is_verbose` will cause progress of a calculation to
 be printed to standard output.
+
+See also `calc_and_print()` which can format and print
+results. And `calc_print_plot()` which plots results using matplotlib.
+
 
 ### Settlement
 
