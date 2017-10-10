@@ -159,8 +159,8 @@ this work: `compile()`, `simulate()`, and `evaluate()`.
 
 In addition to the Quant DSL expressions above, function `def`
 statements are supported. User defined functions can be used
-to refactor complex or extensive Quant DSL expressions, to model complex
-optionality concisely. The `import` statement is also supported, so Quant
+to refactor complex or extensive Quant DSL expressions, to concisely model complex
+optionality. The `import` statement is also supported, so Quant
 DSL function definitions and expressions to be developed and maintained as
 Python files. Since Quant DSL syntax is a strict subset of Python, the
 full power of Python IDEs can be used to write, navigate and refactor
