@@ -240,8 +240,7 @@ results. And `calc_print_plot()` which plots results using matplotlib.
 ### Settlement
 
 The `Settlement` element discounts the value of the included `Expression` from its given `Date` to the effective 
-present time (`t` in the semantics above) when the element is evaluated, which defaults to the
-`observation_date` passed to `calc()` (see below).
+present time (`t` in the semantics above) when the element is evaluated.
 
 ```
 <Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
@@ -279,7 +278,7 @@ annual equivalent rate).
 
 ### Fixing
 
-The `Fixing` element conditions the effective present time of its included `Expression` with its given `Date`.
+The `Fixing` element simply conditions the effective present time of its included `Expression` with its given `Date`.
 
 ```
 <Fixing> ::= "Fixing(" <Date> "," <Expression> ")"
