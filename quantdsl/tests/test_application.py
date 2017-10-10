@@ -765,6 +765,31 @@ fib(%s)
         self.assert_contract_value(fib_tmpl % 6, 8, expected_call_count=8)
         self.assert_contract_value(fib_tmpl % 7, 13, expected_call_count=9)
 
+    def test_factorial_1(self):
+        code = """
+def factorial(n):
+    if n > 1:
+        n * factorial(n-1)
+    else:
+        1
+factorial(%s)
+"""
+        self.assert_contract_value(code % 1, 1, expected_call_count=2)
+        self.assert_contract_value(code % 10, 3628800, expected_call_count=11)
+
+    def test_factorial_2(self):
+        code = """
+def factorial(n, acc):
+    if n > 1:
+        factorial(n-1, acc * n)
+    else:
+        acc
+factorial(%s, 1)
+"""
+        self.assert_contract_value(code % 1, 1, expected_call_count=2)
+        self.assert_contract_value(code % 10, 3628800, expected_call_count=11)
+
+
     def test_compare_args_error(self):
         code = "TimeDelta('1d') > 1"
         with self.assertRaises(DslCompareArgsError):

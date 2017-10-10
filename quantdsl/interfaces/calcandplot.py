@@ -31,7 +31,7 @@ from quantdsl.priceprocess.base import datetime_from_date
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
                     max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                    timeout=None, verbose=False, is_double_sided_deltas=False):
+                    timeout=None, verbose=False, is_double_sided_deltas=True):
     # Calculate and print the results.
     results = calc_print(source_code,
                          max_dependency_graph_size=max_dependency_graph_size,
@@ -63,7 +63,7 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                price_process=None, periodisation=None, dsl_classes=None,
                max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None, verbose=False, is_double_sided_deltas=False):
+               timeout=None, verbose=False, is_double_sided_deltas=True):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -88,7 +88,7 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
          perturbation_factor=0.01, price_process=None, periodisation=None, dsl_classes=None,
          max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None, verbose=False, is_double_sided_deltas=False):
+         timeout=None, verbose=False, is_double_sided_deltas=True):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -117,7 +117,7 @@ class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, dsl_classes=None,
                  max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None, verbose=False, is_double_sided_deltas=False):
+                 timeout=None, verbose=False, is_double_sided_deltas=True):
         self.timeout = timeout
         self.source_code = source_code
         if observation_date is not None:
@@ -423,46 +423,42 @@ def print_results(results, path_count):
 
         market_name_width = max([len(k) for k in results.by_market_name.keys()])
         for delivery_date, markets_results in sorted(results.by_delivery_date.items()):
-            print("Delivery {}:".format(delivery_date))
 
             for market_result in markets_results:
                 market_name = market_result['market_name']
+                if delivery_date:
+                    print("{} {}".format(delivery_date, market_name))
+                else:
+                    print(market_name)
+                delta = market_result['delta'].mean()
+                print("Delta: {: >8.2f}".format(delta))
+                price_simulated = market_result['price_simulated'].mean()
+                print("Price: {: >8.2f}".format(price_simulated))
                 hedge_units = market_result['hedge_units']
                 hedge_units_mean = hedge_units.mean()
                 hedge_units_stderr = hedge_units.std() / sqrt_path_count
+                print("Hedge: {: >8.2f} ± {:.2f}".format(hedge_units_mean, hedge_units_stderr))
                 hedge_cost = market_result['hedge_cost']
                 hedge_cost_mean = hedge_cost.mean()
                 hedge_cost_stderr = hedge_cost.std() / sqrt_path_count
                 net_hedge_cost += hedge_cost
-                # print("Cash:  {:.2f} ± {:.2f}".format(hedge_cost_mean, 3 * hedge_cost_stderr))
+                print("Cash:  {: >8.2f} ± {:.2f}".format(-hedge_cost_mean, 3 * hedge_cost_stderr))
                 if len(dates) > 1:
                     market_name = market_result['market_name']
                     net_hedge_units[market_name] += hedge_units
-                price_simulated_mean = market_result['price_simulated'].mean()
-                print(
-                    (
-                        "{:"+str(market_name_width)+"} price {:.2f}, "
-                        "hedge {:.2f} ± {:.2f} units"
-                        ", cost {:.2f}"
-                ).format(
-                        market_name, price_simulated_mean,
-                        hedge_units_mean, 3 * hedge_units_stderr,
-                        hedge_cost_mean, 3 * hedge_cost_stderr
-                ))
 
-            print()
+                print()
 
         for commodity in sorted(net_hedge_units.keys()):
             units = net_hedge_units[commodity]
-            print("Net {:10} {:.2f} ± {:.2f}".format(
+            print("Net hedge {:6} {: >8.2f} ± {: >.2f}".format(
                 commodity+':', units.mean(), 3 * units.std() / sqrt_path_count)
             )
 
         net_hedge_cost_mean = net_hedge_cost.mean()
         net_hedge_cost_stderr = net_hedge_cost.std() / sqrt_path_count
 
-        print()
-        print("Net hedge cost: {:.2f} ± {:.2f}".format(net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
+        print("Net hedge cash:  {: >8.2f} ± {: >.2f}".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
         print()
     # if isinstance(results.fair_value, ndarray):
     #     print("nans: {}".format(isnan(results.fair_value).sum()))
@@ -534,6 +530,7 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         cum_pos_p5 = [nanpercentile(p, 5) for p in cum_pos]
         cum_pos_p10 = [nanpercentile(p, 10) for p in cum_pos]
         cum_pos_p25 = [nanpercentile(p, 25) for p in cum_pos]
+        cum_pos_p50 = [nanpercentile(p, 50) for p in cum_pos]
         cum_pos_p75 = [nanpercentile(p, 75) for p in cum_pos]
         cum_pos_p90 = [nanpercentile(p, 90) for p in cum_pos]
         cum_pos_p95 = [nanpercentile(p, 95) for p in cum_pos]
@@ -557,11 +554,11 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
             dates, cum_pos_p75, INNER_COLOUR,
             dates, cum_pos_p10, MID_COLOUR,
             dates, cum_pos_p90, MID_COLOUR,
-            dates, cum_pos_p5, OUTER_COLOUR,
-            dates, cum_pos_p95, OUTER_COLOUR,
+            # dates, cum_pos_p5, OUTER_COLOUR,
+            # dates, cum_pos_p95, OUTER_COLOUR,
             # dates, cum_pos_stderr_plus, '0.5',
             # dates, cum_pos_stderr_minus, '0.5',
-            dates, cum_pos_mean, MEAN_COLOUR,
+            dates, cum_pos_p50, MEAN_COLOUR,
         )
 
         ymin = min(0, min(cum_pos_std_minus)) - 1
@@ -578,7 +575,7 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         date = period['delivery_date']
         if date not in dates:
             dates.append(date)
-        hedge_cost_by_date[date].append(period['hedge_cost'])
+        hedge_cost_by_date[date].append(-period['hedge_cost'])
 
     cum_hedge_cost = []
     for date in dates:
@@ -590,6 +587,7 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
     cum_cash_p5 = [nanpercentile(p, 5) for p in cum_hedge_cost]
     cum_cash_p10 = [nanpercentile(p, 10) for p in cum_hedge_cost]
     cum_cash_p25 = [nanpercentile(p, 25) for p in cum_hedge_cost]
+    cum_cash_p50 = [nanpercentile(p, 50) for p in cum_hedge_cost]
     cum_cash_p75 = [nanpercentile(p, 75) for p in cum_hedge_cost]
     cum_cash_p90 = [nanpercentile(p, 90) for p in cum_hedge_cost]
     cum_cash_p95 = [nanpercentile(p, 95) for p in cum_hedge_cost]
@@ -612,11 +610,11 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         dates, cum_cash_p75, INNER_COLOUR,
         dates, cum_cash_p10, MID_COLOUR,
         dates, cum_cash_p90, MID_COLOUR,
-        dates, cum_cash_p5, OUTER_COLOUR,
-        dates, cum_cash_p95, OUTER_COLOUR,
+        # dates, cum_cash_p5, OUTER_COLOUR,
+        # dates, cum_cash_p95, OUTER_COLOUR,
         # dates, cum_cash_stderr_plus, '0.5',
         # dates, cum_cash_stderr_minus, '0.5',
-        dates, cum_cash_mean, MEAN_COLOUR
+        dates, cum_cash_p50, MEAN_COLOUR
     )
 
     f.autofmt_xdate(rotation=60)
