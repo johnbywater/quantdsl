@@ -45,17 +45,54 @@ The syntax of Quant DSL expressions is defined with
 
 ```
 <Expression> ::= <Constant>
+
     | "Settlement(" <Date> "," <Expression> ")"
+
     | "Fixing(" <Date> "," <Expression> ")"
+
     | "Market(" <MarketName> ")"
+
     | "Wait(" <Date> "," <Expression> ")"
+
     | "Choice(" <Expression> "," <Expression> ")"
+
     | "Max(" <Expression> "," <Expression> ")"
+
     | <Expression> "+" <Expression>
+
     | <Expression> "-" <Expression>
+
     | <Expression> "*" <Expression>
+
     | <Expression> "/" <Expression>
+
     | "-" <Expression>
+```
+
+```
+<Constant> ::= <Float> | <Integer>
+
+<Date> ::= "'"<Year>"-"<Month>"-"<Day>"'"
+
+<MarketName> ::= "'"<MarketName><NameChar> | <NameChar>"'"
+
+<Year> ::= <Digit><Digit><Digit><Digit>
+
+<Month> ::= <Digit><Digit>
+
+<Day> ::= <Digit><Digit>
+
+<Float> ::= <Integer>"."<Integer>
+
+<Integer> ::= <Integer><Digit> | <Digit>
+
+<NameChar> ::= "A" | "B" | "C" | "D" | "E" | "F" |
+               "G" | "H" | "I" | "J" | "K" | "L" |
+               "M" | "N" | "O" | "P" | "Q" | "R" |
+               "S" | "T" | "U" | "V" | "W" | "X" |
+               "Y" | "Z" | "_" | <Digit>
+
+<Digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 ```
 
 ### Semantics
