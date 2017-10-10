@@ -101,9 +101,6 @@ random variable in a probability space) to the underlying simulated
 prices at that time using least squares. This leads to a quantitative
 difference from maximisation ("Max").
 
-Please note, these are the default semantics, and can be substituted
-using the `dsl_classes` arg of `calc()` (see below).
-
 ```
 [[Settlement(d, x)]](t) = e ** (r * (t−d)) * [[x]](t)
 ```
@@ -147,6 +144,9 @@ using the `dsl_classes` arg of `calc()` (see below).
 ```
 [[-x]](t) = -[[x]](t)
 ```
+
+Please note, these default semantics can be substituted
+using the `dsl_classes` arg of `calc()` (see below).
 
 
 ### Software
