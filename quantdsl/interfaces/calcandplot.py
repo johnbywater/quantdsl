@@ -213,7 +213,7 @@ class Calculate(object):
                 # Estimate the cost of the evaluation (to show progress).
                 # Todo: Improve the call cost estimation, perhaps by running over the depenendency graph and coding
                 # each DSL class to know how long it will take relative to others.
-                call_counts, call_costs = app.calc_counts_and_costs(contract_specification.id)
+                call_counts, call_costs = app.calc_counts_and_costs(contract_specification.id, self.is_double_sided_deltas)
                 self.result_count_expected = sum(call_counts.values())
                 self.result_cost_expected = sum(call_costs.values())
                 if self.verbose:

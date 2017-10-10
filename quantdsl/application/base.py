@@ -318,7 +318,7 @@ class QuantDslApplication(EventSourcingApplication):
                 if evaluation.is_double_sided_deltas:
                     dy = perturbed_value - perturbed_value_negative
                 else:
-                    dy = perturbed_value - simulated_price_value
+                    dy = perturbed_value - fair_value
 
 
                 discount_rate = discount(
@@ -370,7 +370,7 @@ class QuantDslApplication(EventSourcingApplication):
         # Todo: Return the call count from the compilation method?
         return len(list(regenerate_execution_order(contract_specification_id, self.call_link_repo)))
 
-    def calc_counts_and_costs(self, contract_specification_id):
+    def calc_counts_and_costs(self, contract_specification_id, is_double_sided_deltas):
         """Returns a dict of call IDs -> perturbation requirements."""
         costs = {}
         counts = {}
@@ -388,7 +388,9 @@ class QuantDslApplication(EventSourcingApplication):
             else:
                 assert isinstance(perturbation_dependencies, PerturbationDependencies)
                 # "1 + 2 * number of dependencies" because of the double sided delta.
-                num_evaluations = 1 + 2 * len(perturbation_dependencies.dependencies)
+                num_perturbation_dependencies = len(perturbation_dependencies.dependencies)
+                num_perturbations = (2 if is_double_sided_deltas else 1) * num_perturbation_dependencies
+                num_evaluations = 1 + num_perturbations
 
             # Cost is cost of doing it once, times the number of times it needs doing.
             costs[call_id] = num_evaluations * estimated_cost_of_expr
