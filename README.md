@@ -210,13 +210,13 @@ functions from Quant DSL modules saved as normal Python files.
 
 **`observation_date`**
 
-Sets the time `t0` from when the forward curve is evolved by the price process.
+Sets the time `t0` in the semantics from when the forward curve is evolved by the price process.
 Also conditions the effective present time `t` of the outermost element in 
 an evaluation.
 
 **`interest_rate`**
 
-The continuously compounding short run risk free rate used for discounting.
+The continuously compounding short run risk free rate, used for discounting.
 
 **`price_process`**
 
@@ -229,21 +229,20 @@ The deltas can be obtained by setting the `periodisation` arg of `calc()`.
 
 **`is_double_sided_deltas`**
 
-Evaluate with either single- or double-sided deltas, with
-the `is_double_sided_deltas` argument (default `True`).
+Evaluate with either single- or double-sided deltas (default `True`).
 
 **`path_count`**
 
-Adjust the accuracy of the simulated random variables by setting the `path_count` (default `20000`).
+Determines the accuracy of the simulated random variables (default `20000`).
 
 **`perturbation_factor`**
 
-You can adjust the `perturbation_factor` used to calculate deltas. If the `path_count` is larger, a smaller
+Used to calculate "greeks". If the `path_count` is larger, a smaller
 perturbation factor may give better results. The default `perturbation_factor` is `0.01`.
 
 **`max_dependency_graph_size`**
 
-You can adjust the limit on the maximum number of nodes the can be compiled from Quant DSL source with the
+Sets the limit on the maximum number of nodes the can be compiled from Quant DSL source with the
 `max_dependency_graph_size` arg of `calc()`.
 
 **`timeout`**
