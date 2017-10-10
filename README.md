@@ -47,7 +47,7 @@ The syntax of Quant DSL expressions is defined with
 <Expression> ::= <Constant>
     | "Settlement(" <Date> "," <Expression> ")"
     | "Fixing(" <Date> "," <Expression> ")"
-    | "Market(" <MarketId> ")"
+    | "Market(" <MarketName> ")"
     | "Wait(" <Date> "," <Expression> ")"
     | "Choice(" <Expression> "," <Expression> ")"
     | "Max(" <Expression> "," <Expression> ")"
@@ -241,17 +241,17 @@ assert round(results.fair_value, 2) == 223.13, results.fair_value
 The `Market` element effectively estimates prices that could be agreed in the future.
 
 ```
-<Market> ::= "Market(" <MarketId> ")"
+<Market> ::= "Market(" <MarketName> ")"
 ```
 
 When a `Market` element is evaluated, it returns a random variable selected from a simulation
  of market prices.
 
-Selecting an estimated price from the simulation requires the ID of the market,
+Selecting an estimated price from the simulation requires the name of the market,
 a *fixing date* (when the price would be agreed), and a *delivery date* (when the goods would be delivered).
  
-The ID of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'`). The effective
-present time when the element is evaluated determines both the fixing date and the delivery date.
+The name of the `Market` is included in the element (e.g. `'GAS'` or `'POWER'`). Both the fixing date and
+the delivery date are determined by the effective present time when the element is evaluated.
 
 
 #### Simulation
