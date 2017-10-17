@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from mock import Mock
 from scipy import array
 
-from quantdsl.exceptions import DslNameError, DslSyntaxError, DslSystemError
+from quantdsl.exceptions import DslNameError, DslSyntaxError, DslSystemError, DslPresentTimeNotInScope
 from quantdsl.semantics import Add, And, Date, Div, DslNamespace, DslObject, Max, Min, Mult, Name, Number, Or, \
     String, Sub, TimeDelta, Pow, FunctionDef, FunctionCall, Stub, FunctionArg
 
@@ -47,6 +47,16 @@ class TestDslObject(TestCase):
     def test_str(self):
         self.assertEqual(str(self.obj), "Subclass()")
         self.assertEqual(str(Subclass(Subclass())), "Subclass(Subclass())")
+
+    def test_get_present_time(self):
+        # Check method returns given value.
+        present_time = self.obj.get_present_time({'present_time': datetime.datetime(2011, 1, 1)})
+        self.assertEqual(present_time, datetime.datetime(2011, 1, 1))
+
+        # Check method raises exception when value not in scope.
+        with self.assertRaises(DslPresentTimeNotInScope):
+            self.obj.get_present_time({})
+
 
 
 class TestString(TestCase):
@@ -243,6 +253,9 @@ class TestSub(TestCase):
         obj = Sub(Number(1), String('a'))
         with self.assertRaises(DslSyntaxError):
             obj.evaluate()
+
+        obj = Sub(Date('2011-1-2'), Date('2011-1-1'))
+        self.assertEqual(obj.evaluate(), relativedelta(days=1))
 
 
 class TestMul(TestCase):

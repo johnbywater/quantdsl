@@ -54,10 +54,13 @@ class DslObject(six.with_metaclass(ABCMeta)):
         for i, arg in enumerate(self._args):
             if lenArgs > 1:
                 msg += indent
-            if isinstance(arg, DslObject):
-                msg += arg.pprint(indent)
-            else:
-                msg += str(arg)
+            # if isinstance(arg, DslObject):
+            #     msg += arg.pprint(indent)
+            # else:
+            #     msg += str(arg)
+            assert isinstance(arg, DslObject), type(arg)
+            msg += arg.pprint(indent)
+
             if i < lenArgs - 1:
                 msg += ","
             if lenArgs > 1:
@@ -97,9 +100,9 @@ class DslObject(six.with_metaclass(ABCMeta)):
             _hash = str(hash(_arg))
         return _hash
 
-    def __hash__(self):
-        return self.hash
-
+    # def __hash__(self):
+    #     return self.hash
+    #
     @abstractmethod
     def validate(self, args):
         """
@@ -140,11 +143,8 @@ class DslObject(six.with_metaclass(ABCMeta)):
 
         elif not isinstance(args[posn], required_type):
             if isinstance(required_type, (list, tuple)):
-                try:
-                    required_type_names = [i.__name__ for i in required_type]
-                    required_type_names = ", ".join(required_type_names)
-                except AttributeError as e:
-                    raise AttributeError(required_type)
+                required_type_names = [i.__name__ for i in required_type]
+                required_type_names = ", ".join(required_type_names)
             else:
                 required_type_names = required_type.__name__
             desc = "argument %s must be %s" % (posn, required_type_names)
@@ -428,8 +428,8 @@ class BinOp(DslExpression):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta, Underlying))
-        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta, Underlying))
+        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta))
+        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta))
 
     @property
     def left(self):
@@ -443,10 +443,11 @@ class BinOp(DslExpression):
         left = self.left.evaluate(**kwds)
         right = self.right.evaluate(**kwds)
         try:
-            if self.op_code in NUMEXPR_OPS and (isinstance(left, ndarray) or isinstance(right, ndarray)):
-                return self.op_numexpr(left, right)
-            else:
-                return self.op_python(left, right)
+            # if self.op_code in NUMEXPR_OPS and (isinstance(left, ndarray) or isinstance(right, ndarray)):
+            #     return self.op_numexpr(left, right)
+            # else:
+            #     return self.op_python(left, right)
+            return self.op_python(left, right)
         except TypeError as e:
             raise DslBinOpArgsError("unable to %s" % self.__class__.__name__.lower(),
                                     "%s and %s: %s" % (self.left, self.right, e),
@@ -458,15 +459,15 @@ class BinOp(DslExpression):
         Returns result of operating on two args.
         """
 
-    def op_numexpr(self, left, right):
-        # return left ** right
-        expr = 'left {} right'.format(self.op_code)
-        try:
-            return numexpr.evaluate(expr)
-        except SyntaxError as e:
-            raise SyntaxError("Invalid numexpr syntax in class: {}: '{}'".format(
-                self.__class__.__name__, expr
-            ))
+    # def op_numexpr(self, left, right):
+    #     # return left ** right
+    #     expr = 'left {} right'.format(self.op_code)
+    #     try:
+    #         return numexpr.evaluate(expr)
+    #     except SyntaxError as e:
+    #         raise SyntaxError("Invalid numexpr syntax in class: {}: '{}'".format(
+    #             self.__class__.__name__, expr
+    #         ))
 
 
 class Add(BinOp):
@@ -511,8 +512,8 @@ class Pow(BinOp):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta, Underlying))
-        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta, Underlying))
+        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta))
+        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta))
 
 
 class Mod(BinOp):
@@ -631,19 +632,6 @@ class Stub(Name):
         # is normally a UUID, and UUIDs are not valid Python variable names
         # because they have dashes and sometimes start with numbers.
         return "Stub('%s')" % self.name
-
-
-# Todo: Drop this.
-class Underlying(DslObject):
-    def validate(self, args):
-        self.assert_args_len(args, 1)
-
-    @property
-    def expr(self):
-        return self._args[0]
-
-    def evaluate(self, **_):
-        return self.expr
 
 
 class FunctionDef(DslObject):
@@ -904,10 +892,7 @@ class FunctionCall(DslExpression):
             if isinstance(call_arg_expr, DslExpression):
                 # Substitute names, etc.
                 # Decide whether to evaluate, or just pass the expression into the function call.
-                if isinstance(call_arg_expr, Underlying):
-                    # It's explicitly wrapped as an "underlying", so unwrap it as expected.
-                    call_arg_value = call_arg_expr.evaluate()
-                elif isinstance(call_arg_expr, FunctionCall):
+                if isinstance(call_arg_expr, FunctionCall):
                     # It's a function call, so try to call it (attempt to simplify things going forward).
                     # - can't do it with stack, because we don't want to stack calls with wrong effective present time
                     # - can't just do it without stack, because recursive functions risk recursion depth exception
@@ -1244,7 +1229,6 @@ functionalDslClasses = {
     'Sub': Sub,
     'TimeDelta': TimeDelta,
     'UnarySub': UnarySub,
-    'Underlying': Underlying,
 }
 
 
