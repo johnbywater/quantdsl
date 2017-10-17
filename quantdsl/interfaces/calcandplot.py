@@ -442,12 +442,12 @@ def print_results(results, path_count):
                 print(
                     (
                         "{:"+str(market_name_width)+"} price {:.2f}, "
-                        "hedge {:.2f} ± {:.2f} units"
-                        ", cost {:.2f}"
+                        "hedge {:.2f} ± {:.2f}"
+                        ", cash {:.2f}"
                 ).format(
                         market_name, price_simulated_mean,
                         hedge_units_mean, 3 * hedge_units_stderr,
-                        hedge_cost_mean, 3 * hedge_cost_stderr
+                        -hedge_cost_mean, 3 * hedge_cost_stderr
                 ))
 
             print()
@@ -462,7 +462,7 @@ def print_results(results, path_count):
         net_hedge_cost_stderr = net_hedge_cost.std() / sqrt_path_count
 
         print()
-        print("Net hedge cost: {:.2f} ± {:.2f}".format(net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
+        print("Net hedge cash: {:.2f} ± {:.2f}".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
         print()
     # if isinstance(results.fair_value, ndarray):
     #     print("nans: {}".format(isnan(results.fair_value).sum()))
@@ -580,21 +580,21 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
             dates.append(date)
         hedge_cost_by_date[date].append(period['hedge_cost'])
 
-    cum_hedge_cost = []
+    cum_hedge_cash = []
     for date in dates:
-        hedge_cost = sum(hedge_cost_by_date[date])
-        if cum_hedge_cost:
-            hedge_cost += cum_hedge_cost[-1]
-        cum_hedge_cost.append(hedge_cost)
+        hedge_cash = - sum(hedge_cost_by_date[date])
+        if cum_hedge_cash:
+            hedge_cash += cum_hedge_cash[-1]
+        cum_hedge_cash.append(hedge_cash)
 
-    cum_cash_p5 = [nanpercentile(p, 5) for p in cum_hedge_cost]
-    cum_cash_p10 = [nanpercentile(p, 10) for p in cum_hedge_cost]
-    cum_cash_p25 = [nanpercentile(p, 25) for p in cum_hedge_cost]
-    cum_cash_p75 = [nanpercentile(p, 75) for p in cum_hedge_cost]
-    cum_cash_p90 = [nanpercentile(p, 90) for p in cum_hedge_cost]
-    cum_cash_p95 = [nanpercentile(p, 95) for p in cum_hedge_cost]
-    cum_cash_mean = [p.mean() for p in cum_hedge_cost]
-    cum_cash_std = [p.std() for p in cum_hedge_cost]
+    cum_cash_p5 = [nanpercentile(p, 5) for p in cum_hedge_cash]
+    cum_cash_p10 = [nanpercentile(p, 10) for p in cum_hedge_cash]
+    cum_cash_p25 = [nanpercentile(p, 25) for p in cum_hedge_cash]
+    cum_cash_p75 = [nanpercentile(p, 75) for p in cum_hedge_cash]
+    cum_cash_p90 = [nanpercentile(p, 90) for p in cum_hedge_cash]
+    cum_cash_p95 = [nanpercentile(p, 95) for p in cum_hedge_cash]
+    cum_cash_mean = [p.mean() for p in cum_hedge_cash]
+    cum_cash_std = [p.std() for p in cum_hedge_cash]
     cum_cash_stderr = [p / math.sqrt(path_count) for p in cum_cash_std]
 
     cum_cash_std_offset = NUM_STD_DEVS * numpy.array(cum_cash_std)
