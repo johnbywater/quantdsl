@@ -10,7 +10,7 @@ from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPytho
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.exceptions import CallLimitError, DslBinOpArgsError, DslCompareArgsError, \
-    DslTestExpressionCannotBeEvaluated, RecursionDepthError
+    DslTestExpressionCannotBeEvaluated, RecursionDepthError, DslSyntaxError
 from quantdsl.semantics import discount
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -778,6 +778,36 @@ factorial(%s, 1)
         code = "TimeDelta('1d') + 1"
         with self.assertRaises(DslBinOpArgsError):
             self.assert_contract_value(code)
+
+    def test_function_call_with_keywords_not_currently_supported(self):
+        dsl_source = """
+def f(n):
+    return n
+
+f(n=1)
+"""
+        with self.assertRaises(DslSyntaxError):
+            self.assert_contract_value(dsl_source)
+
+    def test_function_call_with_starargs_not_currently_supported(self):
+        dsl_source = """
+def f(n):
+    return n
+
+f(*[1])
+"""
+        with self.assertRaises(DslSyntaxError):
+            self.assert_contract_value(dsl_source)
+
+    def test_function_call_with_starstarkwargs_not_currently_supported(self):
+        dsl_source = """
+def f(n):
+    return n
+
+f(**{n:1})
+"""
+        with self.assertRaises(DslSyntaxError):
+            self.assert_contract_value(dsl_source)
 
     def test_function_call_as_call_arg_gets_correct_present_time_when_inlined(self):
         dsl_source = """
