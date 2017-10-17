@@ -1054,6 +1054,10 @@ def Gas(start):
 @inline
 def DayAhead(start, name):
     ForwardMarket(Tomorrow(start), name)
+    
+@inline
+def Tomorrow(start):
+    start + TimeDelta('1d')
 
 @inline
 def ProfitFromRunning(start, temp):
