@@ -3,6 +3,7 @@
 ***Domain specific language for quantitative analytics in finance and trading.***
 
 [![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
+[![Coverage Status](https://coveralls.io/repos/github/johnbywater/quantdsl/badge.svg)](https://coveralls.io/github/johnbywater/quantdsl)
 
 
 ## Install
