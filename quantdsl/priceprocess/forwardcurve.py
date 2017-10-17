@@ -1,4 +1,5 @@
 import dateutil.parser
+import six
 from scipy import sort, array, searchsorted
 
 from quantdsl.priceprocess.base import datetime_from_date
@@ -6,6 +7,8 @@ from quantdsl.priceprocess.base import datetime_from_date
 
 class ForwardCurve(object):
     def __init__(self, name, data):
+        assert isinstance(name, six.string_types)
+        assert isinstance(data, (list, tuple))
         self.name = name
         self.data = data
         self.by_date = dict(
