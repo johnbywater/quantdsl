@@ -1244,7 +1244,7 @@ class AbstractMarket(StochasticObject, DslExpression):
             simulated_value_dict = kwds['simulated_value_dict']
         except KeyError:
             raise DslError(
-                "Not found 'simulated_value_dict' in context variables" % self.market_name,
+                "Not found 'simulated_value_dict' in context variables" % self.commodity_name,
                 ", ".join(kwds.keys()),
                 node=self.node
             )
@@ -1281,10 +1281,6 @@ class AbstractMarket(StochasticObject, DslExpression):
         else:
             evaluated_value = expr_value
         return evaluated_value
-
-    @property
-    def market_name(self):
-        return self.commodity_name
 
     @property
     def commodity_name(self):
@@ -1366,17 +1362,18 @@ class ForwardMarket(AbstractMarket):
                 raise DslSyntaxError(
                     "date value name '%s' must be resolved to a datetime before it can be used" % date.name,
                     node=self.node)
-            if isinstance(date, datetime.date):
-                pass
+
             if isinstance(date, six.string_types):
                 date = String(date)
+
             if isinstance(date, String):
                 date = Date(date, node=date.node)
+
             if isinstance(date, (Date, BinOp)):
                 date = date.evaluate(**kwds)
-            if not isinstance(date, datetime.date):
-                raise DslSyntaxError("delivery date value should be a datetime.datetime by now, but it's a %s" % date,
-                                     node=self.node)
+
+            assert isinstance(date, datetime.date), type(date)
+
             self._delivery_date = date
         return fixing_date, self._delivery_date
 
@@ -1427,8 +1424,6 @@ class Fixing(DatedDslObject):
     def call_functions(self, present_time=None, observation_date=None, pending_call_stack=None):
         # Figure out the present_time from the fixing date, which might still be a Name.
         fixing_date = self._args[0]
-        if isinstance(fixing_date, datetime.datetime):
-            pass
         if isinstance(fixing_date, six.string_types):
             fixing_date = String(fixing_date)
         if isinstance(fixing_date, String):
