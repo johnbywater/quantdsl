@@ -57,7 +57,7 @@ def generate_dependency_graph(contract_specification, call_dependencies_repo, ca
         call_requirement._dsl_expr = stubed_call.dsl_expr
         call_requirement_repo.add_cache(call_id, call_requirement)
 
-        # Register the call requirements.
+        # Register the call dependencies (things needed by this call).
         dependencies = stubed_call.requirements
         register_call_dependencies(call_id, dependencies)
 

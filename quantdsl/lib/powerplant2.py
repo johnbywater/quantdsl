@@ -1,52 +1,55 @@
-from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline
+from quantdsl.semantics import Choice, TimeDelta, Wait, inline, ForwardMarket
 
 
-def PowerPlant(start, end, duration_off):
+def PowerPlant(start, end, temp):
     if (start < end):
-        Wait(start,
-            Choice(
-                ProfitFromRunning(duration_off) + PowerPlant(
-                    Tomorrow(start), end, Running()
-                ),
-                PowerPlant(
-                    Tomorrow(start), end, Stopped(duration_off)
-                )
-            )
-        )
+        Wait(start, Choice(
+            PowerPlant(Tomorrow(start), end, Hot()) + ProfitFromRunning(start, temp),
+            PowerPlant(Tomorrow(start), end, Stopped(temp))
+        ))
     else:
         return 0
 
+@inline
+def Power(start):
+    DayAhead(start, 'POWER')
 
 @inline
-def ProfitFromRunning(duration_off):
-    if duration_off > 1:
-        return 0.75 * Power() - Gas()
-    elif duration_off == 1:
-        return 0.90 * Power() - Gas()
+def Gas(start):
+    DayAhead(start, 'GAS')
+
+@inline
+def DayAhead(start, name):
+    ForwardMarket(Tomorrow(start), name)
+
+@inline
+def ProfitFromRunning(start, temp):
+    if temp == Cold():
+        return 0.3 * Power(start) - Gas(start)
+    elif temp == Warm():
+        return 0.6 * Power(start) - Gas(start)
     else:
-        return 1.00 * Power() - Gas()
-
-
-@inline
-def Power():
-    Market('POWER')
-
+        return Power(start) - Gas(start)
 
 @inline
-def Gas():
-    Market('GAS')
-
-
-@inline
-def Running():
-    return 0
-
+def Stopped(temp):
+    if temp == Hot():
+        Warm()
+    else:
+        Cold()
 
 @inline
-def Stopped(duration_off):
-    return duration_off + 1
+def Hot():
+    2
 
+@inline
+def Warm():
+    1
+
+@inline
+def Cold():
+    0
 
 @inline
 def Tomorrow(today):
-    return today + TimeDelta('1d')
+    today + TimeDelta('1d')
