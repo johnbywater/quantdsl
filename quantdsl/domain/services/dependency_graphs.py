@@ -101,11 +101,8 @@ def generate_execution_order(leaf_call_ids, call_dependents_repo, call_dependenc
         # Yield node n.
         yield n
 
-        # Get dependents, if any were registered.
-        try:
-            dependents = call_dependents_repo[n]
-        except KeyError:
-            continue
+        # Get dependents (calls waiting for this call).
+        dependents = call_dependents_repo[n]
 
         # Visit the nodes that are dependent on n.
         for m in dependents:
