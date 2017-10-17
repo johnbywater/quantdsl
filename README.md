@@ -574,7 +574,7 @@ expected continuation value of the alternatives, according to information in the
 at the time of the choice. This conditioning gives a quantitatively different result from simple
 maximisation of the alternative expected continuation values (`Max`). 
 
-### Functions definitions
+### Function definitions
 
 Quant DSL source code can include function definitions. Expressions can involve calls to functions.
 
