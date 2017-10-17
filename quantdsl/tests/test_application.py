@@ -1187,19 +1187,18 @@ PowerPlant(Date('2012-01-01'), Date('{end_date}'), Market('SPARKSPREAD'), Runnin
 """
 
         # Check single-sided vs. double sided deltas.
-        self.assert_contract_value(specification,
+        self.assert_contract_value(specification.format(end_date='2012-01-13'),
                                    expected_value=11.771,
                                    expected_call_count=47,
                                    periodisation='monthly',
                                    expected_deltas={'SPARKSPREAD-2012-1': 11.978})
 
-        self.assert_contract_value(specification,
+        self.assert_contract_value(specification.format(end_date='2012-01-13'),
                                    expected_value=11.771,
                                    expected_call_count=47,
                                    periodisation='monthly',
                                    expected_deltas={'SPARKSPREAD-2012-1': 11.978},
                                    is_double_sided_deltas=False)
-
 
         # Check the call counts.
         self.assert_contract_value(specification.format(end_date='2012-01-13'), 11.771, expected_call_count=47)
@@ -1624,8 +1623,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 19.9982, {}, expected_call_count=10)
-        self.assert_contract_value(specification, 19.9857, {}, expected_call_count=7)
+        self.assert_contract_value(specification, 19.9982, {}, expected_call_count=7)
 
         # Capacity, and inventory to discharge in future.
         specification = specification_tmpl % {
@@ -1635,8 +1633,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=10)
-        self.assert_contract_value(specification, 15.3496, {}, expected_call_count=7)
+        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=7)
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {
@@ -1646,8 +1643,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 2
         }
-        self.assert_contract_value(specification, 0.0024, {}, expected_call_count=6)
-        self.assert_contract_value(specification, 0.0123, {}, expected_call_count=7)
+        self.assert_contract_value(specification, 0.0024, {}, expected_call_count=7)
 
         # Capacity, zero inventory, longer run, higher limit.
         specification = specification_tmpl % {
