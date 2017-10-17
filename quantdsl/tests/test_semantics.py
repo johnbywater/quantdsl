@@ -7,7 +7,7 @@ from scipy import array
 
 from quantdsl.exceptions import DslNameError, DslSyntaxError, DslSystemError, DslPresentTimeNotInScope
 from quantdsl.semantics import Add, And, Date, Div, DslNamespace, DslObject, Max, Min, Mult, Name, Number, Or, \
-    String, Sub, TimeDelta, Pow, FunctionDef, FunctionCall, Stub, FunctionArg
+    String, Sub, TimeDelta, Pow, FunctionDef, FunctionCall, Stub, FunctionArg, PresentTime
 
 
 class Subclass(DslObject):
@@ -455,3 +455,22 @@ class TestFunctionCall(TestCase):
         t1 = datetime.datetime(2011, 1, 1)
         with self.assertRaises(DslSystemError):
             fc.call_functions(pending_call_stack=queue, present_time=t1)
+
+
+class TestPresentTime(TestCase):
+    def test_pprint(self):
+        pt = PresentTime()
+        code = pt.pprint()
+        self.assertEqual(code, "PresentTime()")
+
+    def test_validate(self):
+        with self.assertRaises(DslSyntaxError):
+            PresentTime(String('a'))
+
+    def test_evaluate(self):
+        pt = PresentTime()
+        with self.assertRaises(KeyError):
+            pt.evaluate()
+
+        value = pt.evaluate(present_time=datetime.date(2011, 1, 1))
+        self.assertEqual(value, datetime.date(2011, 1, 1))
