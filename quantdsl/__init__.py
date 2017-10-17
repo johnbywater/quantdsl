@@ -1,5 +1,4 @@
-
-__version__ = '1.4.0dev0'
+__version__ = '1.3.4'
 
 # Todo: Option to switch between single- and double-sided deltas (currently always double-sided).
 # Todo: Tidy up how args are passed into evaluate(), it seems correct, but also a bit ad hoc.
