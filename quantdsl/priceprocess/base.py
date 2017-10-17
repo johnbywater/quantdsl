@@ -29,13 +29,10 @@ class PriceProcess(six.with_metaclass(ABCMeta)):
 
 
 def get_duration_years(start_date, end_date, days_per_year=DAYS_PER_YEAR):
-    try:
-        r = relativedelta(end_date, start_date)
-        # time_delta = datetime_from_date(end_date) - datetime_from_date(start_date)
-    except TypeError as inst:
-        raise TypeError("%s: start: %s end: %s" % (inst, start_date, end_date))
-    else:
-        return r.years + r.months / 12.0 + (r.days + r.hours / 24) / float(days_per_year)
+    assert isinstance(start_date, datetime.date), type(start_date)
+    assert isinstance(end_date, datetime.date), type(end_date)
+    r = relativedelta(end_date, start_date)
+    return r.years + r.months / 12.0 + (r.days + r.hours / 24) / float(days_per_year)
 
 
 def datetime_from_date(date):
