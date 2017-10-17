@@ -1369,7 +1369,7 @@ class ForwardMarket(AbstractMarket):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(BinOp, Date, Name, String))
+        self.assert_args_arg(args, posn=0, required_type=(BinOp, Date, Name, String, FunctionCall))
         self.assert_args_arg(args, posn=1, required_type=six.string_types + (String, Name))
 
     def get_fixing_and_delivery_dates(self, kwds):
