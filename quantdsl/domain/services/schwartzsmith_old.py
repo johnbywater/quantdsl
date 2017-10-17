@@ -36,10 +36,6 @@ from __future__ import division
 #% and simulation.
 from quantdsl.priceprocess.base import PriceProcess
 
-try:
-    from matplotlib import pylab as plt, pylab
-except RuntimeError:
-    pass
 import scipy as np
 from scipy.optimize import basinhopping
 
@@ -489,6 +485,8 @@ def simulate_single_schwartz_smith_process(params, seasonal_weightings, maturiti
 
 
 def plot_simulated_prices(all_data, all_simulated_prices):
+    from matplotlib import pylab as plt
+
     assert len(all_data) == len(all_simulated_prices)
     for i in range(len(all_simulated_prices)):
         commodity_data = all_data[i]
