@@ -1057,7 +1057,7 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
 """
         self.assert_contract_value(specification, 30.2081, expected_call_count=15)
 
-    def test_generate_valuation_power_plant_option(self):
+    def test_generate_valuation_power_plant_option_sparkspread(self):
         specification = """
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
@@ -1086,9 +1086,72 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), Running())
+PowerPlant(Date('2012-01-01'), Date('{end_date}'), Market('SPARKSPREAD'), Running())
 """
-        self.assert_contract_value(specification, 11.771, expected_call_count=47)
+        self.assert_contract_value(specification.format(end_date='2012-01-13'), 11.771, expected_call_count=47)
+        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=51)
+        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=55)
+        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=59)
+
+    def test_generate_valuation_power_plant_option_power_and_gas_forward(self):
+        specification = """
+def PowerPlant(start, end, duration_off):
+    if (start < end):
+        Wait(start,
+            Choice(
+                PowerPlant(Tomorrow(start), end, Running()) + ProfitFromRunning(start, duration_off),
+                PowerPlant(Tomorrow(start), end, Stopped(duration_off)
+                )
+            )
+        )
+    else:
+        0
+
+
+@inline
+def ProfitFromRunning(start, duration_off):
+    if duration_off > 1:
+        0.3 * Power(start) - Gas(start)
+    elif duration_off == 1:
+        0.6 * Power(start) - Gas(start)
+    else:
+        1.00 * Power(start) - Gas(start)
+
+
+@inline
+def Power(start):
+    DayAhead(start, 'TTF')
+
+@inline
+def Gas(start):
+    DayAhead(start, 'NBP')
+
+@inline
+def DayAhead(start, name):
+    ForwardMarket(start + TimeDelta('1d'), name)
+
+# @inline
+def Running():
+    0
+
+
+# @inline
+def Stopped(duration_off):
+    Min(2, duration_off + 1)
+
+
+# @inline
+def Tomorrow(today):
+    today + TimeDelta('1d')
+
+
+PowerPlant(Date('2012-1-1'), Date('{end_date}'), Stopped(2))
+        """
+        self.assert_contract_value(specification.format(end_date='2012-01-13'), 22.195, expected_call_count=47)
+        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=51)
+        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=55)
+        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=59)
+        self.assert_contract_value(specification.format(end_date='2012-01-17'), expected_call_count=63)
 
     def test_call_recombinations_with_function_calls_advancing_values(self):
         # This wasn't working, because each function call was being carried into the next
@@ -1339,7 +1402,7 @@ def GasStorage(start, end, commodity_name, quantity, limit, step):
                 Continue(start, end, commodity_name, quantity, limit, step),
                 Inject(start, end, commodity_name, quantity, limit, step, 1),
             ))
-        elif quantity < limit:
+        elif quantity >= limit:
             Wait(start, Choice(
                 Continue(start, end, commodity_name, quantity, limit, step),
                 Inject(start, end, commodity_name, quantity, limit, step, -1),
@@ -1382,7 +1445,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 10
         }
-        self.assert_contract_value(specification, 0.00, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.00, {}, expected_call_count=7)
 
         # Capacity, zero inventory, option in the future.
         specification = specification_tmpl % {
@@ -1392,7 +1455,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 10
         }
-        self.assert_contract_value(specification, 0.0270, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.0270, {}, expected_call_count=7)
 
         # Capacity, and inventory to discharge.
         specification = specification_tmpl % {
@@ -1402,7 +1465,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 19.9857, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 19.9857, {}, expected_call_count=7)
 
         # Capacity, and inventory to discharge in future.
         specification = specification_tmpl % {
@@ -1412,7 +1475,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 15.3496, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 15.3496, {}, expected_call_count=7)
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {
@@ -1422,7 +1485,37 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 2
         }
-        self.assert_contract_value(specification, 0.0123, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.0123, {}, expected_call_count=7)
+
+        # Capacity, zero inventory, longer run, higher limit.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-4-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 3
+        }
+        self.assert_contract_value(specification, expected_call_count=11)
+
+        # Capacity, zero inventory, longer run, same higher limit.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-5-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 3
+        }
+        self.assert_contract_value(specification, expected_call_count=15)
+
+        # Capacity, zero inventory, even longer run, same higher limit.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-6-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 3
+        }
+        self.assert_contract_value(specification, expected_call_count=19)
 
 
 class SingleTests(ApplicationTestCase):

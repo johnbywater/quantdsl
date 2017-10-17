@@ -1,4 +1,4 @@
-from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline
+from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline, Min
 
 
 def PowerPlant(start, end, duration_off):
@@ -44,7 +44,7 @@ def Running():
 
 @inline
 def Stopped(duration_off):
-    return duration_off + 1
+    return Min(duration_off + 1, 2)
 
 
 @inline
