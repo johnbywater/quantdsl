@@ -373,6 +373,15 @@ class TestName(TestCase):
         self.assertEqual(obj.substitute_names(ns), function_def)
 
 
+class TestFunctionDef(TestCase):
+    def test_pprint(self):
+        fd = FunctionDef('f', [], Name('a'), [])
+        code = fd.pprint(indent='')
+        self.assertEqual(code, "def f():\n    a")
+        code = fd.pprint(indent='    ')
+        self.assertEqual(code, "    def f():\n        a")
+
+
 class TestFunctionCall(TestCase):
     def test_substitute_names(self):
         fc = FunctionCall(Name('f'), [Name('x')])

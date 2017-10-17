@@ -583,7 +583,7 @@ class Name(DslExpression):
     relative_cost = 0
 
     def pprint(self, indent=''):
-        return self.name
+        return indent + self.name
 
     def validate(self, args):
         assert isinstance(args[0], (six.string_types, String)), type(args[0])
@@ -644,8 +644,8 @@ class FunctionDef(DslObject):
     def pprint(self, indent=''):
         msg = ""
         for decorator_name in self.decorator_names:
-            msg += "@" + decorator_name + "\n"
-        msg += "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
+            msg += indent + "@" + decorator_name + "\n"
+        msg += indent + "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
         if isinstance(self.body, DslObject):
             try:
                 msg += self.body.pprint(indent=indent + '    ')
