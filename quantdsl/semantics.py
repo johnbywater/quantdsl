@@ -945,10 +945,6 @@ class FunctionArg(DslObject):
     def name(self):
         return self._args[0]
 
-    @property
-    def dsl_typeName(self):
-        return self._args[1]
-
 
 class BaseIf(DslExpression):
     def validate(self, args):
