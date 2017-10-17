@@ -561,7 +561,7 @@ results = calc(source_code,
     price_process=price_process,
     interest_rate=2.5,
 )
-assert round(results.fair_value.mean(), 2) == 82.06, round(results.fair_value.mean(), 2)
+assert round(results.fair_value.mean(), 2) == 82.06
 ```
 
 When the `Choice` element is evaluated, the value of each alternative is
