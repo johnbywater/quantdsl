@@ -1031,28 +1031,17 @@ Dispatch decisions are made daily, with gas and power traded one day ahead.
 
 ```python
 power_plant = """
-def PowerPlant(start, end, duration_off):
+from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline, Min
+
+
+def PowerPlant(start, end, temp):
     if (start < end):
-        Wait(start,
-            Choice(
-                PowerPlant(Tomorrow(start), end, Running()) + ProfitFromRunning(start, duration_off),
-                PowerPlant(Tomorrow(start), end, Stopped(duration_off)
-                )
-            )
-        )
+        Wait(start, Choice(
+            PowerPlant(Tomorrow(start), end, Hot()) + ProfitFromRunning(start, temp),
+            PowerPlant(Tomorrow(start), end, Stopped(temp))
+        ))
     else:
-        0
-
-
-@inline
-def ProfitFromRunning(start, duration_off):
-    if duration_off > 1:
-        0.3 * Power(start) - Gas(start)
-    elif duration_off == 1:
-        0.6 * Power(start) - Gas(start)
-    else:
-        1.00 * Power(start) - Gas(start)
-
+        return 0
 
 @inline
 def Power(start):
@@ -1064,23 +1053,38 @@ def Gas(start):
 
 @inline
 def DayAhead(start, name):
-    ForwardMarket(start + TimeDelta('1d'), name)
+    ForwardMarket(Tomorrow(start), name)
 
 @inline
-def Running():
+def ProfitFromRunning(start, temp):
+    if temp == Cold():
+        return 0.3 * Power(start) - Gas(start)
+    elif temp == Warm():
+        return 0.6 * Power(start) - Gas(start)
+    else:
+        return Power(start) - Gas(start)
+
+@inline
+def Stopped(temp):
+    if temp == Hot():
+        Warm()
+    else:
+        Cold()
+
+@inline
+def Hot():
+    2
+
+@inline
+def Warm():
+    1
+
+@inline
+def Cold():
     0
-
-@inline
-def Stopped(duration_off):
-    duration_off + 1
-
-
-@inline
-def Tomorrow(today):
-    today + TimeDelta('1d')
     
 
-PowerPlant(Date('2012-1-1'), Date('2012-1-5'), Stopped(2))
+PowerPlant(Date('2012-1-1'), Date('2012-1-5'), Cold())
 """
 ```
 
@@ -1125,7 +1129,7 @@ results = calc_print(
     verbose=True
 )
 
-assert round(results.fair_value.mean(), 2) == 12.38
+assert round(results.fair_value.mean(), 2) == 12.38, results.fair_value.mean()
 ```
 
 These are the results printed by `calc_and_print()`, showing
