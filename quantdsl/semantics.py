@@ -54,10 +54,13 @@ class DslObject(six.with_metaclass(ABCMeta)):
         for i, arg in enumerate(self._args):
             if lenArgs > 1:
                 msg += indent
-            if isinstance(arg, DslObject):
-                msg += arg.pprint(indent)
-            else:
-                msg += str(arg)
+            # if isinstance(arg, DslObject):
+            #     msg += arg.pprint(indent)
+            # else:
+            #     msg += str(arg)
+            assert isinstance(arg, DslObject), type(arg)
+            msg += arg.pprint(indent)
+
             if i < lenArgs - 1:
                 msg += ","
             if lenArgs > 1:
@@ -97,9 +100,9 @@ class DslObject(six.with_metaclass(ABCMeta)):
             _hash = str(hash(_arg))
         return _hash
 
-    def __hash__(self):
-        return self.hash
-
+    # def __hash__(self):
+    #     return self.hash
+    #
     @abstractmethod
     def validate(self, args):
         """
@@ -140,11 +143,8 @@ class DslObject(six.with_metaclass(ABCMeta)):
 
         elif not isinstance(args[posn], required_type):
             if isinstance(required_type, (list, tuple)):
-                try:
-                    required_type_names = [i.__name__ for i in required_type]
-                    required_type_names = ", ".join(required_type_names)
-                except AttributeError as e:
-                    raise AttributeError(required_type)
+                required_type_names = [i.__name__ for i in required_type]
+                required_type_names = ", ".join(required_type_names)
             else:
                 required_type_names = required_type.__name__
             desc = "argument %s must be %s" % (posn, required_type_names)
@@ -152,11 +152,11 @@ class DslObject(six.with_metaclass(ABCMeta)):
             desc += str(args[posn])
             raise DslSyntaxError(error_msg, desc, self.node)
 
-    def list_instances(self, dsl_type):
-        return list(self.find_instances(dsl_type))
+    def list_instances(self, *dsl_types):
+        return list(self.find_instances(*dsl_types))
 
-    def has_instances(self, dsl_type):
-        for _ in self.find_instances(dsl_type):
+    def has_instances(self, *dsl_types):
+        for _ in self.find_instances(*dsl_types):
             return True
         else:
             return False
@@ -428,8 +428,8 @@ class BinOp(DslExpression):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta, Underlying))
-        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta, Underlying))
+        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta))
+        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta))
 
     @property
     def left(self):
@@ -443,10 +443,11 @@ class BinOp(DslExpression):
         left = self.left.evaluate(**kwds)
         right = self.right.evaluate(**kwds)
         try:
-            if self.op_code in NUMEXPR_OPS and (isinstance(left, ndarray) or isinstance(right, ndarray)):
-                return self.op_numexpr(left, right)
-            else:
-                return self.op_python(left, right)
+            # if self.op_code in NUMEXPR_OPS and (isinstance(left, ndarray) or isinstance(right, ndarray)):
+            #     return self.op_numexpr(left, right)
+            # else:
+            #     return self.op_python(left, right)
+            return self.op_python(left, right)
         except TypeError as e:
             raise DslBinOpArgsError("unable to %s" % self.__class__.__name__.lower(),
                                     "%s and %s: %s" % (self.left, self.right, e),
@@ -458,15 +459,15 @@ class BinOp(DslExpression):
         Returns result of operating on two args.
         """
 
-    def op_numexpr(self, left, right):
-        # return left ** right
-        expr = 'left {} right'.format(self.op_code)
-        try:
-            return numexpr.evaluate(expr)
-        except SyntaxError as e:
-            raise SyntaxError("Invalid numexpr syntax in class: {}: '{}'".format(
-                self.__class__.__name__, expr
-            ))
+    # def op_numexpr(self, left, right):
+    #     # return left ** right
+    #     expr = 'left {} right'.format(self.op_code)
+    #     try:
+    #         return numexpr.evaluate(expr)
+    #     except SyntaxError as e:
+    #         raise SyntaxError("Invalid numexpr syntax in class: {}: '{}'".format(
+    #             self.__class__.__name__, expr
+    #         ))
 
 
 class Add(BinOp):
@@ -511,8 +512,8 @@ class Pow(BinOp):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta, Underlying))
-        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta, Underlying))
+        self.assert_args_arg(args, posn=0, required_type=(DslExpression, Date, TimeDelta))
+        self.assert_args_arg(args, posn=1, required_type=(DslExpression, Date, TimeDelta))
 
 
 class Mod(BinOp):
@@ -582,7 +583,7 @@ class Name(DslExpression):
     relative_cost = 0
 
     def pprint(self, indent=''):
-        return self.name
+        return indent + self.name
 
     def validate(self, args):
         assert isinstance(args[0], (six.string_types, String)), type(args[0])
@@ -633,19 +634,6 @@ class Stub(Name):
         return "Stub('%s')" % self.name
 
 
-# Todo: Drop this.
-class Underlying(DslObject):
-    def validate(self, args):
-        self.assert_args_len(args, 1)
-
-    @property
-    def expr(self):
-        return self._args[0]
-
-    def evaluate(self, **_):
-        return self.expr
-
-
 class FunctionDef(DslObject):
     """
     A DSL function def creates DSL expressions when called. They can be defined as
@@ -656,8 +644,8 @@ class FunctionDef(DslObject):
     def pprint(self, indent=''):
         msg = ""
         for decorator_name in self.decorator_names:
-            msg += "@" + decorator_name + "\n"
-        msg += "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
+            msg += indent + "@" + decorator_name + "\n"
+        msg += indent + "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
         if isinstance(self.body, DslObject):
             try:
                 msg += self.body.pprint(indent=indent + '    ')
@@ -741,13 +729,13 @@ class FunctionDef(DslObject):
         call_cache_key_dict = {}
         for arg_name, arg_value in raw_dsl_locals.items():
             if isinstance(arg_value, FunctionCall):
-                if not list(arg_value.functionDef.find_instances(FunctionCall, StochasticObject)):
+                if not arg_value.functionDef.list_instances(FunctionCall, StochasticObject):
                     try:
                         arg_value = arg_value.call_functions()
                     except DslError as e:
                         raise Exception("Can't evaluate {}: {}: {}".format(arg_name, arg_value, e))
             elif isinstance(arg_value, DslExpression):
-                if not arg_value.find_instances(StochasticObject):
+                if not arg_value.list_instances(StochasticObject):
                     try:
                         arg_value = arg_value.evaluate()
                     except DslError as e:
@@ -836,8 +824,8 @@ class FunctionDef(DslObject):
         if isinstance(obj, dict):
             return hash(tuple(sorted([(a, self.create_hash(b)) for a, b in obj.items()])))
 
-        if isinstance(obj, list):
-            return hash(tuple(sorted([self.create_hash(a) for a in obj])))
+        # if isinstance(obj, list):
+        #     return hash(tuple(sorted([self.create_hash(a) for a in obj])))
 
         raise DslSystemError("Can't create hash from obj type '%s'" % type(obj), obj,
                              node=obj.node if isinstance(obj, DslObject) else None)
@@ -895,24 +883,15 @@ class FunctionCall(DslExpression):
 
         # Obtain the call arg values.
         for call_arg_expr, call_arg_def in zip(self.callArgExprs, f.callArgs):
-            # Skip if it's a DSL object that needs to be evaluated later with market data simulation.
-            # Todo: Think about and improve the way these levels are separated.
-            # if isinstance(call_arg_expr, FunctionCall):
-            #     # The call arg is another function call.
-            #     call_arg_value = call_arg_expr
-            # elif isinstance(call_arg_expr, DslExpression):
             if isinstance(call_arg_expr, DslExpression):
                 # Substitute names, etc.
                 # Decide whether to evaluate, or just pass the expression into the function call.
-                if isinstance(call_arg_expr, Underlying):
-                    # It's explicitly wrapped as an "underlying", so unwrap it as expected.
-                    call_arg_value = call_arg_expr.evaluate()
-                elif isinstance(call_arg_expr, FunctionCall):
+                if isinstance(call_arg_expr, FunctionCall):
                     # It's a function call, so try to call it (attempt to simplify things going forward).
                     # - can't do it with stack, because we don't want to stack calls with wrong effective present time
                     # - can't just do it without stack, because recursive functions risk recursion depth exception
                     # - so check the function body to see if it calls another function
-                    if list(call_arg_expr.functionDef.find_instances(FunctionCall, StochasticObject)):
+                    if call_arg_expr.functionDef.has_instances(FunctionCall, StochasticObject):
                         call_arg_value = call_arg_expr
                     else:
                         try:
@@ -922,9 +901,8 @@ class FunctionCall(DslExpression):
                             )
                         except (RuntimeError, DslError) as e:
                             call_arg_value = call_arg_expr
-                elif call_arg_expr.has_instances((ForwardMarket, Market, Fixing, Choice, Settlement, FunctionDef,
-                                                  Stub)):
-                    # It's an underlying contract, or a stub. In any case, can't evaluate here, so pass it through.
+                elif call_arg_expr.has_instances(StochasticObject, Fixing, FunctionDef, Stub):
+                    # Can't evaluate these things here, pass them on.
                     call_arg_value = call_arg_expr
                 else:
                     # assert isinstance(call_arg_expr, DslExpression)
@@ -959,10 +937,6 @@ class FunctionArg(DslObject):
     @property
     def name(self):
         return self._args[0]
-
-    @property
-    def dsl_typeName(self):
-        return self._args[1]
 
 
 class BaseIf(DslExpression):
@@ -1244,7 +1218,6 @@ functionalDslClasses = {
     'Sub': Sub,
     'TimeDelta': TimeDelta,
     'UnarySub': UnarySub,
-    'Underlying': Underlying,
 }
 
 
@@ -1260,7 +1233,7 @@ class AbstractMarket(StochasticObject, DslExpression):
             simulated_value_dict = kwds['simulated_value_dict']
         except KeyError:
             raise DslError(
-                "Not found 'simulated_value_dict' in context variables" % self.market_name,
+                "Not found 'simulated_value_dict' in context variables" % self.commodity_name,
                 ", ".join(kwds.keys()),
                 node=self.node
             )
@@ -1297,10 +1270,6 @@ class AbstractMarket(StochasticObject, DslExpression):
         else:
             evaluated_value = expr_value
         return evaluated_value
-
-    @property
-    def market_name(self):
-        return self.commodity_name
 
     @property
     def commodity_name(self):
@@ -1369,7 +1338,7 @@ class ForwardMarket(AbstractMarket):
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
-        self.assert_args_arg(args, posn=0, required_type=(BinOp, Date, Name, String))
+        self.assert_args_arg(args, posn=0, required_type=(BinOp, Date, Name, String, FunctionCall))
         self.assert_args_arg(args, posn=1, required_type=six.string_types + (String, Name))
 
     def get_fixing_and_delivery_dates(self, kwds):
@@ -1382,17 +1351,18 @@ class ForwardMarket(AbstractMarket):
                 raise DslSyntaxError(
                     "date value name '%s' must be resolved to a datetime before it can be used" % date.name,
                     node=self.node)
-            if isinstance(date, datetime.date):
-                pass
+
             if isinstance(date, six.string_types):
                 date = String(date)
+
             if isinstance(date, String):
                 date = Date(date, node=date.node)
+
             if isinstance(date, (Date, BinOp)):
                 date = date.evaluate(**kwds)
-            if not isinstance(date, datetime.date):
-                raise DslSyntaxError("delivery date value should be a datetime.datetime by now, but it's a %s" % date,
-                                     node=self.node)
+
+            assert isinstance(date, datetime.date), type(date)
+
             self._delivery_date = date
         return fixing_date, self._delivery_date
 
@@ -1443,8 +1413,6 @@ class Fixing(DatedDslObject):
     def call_functions(self, present_time=None, observation_date=None, pending_call_stack=None):
         # Figure out the present_time from the fixing date, which might still be a Name.
         fixing_date = self._args[0]
-        if isinstance(fixing_date, datetime.datetime):
-            pass
         if isinstance(fixing_date, six.string_types):
             fixing_date = String(fixing_date)
         if isinstance(fixing_date, String):

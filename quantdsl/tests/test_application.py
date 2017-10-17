@@ -10,7 +10,7 @@ from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPytho
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.exceptions import CallLimitError, DslBinOpArgsError, DslCompareArgsError, \
-    DslTestExpressionCannotBeEvaluated, RecursionDepthError
+    DslTestExpressionCannotBeEvaluated, RecursionDepthError, DslSyntaxError
 from quantdsl.semantics import discount
 from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
@@ -779,6 +779,36 @@ factorial(%s, 1)
         with self.assertRaises(DslBinOpArgsError):
             self.assert_contract_value(code)
 
+    def test_function_call_with_keywords_not_currently_supported(self):
+        dsl_source = """
+def f(n):
+    return n
+
+f(n=1)
+"""
+        with self.assertRaises(DslSyntaxError):
+            self.assert_contract_value(dsl_source)
+
+    def test_function_call_with_starargs_not_currently_supported(self):
+        dsl_source = """
+def f(n):
+    return n
+
+f(*[1])
+"""
+        with self.assertRaises(DslSyntaxError):
+            self.assert_contract_value(dsl_source)
+
+    def test_function_call_with_starstarkwargs_not_currently_supported(self):
+        dsl_source = """
+def f(n):
+    return n
+
+f(**{n:1})
+"""
+        with self.assertRaises(DslSyntaxError):
+            self.assert_contract_value(dsl_source)
+
     def test_function_call_as_call_arg_gets_correct_present_time_when_inlined(self):
         dsl_source = """
 def MyFixing(end, underlying):
@@ -1154,7 +1184,7 @@ Swing(Date('2011-1-1'), Date('2011-1-5'), 'NBP', 3)
                                    expected_deltas={'NBP-2011-1-4': 0.595},
                                    is_double_sided_deltas=False)
 
-    def test_generate_valuation_power_plant_option(self):
+    def test_generate_valuation_power_plant_option_sparkspread(self):
         specification = """
 def PowerPlant(start_date, end_date, underlying, time_since_off):
     if (start_date < end_date):
@@ -1183,21 +1213,88 @@ def ProfitFromRunning(start_date, underlying, time_since_off):
     else:
         return 0.8 * Fixing(start_date, underlying)
 
-PowerPlant(Date('2012-01-01'), Date('2012-01-13'), Market('SPARKSPREAD'), Running())
+PowerPlant(Date('2012-01-01'), Date('{end_date}'), Market('SPARKSPREAD'), Running())
 """
-        self.assert_contract_value(specification,
-                                   expected_value=11.771,
-                                   expected_call_count=47,
-                                   periodisation='monthly',
-                                   expected_deltas={'SPARKSPREAD-2012-1': 11.978})
 
-        # Single-sided delta performs really badly with this model.
-        self.assert_contract_value(specification,
+        # Check single-sided vs. double sided deltas.
+        self.assert_contract_value(specification.format(end_date='2012-01-13'),
                                    expected_value=11.771,
-                                   expected_call_count=47,
+                                   expected_call_count=37,
                                    periodisation='monthly',
-                                   expected_deltas={'SPARKSPREAD-2012-1': 11.978},
+                                   expected_deltas={'SPARKSPREAD-2012-1': 11.683})
+
+        self.assert_contract_value(specification.format(end_date='2012-01-13'),
+                                   expected_value=11.771,
+                                   expected_call_count=37,
+                                   periodisation='monthly',
+                                   expected_deltas={'SPARKSPREAD-2012-1': 11.683},
                                    is_double_sided_deltas=False)
+
+        # Check the call counts.
+        self.assert_contract_value(specification.format(end_date='2012-01-13'), 11.771, expected_call_count=37)
+        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=40)
+        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=43)
+        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=46)
+
+    def test_generate_valuation_power_plant_option_power_and_gas_forward(self):
+        specification = """
+def PowerPlant(start, end, duration_off):
+    if (start < end):
+        Wait(start,
+            Choice(
+                PowerPlant(Tomorrow(start), end, Running()) + ProfitFromRunning(start, duration_off),
+                PowerPlant(Tomorrow(start), end, Stopped(duration_off)
+                )
+            )
+        )
+    else:
+        0
+
+
+@inline
+def ProfitFromRunning(start, duration_off):
+    if duration_off > 1:
+        0.3 * Power(start) - Gas(start)
+    elif duration_off == 1:
+        0.6 * Power(start) - Gas(start)
+    else:
+        1.00 * Power(start) - Gas(start)
+
+
+@inline
+def Power(start):
+    DayAhead(start, 'TTF')
+
+@inline
+def Gas(start):
+    DayAhead(start, 'NBP')
+
+@inline
+def DayAhead(start, name):
+    ForwardMarket(start + TimeDelta('1d'), name)
+
+# @inline
+def Running():
+    0
+
+
+# @inline
+def Stopped(duration_off):
+    Min(2, duration_off + 1)
+
+
+# @inline
+def Tomorrow(today):
+    today + TimeDelta('1d')
+
+
+PowerPlant(Date('2012-1-1'), Date('{end_date}'), Stopped(2))
+        """
+        self.assert_contract_value(specification.format(end_date='2012-01-13'), 22.195, expected_call_count=37)
+        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=40)
+        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=43)
+        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=46)
+        self.assert_contract_value(specification.format(end_date='2012-01-17'), expected_call_count=49)
 
     def test_call_recombinations_with_function_calls_advancing_values(self):
         # This wasn't working, because each function call was being carried into the next
@@ -1222,7 +1319,7 @@ def f2(d):
 
 f(9, 1)
 """
-        self.assert_contract_value(specification, expected_call_count=28)
+        self.assert_contract_value(specification, expected_call_count=20)
 
 
 class TestObservationDate(ApplicationTestCase):
@@ -1475,9 +1572,9 @@ def Swing(start, end_date, quantity):
 Swing(Date('2011-2-1'), Date('2011-5-1'), 30)
 """
         self.assert_contract_value(specification, 29.898, {
-            'NBP-2011-3': 1.015,
-            'NBP-2011-4': 1.029,
-            'NBP-2011-5': 1.025,
+            'NBP-2011-3': 1.009,
+            'NBP-2011-4': 1.020,
+            'NBP-2011-5': 1.014,
         }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):
@@ -1493,7 +1590,7 @@ def GasStorage(start, end, commodity_name, quantity, limit, step):
                 Continue(start, end, commodity_name, quantity, limit, step),
                 Inject(start, end, commodity_name, quantity, limit, step, 1),
             ))
-        elif quantity < limit:
+        elif quantity >= limit:
             Wait(start, Choice(
                 Continue(start, end, commodity_name, quantity, limit, step),
                 Inject(start, end, commodity_name, quantity, limit, step, -1),
@@ -1536,7 +1633,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 10
         }
-        self.assert_contract_value(specification, 0.00, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.00, {}, expected_call_count=7)
 
         # Capacity, zero inventory, option in the future.
         specification = specification_tmpl % {
@@ -1546,7 +1643,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 10
         }
-        self.assert_contract_value(specification, 0.0270, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.0270, {}, expected_call_count=7)
 
         # Capacity, and inventory to discharge.
         specification = specification_tmpl % {
@@ -1556,7 +1653,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 19.9982, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 19.9982, {}, expected_call_count=7)
 
         # Capacity, and inventory to discharge in future.
         specification = specification_tmpl % {
@@ -1566,7 +1663,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=7)
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {
@@ -1576,7 +1673,37 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 2
         }
-        self.assert_contract_value(specification, 0.0024, {}, expected_call_count=6)
+        self.assert_contract_value(specification, 0.0024, {}, expected_call_count=7)
+
+        # Capacity, zero inventory, longer run, higher limit.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-4-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 3
+        }
+        self.assert_contract_value(specification, expected_call_count=11)
+
+        # Capacity, zero inventory, longer run, same higher limit.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-5-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 3
+        }
+        self.assert_contract_value(specification, expected_call_count=15)
+
+        # Capacity, zero inventory, even longer run, same higher limit.
+        specification = specification_tmpl % {
+            'start_date': '2011-1-1',
+            'end_date': '2011-6-1',
+            'commodity': 'NBP',
+            'quantity': 0,
+            'limit': 3
+        }
+        self.assert_contract_value(specification, expected_call_count=19)
 
 
 class SingleTests(ApplicationTestCase):

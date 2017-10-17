@@ -430,10 +430,10 @@ def print_results(results, path_count):
                     print("{} {}".format(delivery_date, market_name))
                 else:
                     print(market_name)
-                delta = market_result['delta'].mean()
-                print("Delta: {: >8.2f}".format(delta))
                 price_simulated = market_result['price_simulated'].mean()
                 print("Price: {: >8.2f}".format(price_simulated))
+                delta = market_result['delta'].mean()
+                print("Delta: {: >8.2f}".format(delta))
                 hedge_units = market_result['hedge_units']
                 hedge_units_mean = hedge_units.mean()
                 hedge_units_stderr = hedge_units.std() / sqrt_path_count
@@ -554,8 +554,8 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
             dates, cum_pos_p75, INNER_COLOUR,
             dates, cum_pos_p10, MID_COLOUR,
             dates, cum_pos_p90, MID_COLOUR,
-            # dates, cum_pos_p5, OUTER_COLOUR,
-            # dates, cum_pos_p95, OUTER_COLOUR,
+            dates, cum_pos_p5, OUTER_COLOUR,
+            dates, cum_pos_p95, OUTER_COLOUR,
             # dates, cum_pos_stderr_plus, '0.5',
             # dates, cum_pos_stderr_minus, '0.5',
             dates, cum_pos_p50, MEAN_COLOUR,
@@ -610,8 +610,8 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         dates, cum_cash_p75, INNER_COLOUR,
         dates, cum_cash_p10, MID_COLOUR,
         dates, cum_cash_p90, MID_COLOUR,
-        # dates, cum_cash_p5, OUTER_COLOUR,
-        # dates, cum_cash_p95, OUTER_COLOUR,
+        dates, cum_cash_p5, OUTER_COLOUR,
+        dates, cum_cash_p95, OUTER_COLOUR,
         # dates, cum_cash_stderr_plus, '0.5',
         # dates, cum_cash_stderr_minus, '0.5',
         dates, cum_cash_p50, MEAN_COLOUR

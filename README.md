@@ -88,6 +88,7 @@ The syntax of Quant DSL expressions is defined with
 <Digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 ```
 
+
 ### Semantics
 
 In the definitions below, Quant DSL expression `v` defines a
@@ -560,7 +561,7 @@ results = calc(source_code,
     price_process=price_process,
     interest_rate=2.5,
 )
-assert round(results.fair_value.mean(), 2) == 82.06, round(results.fair_value.mean(), 2)
+assert round(results.fair_value.mean(), 2) == 82.06
 ```
 
 When the `Choice` element is evaluated, the value of each alternative is
@@ -928,86 +929,86 @@ deltas for each month for each market, and the fair value.
 
 ```
 Compiled 92 nodes 
-Compilation in 0.366s
-Simulation in 0.064s
+Compilation in 0.354s
+Simulation in 0.059s
 Starting 844 node evaluations, please wait...
-844/844 100.00% complete 187.79 eval/s running 5s eta 0s
-Evaluation in 4.515s
+844/844 100.00% complete 194.23 eval/s running 5s eta 0s
+Evaluation in 4.358s
 
 
 2011-04-01 GAS
-Delta:    -0.42
 Price:     9.00
+Delta:    -0.41
 Hedge:     0.42 ± 0.01
 Cash:     -3.75 ± 0.31
 
 2011-05-01 GAS
-Delta:    -1.11
 Price:     7.50
-Hedge:     1.12 ± 0.03
+Delta:    -1.11
+Hedge:     1.11 ± 0.03
 Cash:     -8.28 ± 0.58
 
 2011-06-01 GAS
-Delta:    -1.21
 Price:     7.00
-Hedge:     1.22 ± 0.03
+Delta:    -1.19
+Hedge:     1.21 ± 0.03
 Cash:     -8.43 ± 0.74
 
 2011-07-01 GAS
-Delta:    -1.10
 Price:     6.49
-Hedge:     1.11 ± 0.04
+Delta:    -1.08
+Hedge:     1.10 ± 0.03
 Cash:     -7.04 ± 0.72
 
 2011-08-01 GAS
-Delta:    -1.04
 Price:     7.49
-Hedge:     1.05 ± 0.03
+Delta:    -1.02
+Hedge:     1.04 ± 0.03
 Cash:     -7.64 ± 0.78
 
 2011-09-01 GAS
-Delta:    -0.79
 Price:     8.49
-Hedge:     0.80 ± 0.03
+Delta:    -0.78
+Hedge:     0.79 ± 0.03
 Cash:     -6.49 ± 0.86
 
 2011-10-01 GAS
-Delta:     1.34
 Price:     9.98
-Hedge:    -1.37 ± 0.04
+Delta:     1.32
+Hedge:    -1.34 ± 0.04
 Cash:     13.91 ± 1.42
 
 2011-11-01 GAS
-Delta:     0.82
 Price:    11.47
-Hedge:    -0.84 ± 0.03
+Delta:     0.80
+Hedge:    -0.82 ± 0.03
 Cash:      8.82 ± 1.25
 
 2011-12-01 GAS
-Delta:     0.86
 Price:    11.98
-Hedge:    -0.88 ± 0.02
+Delta:     0.84
+Hedge:    -0.86 ± 0.02
 Cash:      9.74 ± 1.02
 
 2012-01-01 GAS
-Delta:     0.85
 Price:    13.47
-Hedge:    -0.88 ± 0.02
+Delta:     0.83
+Hedge:    -0.85 ± 0.02
 Cash:     10.81 ± 0.79
 
 2012-02-01 GAS
-Delta:     0.96
 Price:    10.98
-Hedge:    -0.98 ± 0.03
+Delta:     0.93
+Hedge:    -0.96 ± 0.03
 Cash:     10.30 ± 1.13
 
 2012-03-01 GAS
-Delta:     0.46
 Price:     9.99
-Hedge:    -0.47 ± 0.03
+Delta:     0.44
+Hedge:    -0.46 ± 0.03
 Cash:      3.98 ± 0.98
 
-Net hedge GAS:       0.31 ± 0.26
+Net hedge GAS:       0.37 ± 0.26
 Net hedge cash:     15.93 ± 2.35
 
 Fair value: 15.83 ± 0.12
@@ -1042,28 +1043,17 @@ Dispatch decisions are made daily, with gas and power traded one day ahead.
 
 ```python
 power_plant = """
-def PowerPlant(start, end, duration_off):
+from quantdsl.semantics import Choice, Market, TimeDelta, Wait, inline, Min
+
+
+def PowerPlant(start, end, temp):
     if (start < end):
-        Wait(start,
-            Choice(
-                PowerPlant(Tomorrow(start), end, Running()) + ProfitFromRunning(start, duration_off),
-                PowerPlant(Tomorrow(start), end, Stopped(duration_off)
-                )
-            )
-        )
+        Wait(start, Choice(
+            PowerPlant(Tomorrow(start), end, Hot()) + ProfitFromRunning(start, temp),
+            PowerPlant(Tomorrow(start), end, Stopped(temp))
+        ))
     else:
-        0
-
-
-@inline
-def ProfitFromRunning(start, duration_off):
-    if duration_off > 1:
-        0.3 * Power(start) - Gas(start)
-    elif duration_off == 1:
-        0.6 * Power(start) - Gas(start)
-    else:
-        1.00 * Power(start) - Gas(start)
-
+        return 0
 
 @inline
 def Power(start):
@@ -1075,23 +1065,42 @@ def Gas(start):
 
 @inline
 def DayAhead(start, name):
-    ForwardMarket(start + TimeDelta('1d'), name)
+    ForwardMarket(Tomorrow(start), name)
+    
+@inline
+def Tomorrow(start):
+    start + TimeDelta('1d')
 
 @inline
-def Running():
+def ProfitFromRunning(start, temp):
+    if temp == Cold():
+        return 0.3 * Power(start) - Gas(start)
+    elif temp == Warm():
+        return 0.6 * Power(start) - Gas(start)
+    else:
+        return Power(start) - Gas(start)
+
+@inline
+def Stopped(temp):
+    if temp == Hot():
+        Warm()
+    else:
+        Cold()
+
+@inline
+def Hot():
+    2
+
+@inline
+def Warm():
+    1
+
+@inline
+def Cold():
     0
-
-@inline
-def Stopped(duration_off):
-    duration_off + 1
-
-
-@inline
-def Tomorrow(today):
-    today + TimeDelta('1d')
     
 
-PowerPlant(Date('2012-1-1'), Date('2012-1-5'), Stopped(2))
+PowerPlant(Date('2012-1-1'), Date('2012-1-5'), Cold())
 """
 ```
 
@@ -1144,63 +1153,63 @@ monthly deltas for each of the two markets.
 
 ```
 Compiled 16 nodes 
-Compilation in 0.037s
-Simulation in 0.042s
+Compilation in 0.048s
+Simulation in 0.037s
 Starting 112 node evaluations, please wait...
-112/112 100.00% complete 216.31 eval/s running 1s eta 0s
-Evaluation in 0.556s
+112/112 100.00% complete 218.81 eval/s running 1s eta 0s
+Evaluation in 0.514s
 
 
 2012-01-02 POWER
-Delta:     0.01
 Price:     1.00
+Delta:     0.01
 Hedge:    -0.01 ± 0.00
 Cash:      0.01 ± 0.01
 
 2012-01-02 GAS
-Delta:    -0.04
 Price:    10.98
+Delta:    -0.03
 Hedge:     0.04 ± 0.00
 Cash:     -0.31 ± 0.07
 
 2012-01-03 POWER
-Delta:     0.32
 Price:    10.98
-Hedge:    -0.33 ± 0.00
+Delta:     0.32
+Hedge:    -0.32 ± 0.00
 Cash:      3.54 ± 0.08
 
 2012-01-03 GAS
-Delta:    -1.00
 Price:     1.00
-Hedge:     1.02 ± 0.00
+Delta:    -0.97
+Hedge:     1.00 ± 0.00
 Cash:     -0.97 ± 0.01
 
 2012-01-04 POWER
-Delta:     1.00
 Price:    10.98
-Hedge:    -1.03 ± 0.00
+Delta:     0.97
+Hedge:    -1.00 ± 0.00
 Cash:     10.70 ± 0.07
 
 2012-01-04 GAS
-Delta:    -1.00
 Price:     1.00
-Hedge:     1.02 ± 0.00
+Delta:    -0.97
+Hedge:     1.00 ± 0.00
 Cash:     -0.97 ± 0.01
 
 2012-01-05 POWER
-Delta:     0.31
 Price:     9.98
-Hedge:    -0.32 ± 0.00
+Delta:     0.30
+Hedge:    -0.31 ± 0.00
 Cash:      3.37 ± 0.12
 
 2012-01-05 GAS
-Delta:    -0.31
 Price:    10.98
-Hedge:     0.32 ± 0.00
+Delta:    -0.30
+Hedge:     0.31 ± 0.00
 Cash:     -2.99 ± 0.10
 
-Net hedge GAS:       2.40 ± 0.02
-Net hedge POWER:    -1.68 ± 0.01
+Net hedge GAS:       2.34 ± 0.02
+Net hedge POWER:    -1.64 ± 0.01
 Net hedge cash:     12.37 ± 0.10
 
 Fair value: 12.38 ± 0.09

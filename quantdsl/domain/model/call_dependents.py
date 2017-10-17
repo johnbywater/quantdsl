@@ -3,6 +3,13 @@ from eventsourcing.domain.model.events import publish
 
 
 class CallDependents(EventSourcedEntity):
+    """
+    Call dependents are the calls that are waiting for this call to be evaluated.
+
+    The number of dependents will be the number of reuses of this call from the call
+    cache. Looking at the call dependents therefore gives a good idea of whether
+    recombination in a lattice is working properly.
+    """
 
     class Created(EventSourcedEntity.Created):
         pass
@@ -25,6 +32,7 @@ class CallDependents(EventSourcedEntity):
 def register_call_dependents(call_id, dependents):
     created_event = CallDependents.Created(entity_id=call_id, dependents=dependents)
     call_dependents = CallDependents.mutator(event=created_event)
+    # print("Number of call dependents:", len(dependents))
     publish(created_event)
     return call_dependents
 

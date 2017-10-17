@@ -149,9 +149,6 @@ class QuantDslApplication(EventSourcingApplication):
     def register_call_dependents(self, call_id, dependents):
         return register_call_dependents(call_id=call_id, dependents=dependents)
 
-    def register_call_link(self, link_id, call_id):
-        return register_call_link(link_id, call_id)
-
     def identify_simulation_requirements(self, contract_specification, observation_date, requirements, periodisation):
         assert isinstance(contract_specification, ContractSpecification), contract_specification
         assert isinstance(requirements, set)
@@ -171,21 +168,6 @@ class QuantDslApplication(EventSourcingApplication):
     def loop_on_evaluation_queue(self):
         loop_on_evaluation_queue(
             call_evaluation_queue=self.call_evaluation_queue,
-            contract_valuation_repo=self.contract_valuation_repo,
-            call_requirement_repo=self.call_requirement_repo,
-            market_simulation_repo=self.market_simulation_repo,
-            call_dependencies_repo=self.call_dependencies_repo,
-            call_result_repo=self.call_result_repo,
-            simulated_price_repo=self.simulated_price_repo,
-            perturbation_dependencies_repo=self.perturbation_dependencies_repo,
-            simulated_price_requirements_repo=self.simulated_price_requirements_repo,
-        )
-
-    def evaluate_call_and_queue_next_calls(self, contract_valuation_id, contract_specification_id, call_id):
-        evaluate_call_and_queue_next_calls(
-            contract_valuation_id=contract_valuation_id,
-            contract_specification_id=contract_specification_id,
-            call_id=call_id,
             contract_valuation_repo=self.contract_valuation_repo,
             call_requirement_repo=self.call_requirement_repo,
             market_simulation_repo=self.market_simulation_repo,
@@ -330,7 +312,7 @@ class QuantDslApplication(EventSourcingApplication):
 
                 discounted_simulated_price_value = simulated_price_value * discount_rate
 
-                dx = market_simulation.perturbation_factor * discounted_simulated_price_value
+                dx = market_simulation.perturbation_factor * simulated_price_value
                 if evaluation.is_double_sided_deltas:
                     dx *= 2
                 delta = dy / dx
@@ -339,12 +321,13 @@ class QuantDslApplication(EventSourcingApplication):
                 # is the discount factor at the delivery date.
                 forward_contract_delta = discount_rate
 
-                # Delta hedging in forward markets.
+                # Flatten the book with delta hedging in forward markets.
+                # delta + hedge-units * hedge-delta = 0
+                # hence: hedge-units = -delta / hedge-delta
                 hedge_units = -delta / forward_contract_delta
 
-                # No need to inflate and then discount the cash.
-                # cash_in = hedge_units * discounted_simulated_price_value * discount_rate
-                hedge_cost = -delta * discounted_simulated_price_value
+                # Present value of cost of hedge.
+                hedge_cost = hedge_units * discounted_simulated_price_value
 
                 periods.append({
                     'market_name': market_name,
@@ -381,25 +364,18 @@ class QuantDslApplication(EventSourcingApplication):
             estimated_cost_of_expr = call_requirement.cost
 
             # Get the perturbation requirements for this call.
-            try:
-                perturbation_dependencies = self.perturbation_dependencies_repo[call_id]
-            except KeyError:
-                num_evaluations = 1
-            else:
-                assert isinstance(perturbation_dependencies, PerturbationDependencies)
-                # "1 + 2 * number of dependencies" because of the double sided delta.
-                num_perturbation_dependencies = len(perturbation_dependencies.dependencies)
-                num_perturbations = (2 if is_double_sided_deltas else 1) * num_perturbation_dependencies
-                num_evaluations = 1 + num_perturbations
+            perturbation_dependencies = self.perturbation_dependencies_repo[call_id]
+            assert isinstance(perturbation_dependencies, PerturbationDependencies)
+            # "1 + 2 * number of dependencies" because of the double sided delta.
+            num_perturbation_dependencies = len(perturbation_dependencies.dependencies)
+            num_perturbations = (2 if is_double_sided_deltas else 1) * num_perturbation_dependencies
+            num_evaluations = 1 + num_perturbations
 
             # Cost is cost of doing it once, times the number of times it needs doing.
             costs[call_id] = num_evaluations * estimated_cost_of_expr
             counts[call_id] = num_evaluations
 
         return counts, costs
-
-    def check_has_thread_errored(self):
-        return False
 
 
 class Results(object):

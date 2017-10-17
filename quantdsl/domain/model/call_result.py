@@ -18,22 +18,17 @@ class CallResult(EventSourcedEntity):
         def contract_specification_id(self):
             return self.__dict__['contract_specification_id']
 
-        @property
-        def is_double_sided_deltas(self):
-            return self.__dict__['is_double_sided_deltas']
-
     class Discarded(EventSourcedEntity.Discarded):
         pass
 
     def __init__(self, result_value, perturbed_values, contract_valuation_id, call_id, contract_specification_id,
-                 is_double_sided_deltas, **kwargs):
+                 **kwargs):
         super(CallResult, self).__init__(**kwargs)
         self._result_value = result_value
         self._perturbed_values = perturbed_values
         self._contract_valuation_id = contract_valuation_id
         self._call_id = call_id
         self._contract_specification_id = contract_specification_id
-        self._is_double_sided_deltas = is_double_sided_deltas
 
     @property
     def result_value(self):
@@ -43,13 +38,8 @@ class CallResult(EventSourcedEntity):
     def perturbed_values(self):
         return self._perturbed_values
 
-    @property
-    def is_double_sided_deltas(self):
-        return self._is_double_sided_deltas
 
-
-def register_call_result(call_id, result_value, perturbed_values, contract_valuation_id, contract_specification_id,
-                         is_double_sided_deltas):
+def register_call_result(call_id, result_value, perturbed_values, contract_valuation_id, contract_specification_id):
     call_result_id = make_call_result_id(contract_valuation_id, call_id)
     created_event = CallResult.Created(entity_id=call_result_id,
                                        result_value=result_value,
@@ -59,7 +49,6 @@ def register_call_result(call_id, result_value, perturbed_values, contract_valua
                                        # Todo: Don't persist this, get the contract valuation object when needed.
                                        # Todo: Also save the list of fixing dates separately (if needs to be saved).
                                        contract_specification_id=contract_specification_id,
-                                       is_double_sided_deltas=is_double_sided_deltas,
                                        )
     call_result = CallResult.mutator(event=created_event)
 

@@ -5,9 +5,9 @@ from dateutil.relativedelta import relativedelta
 from mock import Mock
 from scipy import array
 
-from quantdsl.exceptions import DslNameError, DslSyntaxError, DslSystemError
+from quantdsl.exceptions import DslNameError, DslSyntaxError, DslSystemError, DslPresentTimeNotInScope
 from quantdsl.semantics import Add, And, Date, Div, DslNamespace, DslObject, Max, Min, Mult, Name, Number, Or, \
-    String, Sub, TimeDelta, Pow, FunctionDef, FunctionCall, Stub, FunctionArg
+    String, Sub, TimeDelta, Pow, FunctionDef, FunctionCall, Stub, FunctionArg, PresentTime
 
 
 class Subclass(DslObject):
@@ -47,6 +47,16 @@ class TestDslObject(TestCase):
     def test_str(self):
         self.assertEqual(str(self.obj), "Subclass()")
         self.assertEqual(str(Subclass(Subclass())), "Subclass(Subclass())")
+
+    def test_get_present_time(self):
+        # Check method returns given value.
+        present_time = self.obj.get_present_time({'present_time': datetime.datetime(2011, 1, 1)})
+        self.assertEqual(present_time, datetime.datetime(2011, 1, 1))
+
+        # Check method raises exception when value not in scope.
+        with self.assertRaises(DslPresentTimeNotInScope):
+            self.obj.get_present_time({})
+
 
 
 class TestString(TestCase):
@@ -244,6 +254,9 @@ class TestSub(TestCase):
         with self.assertRaises(DslSyntaxError):
             obj.evaluate()
 
+        obj = Sub(Date('2011-1-2'), Date('2011-1-1'))
+        self.assertEqual(obj.evaluate(), relativedelta(days=1))
+
 
 class TestMul(TestCase):
     def test_evaluate(self):
@@ -360,6 +373,15 @@ class TestName(TestCase):
         self.assertEqual(obj.substitute_names(ns), function_def)
 
 
+class TestFunctionDef(TestCase):
+    def test_pprint(self):
+        fd = FunctionDef('f', [], Name('a'), [])
+        code = fd.pprint(indent='')
+        self.assertEqual(code, "def f():\n    a")
+        code = fd.pprint(indent='    ')
+        self.assertEqual(code, "    def f():\n        a")
+
+
 class TestFunctionCall(TestCase):
     def test_substitute_names(self):
         fc = FunctionCall(Name('f'), [Name('x')])
@@ -433,3 +455,22 @@ class TestFunctionCall(TestCase):
         t1 = datetime.datetime(2011, 1, 1)
         with self.assertRaises(DslSystemError):
             fc.call_functions(pending_call_stack=queue, present_time=t1)
+
+
+class TestPresentTime(TestCase):
+    def test_pprint(self):
+        pt = PresentTime()
+        code = pt.pprint()
+        self.assertEqual(code, "PresentTime()")
+
+    def test_validate(self):
+        with self.assertRaises(DslSyntaxError):
+            PresentTime(String('a'))
+
+    def test_evaluate(self):
+        pt = PresentTime()
+        with self.assertRaises(KeyError):
+            pt.evaluate()
+
+        value = pt.evaluate(present_time=datetime.date(2011, 1, 1))
+        self.assertEqual(value, datetime.date(2011, 1, 1))

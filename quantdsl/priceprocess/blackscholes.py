@@ -54,12 +54,8 @@ class BlackScholesPriceProcess(PriceProcess):
         commodity_names, fixing_dates = self.get_commodity_names_and_fixing_dates(observation_date, requirements)
 
         len_commodity_names = len(commodity_names)
-        if len_commodity_names == 0:
-            return []
 
         len_fixing_dates = len(fixing_dates)
-        if len_fixing_dates == 0:
-            return []
 
         # Check the observation date equals the first fixing date.
         assert observation_date == fixing_dates[0], "Observation date {} not equal to first fixing date: {}" \
@@ -67,22 +63,25 @@ class BlackScholesPriceProcess(PriceProcess):
 
         # Diffuse random variables through each date for each market (uncorrelated increments).
         brownian_motions = scipy.zeros((len_commodity_names, len_fixing_dates, path_count))
-        for i in range(len_commodity_names):
-            _start_date = fixing_dates[0]
-            start_rv = brownian_motions[i][0]
-            for j in range(len_fixing_dates - 1):
-                fixing_date = fixing_dates[j + 1]
-                draws = scipy.random.standard_normal(path_count)
-                T = get_duration_years(_start_date, fixing_date)
-                if T < 0:
-                    raise DslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
-                end_rv = start_rv + scipy.sqrt(T) * draws
-                try:
-                    brownian_motions[i][j + 1] = end_rv
-                except ValueError as e:
-                    raise ValueError("Can't set end_rv in brownian_motions: %s" % e)
-                _start_date = fixing_date
-                start_rv = end_rv
+        all_brownian_motions = []
+
+        if len_fixing_dates and len_commodity_names:
+            for i in range(len_commodity_names):
+                _start_date = fixing_dates[0]
+                start_rv = brownian_motions[i][0]
+                for j in range(len_fixing_dates - 1):
+                    fixing_date = fixing_dates[j + 1]
+                    draws = scipy.random.standard_normal(path_count)
+                    T = get_duration_years(_start_date, fixing_date)
+                    if T < 0:
+                        raise DslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
+                    end_rv = start_rv + scipy.sqrt(T) * draws
+                    try:
+                        brownian_motions[i][j + 1] = end_rv
+                    except ValueError as e:
+                        raise ValueError("Can't set end_rv in brownian_motions: %s" % e)
+                    _start_date = fixing_date
+                    start_rv = end_rv
 
         if len_commodity_names > 1:
             correlation_matrix = scipy.zeros((len_commodity_names, len_commodity_names))
@@ -124,7 +123,6 @@ class BlackScholesPriceProcess(PriceProcess):
             brownian_motions = brownian_motions_correlated
 
         # Put random variables into a nested Python dict, keyed by market commodity_name and fixing date.
-        all_brownian_motions = []
         for i, commodity_name in enumerate(commodity_names):
             market_rvs = []
             for j, fixing_date in enumerate(fixing_dates):

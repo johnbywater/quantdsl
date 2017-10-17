@@ -379,15 +379,6 @@ class TestDslMarket(DslTestCase):
 #         self.assertValuation(specification, 20.0, 2.0, 0.07, 0.06, 0.2, 0.2)
 #
 #
-# class TestDslFunctionDefOption(DslTestCase):
-#
-#     def testValuation(self):
-#         specification = """
-# def Option(date, strike, x, y):
-#     return Wait(date, Choice(x - strike, y))
-# Option(Date('2012-01-01'), 9, Underlying(Market('#1')), 0)
-# """
-#         self.assertValuation(specification, 2.356, 0.660, 0.068, 0.04, 0.2, 0.2)
 
 
 # class TestDslFunctionDefEuropean(DslTestCase):

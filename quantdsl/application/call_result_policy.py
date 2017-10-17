@@ -84,8 +84,7 @@ class CallResultPolicy(object):
                     self.outstanding_dependencies[dependent_id].pop()
                 except IndexError:
                     # Queue the call if there are no more outstanding results.
-                    job = (event.contract_specification_id, event.contract_valuation_id, dependent_id,
-                           event.is_double_sided_deltas)
+                    job = (event.contract_specification_id, event.contract_valuation_id, dependent_id)
                     self.call_evaluation_queue.put(job)
 
     def purge_result(self, event):
@@ -93,6 +92,7 @@ class CallResultPolicy(object):
         # Remove from the local results dict.
         del (self.result[event.entity_id])
 
+        # Todo: Push this onto the repository object (after refactoring them to all be cached).
         # Remove from the call result repo.
         if isinstance(self.call_result_repo, dict):
             del (self.call_result_repo[event.entity_id])
