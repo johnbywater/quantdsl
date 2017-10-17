@@ -659,9 +659,7 @@ class FunctionDef(DslObject):
         super(FunctionDef, self).__init__(*args, **kwds)
         # Initialise the function call cache for this function def.
         self.call_cache = {}
-        self.enclosed_namespace = DslNamespace()
 
-        # Second attempt to implement module namespaces...
         self.module_namespace = None
 
     def validate(self, args):
@@ -699,7 +697,7 @@ class FunctionDef(DslObject):
                 raise DslSyntaxError('expected call arg not found',
                                      "arg '%s' not in call arg namespace %s" % (call_arg_name, dsl_locals.keys()))
 
-    def apply(self, dsl_globals=None, present_time=None, observation_date=None, pending_call_stack=None,
+    def apply(self, present_time=None, observation_date=None, pending_call_stack=None,
               is_destacking=False, **raw_dsl_locals):
 
         # Decide either to stub out the function in the caller, and put
@@ -707,25 +705,11 @@ class FunctionDef(DslObject):
         # generate a DSL expression.
         do_apply = pending_call_stack is None or is_destacking or 'inline' in self.decorator_names
 
-        # Sort out the namespaces.
-        if dsl_globals is None:
-            dsl_globals = DslNamespace()
-        if self.module_namespace is None:
-            module_namespace = DslNamespace()
-        else:
-            module_namespace = self.module_namespace
-        # Todo: This can be simpler... module_namespace and dsl_globals are trying to do the same thing.
-        new_dsl_globals = DslNamespace(itertools.chain(
-            self.enclosed_namespace.items(),
-            module_namespace.items(),
-            dsl_globals.items())
-        )
-
         # Validate the call args with the definition.
         self.validateCallArgs(raw_dsl_locals)
 
         # Create the cache key.
-        new_dsl_locals = DslNamespace()
+        dsl_locals = DslNamespace()
         call_cache_key_dict = {}
         for arg_name, arg_value in raw_dsl_locals.items():
             if isinstance(arg_value, FunctionCall):
@@ -733,16 +717,17 @@ class FunctionDef(DslObject):
                     try:
                         arg_value = arg_value.call_functions()
                     except DslError as e:
-                        raise Exception("Can't evaluate {}: {}: {}".format(arg_name, arg_value, e))
+                        raise Exception("Can't evaluate {}: {}: {}"
+                                        .format(arg_name, arg_value, e))
             elif isinstance(arg_value, DslExpression):
                 if not arg_value.list_instances(StochasticObject):
                     try:
                         arg_value = arg_value.evaluate()
                     except DslError as e:
-                        raise Exception("Can't evaluate {}, a non-stochastic expression: {}: {}".format(arg_name,
-                                                                                                    arg_value, e))
+                        raise Exception("Can't evaluate {}, a non-stochastic expression: {}: {}"
+                                        .format(arg_name, arg_value, e))
 
-            new_dsl_locals[arg_name] = arg_value
+            dsl_locals[arg_name] = arg_value
             call_cache_key_dict[arg_name] = arg_value
         call_cache_key_dict["__present_time__"] = present_time
         call_cache_key_dict["__do_apply__"] = do_apply
@@ -755,7 +740,7 @@ class FunctionDef(DslObject):
         if do_apply:
             # Select expression from body.
             dsl_expr = self.body
-            ns = new_dsl_globals.combine(new_dsl_locals)
+            ns = self.module_namespace.combine(dsl_locals)
             ns['observation_date'] = observation_date
             ns['present_time'] = present_time
             while isinstance(dsl_expr, BaseIf):
@@ -769,7 +754,7 @@ class FunctionDef(DslObject):
 
             # Reduce the selected expression.
             assert isinstance(dsl_expr, DslExpression)
-            dsl_expr = dsl_expr.substitute_names(ns.combine(new_dsl_locals))
+            dsl_expr = dsl_expr.substitute_names(ns.combine(dsl_locals))
             dsl_expr = dsl_expr.call_functions(
                 present_time=present_time,
                 observation_date=observation_date,
@@ -791,8 +776,7 @@ class FunctionDef(DslObject):
             pending_call_stack.put(
                 stub_id=stub_id,
                 stacked_function_def=self,
-                stacked_locals=new_dsl_locals.copy(),
-                stacked_globals=new_dsl_globals.copy(),
+                stacked_locals=dsl_locals.copy(),
                 present_time=present_time
             )
 
@@ -1152,9 +1136,12 @@ class DslNamespace(dict):
         return copy
 
     def combine(self, other):
-        copy = self.copy()
-        copy.update(other)
-        return copy
+        if other is None:
+            return self
+        else:
+            copy = self.copy()
+            copy.update(other)
+            return copy
 
 
 class StochasticObject(DslObject):
@@ -1737,5 +1724,4 @@ defaultDslClasses.update({
     'IsDayOfMonth': IsDayOfMonth,
 })
 
-PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'stacked_globals',
-                                         'present_time'])
+PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'present_time'])

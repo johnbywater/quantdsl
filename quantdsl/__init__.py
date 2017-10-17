@@ -7,24 +7,14 @@ __version__ = '1.3.5dev0'
 # Todo: Price process as DSL, either calibration params, or args for calibration with e.g. data from quandl).
 # Todo: More price processes (jumps, heston).
 # Todo: Better report object: separate out the delta hedging.
+# Todo: Better interface objects: separate out the print() statements.
 # Todo: Better deltas (dx sometimes uses average of prices in month, when not all prices may be used in expression).
 # Todo: Tidy up how args are passed into evaluate(), it seems correct, but also a bit ad hoc.
 # Todo: Support names in expressions being resolved by evaluation args (e.g. like 'observation_date' but more general).
 # Todo: StockMarket element.
-# Todo: Warning when a built-in is being overridden by a user defined function. Or perhaps that would be useful? In any case, make sure this is handled properly (currently the user defined function will just be ignore?).
 # Todo: Make price process create calibration params from market observations, as well as consume the calibration parameters.
-# Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
 # Todo: Change all names from lower camel case to underscore separated style.
 # Todo: Develop multi-factor PriceProcess model (e.g. Schwartz-Smith)?
-# Todo: Develop the multiprocessing code into a stack runner object, which can be replaced with a network-based runner?
-# Todo: Develop call requirement dependency graph store, so call requirements can be retrieved over the network.
-# Todo: Improve the multiprocessing code - currently it runs slower that the single threaded, and seems to grind to a halt for stacks > 5000 expressions (IPC bandwidth? rounding errors?).
-# Todo: Improve separation of expression stack/dependency graph from results and notifications, so results from different runs can be reused when calculating greeks.
-# Todo: Separate multiprocessing from ExpressionStack, self-evaluation of ExpressionStack can just be single threaded.
-# Todo: Figure out how best to make alternative set of DSL classes available to workers (module commodity_name that is imported, rather than a dict of classes).
-# Todo: Optimization for parallel execution, so if there are four cores, then it might make sense only to stub four large branches?
-# Todo: Optimize network traffic by creating a single message containing all data required to evaluate a stubbed expression.
-# Todo: Decouple the cli from the runner more, make the workers put things directly on the queue, so that the cli just waits for the final result and clocks the intermediate results as they occur in an event stream.
 # Todo: Separate more clearly the syntax parsing (the Parser methods) from the semantic model the DSL objects.
 # Todo: Separate more clearly a general function language implementation, which could be extended with any set of primitive elements.
 # Todo: Use function arg annotation to declare types of DSL function args (will only work with Python 3).

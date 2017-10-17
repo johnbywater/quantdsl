@@ -173,16 +173,13 @@ def generate_stubbed_calls(root_stub_id, dsl_expr, dsl_globals, dsl_locals, obse
         assert isinstance(function_def, FunctionDef), type(function_def)
 
         # Apply the stacked call values to the called function def.
-
         stacked_locals = dsl_locals.combine(pending_call.stacked_locals)
         stubbed_expr = function_def.apply(
-            dsl_globals=pending_call.stacked_globals,
             present_time=pending_call.present_time,
             observation_date=observation_date,
             pending_call_stack=pending_call_stack,
             # Make sure calling this pending call doesn't result
             # in just a pending call being added to the stack.
-            # Todo: Rename 'is_destacking'?
             is_destacking=True,
             **stacked_locals)
 
@@ -203,12 +200,6 @@ def extract_defs_and_exprs(dsl_module, dsl_globals):
     for dsl_obj in dsl_module.body:
 
         if isinstance(dsl_obj, FunctionDef):
-            # Todo: Move this setting of globals elsewhere, it doesn't belong here.
-            dsl_globals[dsl_obj.name] = dsl_obj
-            # Todo: Move this setting of the 'enclosed namespace' - is this even a good idea?
-            # Share the module level namespace (any function body can call any other function).
-            dsl_obj.enclosed_namespace = dsl_globals
-
             function_defs.append(dsl_obj)
         elif isinstance(dsl_obj, DslExpression):
             expressions.append(dsl_obj)
@@ -219,19 +210,17 @@ def extract_defs_and_exprs(dsl_module, dsl_globals):
 
 
 class PendingCallQueue(object):
-    def put(self, stub_id, stacked_function_def, stacked_locals, stacked_globals, present_time):
-        pending_call = self.validate_pending_call(present_time, stacked_function_def, stacked_globals,
-                                                  stacked_locals, stub_id)
+    def put(self, stub_id, stacked_function_def, stacked_locals, present_time):
+        pending_call = self.validate_pending_call(present_time, stacked_function_def, stacked_locals, stub_id)
         self.put_pending_call(pending_call)
 
-    def validate_pending_call(self, present_time, stacked_function_def, stacked_globals, stacked_locals,
-                              stub_id):
+    def validate_pending_call(self, present_time, stacked_function_def, stacked_locals, stub_id):
         # assert isinstance(stub_id, six.string_types), type(stub_id)
         # assert isinstance(stacked_function_def, FunctionDef), type(stacked_function_def)
         # assert isinstance(stacked_locals, DslNamespace), type(stacked_locals)
         # assert isinstance(stacked_globals, DslNamespace), type(stacked_globals)
         # assert isinstance(present_time, (datetime.datetime, type(None))), type(present_time)
-        return PendingCall(stub_id, stacked_function_def, stacked_locals, stacked_globals, present_time)
+        return PendingCall(stub_id, stacked_function_def, stacked_locals, present_time)
 
     @abstractmethod
     def put_pending_call(self, pending_call):

@@ -78,9 +78,10 @@ class DslParser(object):
         for n in node.body:
             dsl_object = self.visitAstNode(n)
 
+            # Put function defs in module namespace.
             if isinstance(dsl_object, FunctionDef):
-                # Put function def in module namespace.
                 module_namespace[dsl_object.name] = dsl_object
+
                 # Share module namespace with this function.
                 if dsl_object.module_namespace is None:
                     dsl_object.module_namespace = module_namespace

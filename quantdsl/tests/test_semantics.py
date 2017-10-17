@@ -397,6 +397,8 @@ class TestFunctionCall(TestCase):
     def test_call_functions_with_pending_call_stack(self):
         fc = FunctionCall(Name('f'), [Name('x')])
         fd = FunctionDef('f', [FunctionArg('a', '')], Name('a'), [])
+        namespace = DslNamespace({fd.name: fd})
+        fd.module_namespace = namespace
         number = Number(1234)
         ns = DslNamespace({
             'f': fd,
@@ -443,7 +445,6 @@ class TestFunctionCall(TestCase):
         first_call = queue.put.mock_calls[0]
         self.assertEqual(first_call[2]['stub_id'], expr.name)
         self.assertEqual(first_call[2]['stacked_function_def'], fd)
-        self.assertEqual(first_call[2]['stacked_globals'], {})
         self.assertEqual(first_call[2]['stacked_locals'], {'a': 1234})  # Maybe this should be Number(1234)?
         self.assertEqual(first_call[2]['present_time'], t1)
 
