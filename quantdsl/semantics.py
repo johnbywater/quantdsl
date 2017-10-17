@@ -883,12 +883,6 @@ class FunctionCall(DslExpression):
 
         # Obtain the call arg values.
         for call_arg_expr, call_arg_def in zip(self.callArgExprs, f.callArgs):
-            # Skip if it's a DSL object that needs to be evaluated later with market data simulation.
-            # Todo: Think about and improve the way these levels are separated.
-            # if isinstance(call_arg_expr, FunctionCall):
-            #     # The call arg is another function call.
-            #     call_arg_value = call_arg_expr
-            # elif isinstance(call_arg_expr, DslExpression):
             if isinstance(call_arg_expr, DslExpression):
                 # Substitute names, etc.
                 # Decide whether to evaluate, or just pass the expression into the function call.
@@ -897,7 +891,7 @@ class FunctionCall(DslExpression):
                     # - can't do it with stack, because we don't want to stack calls with wrong effective present time
                     # - can't just do it without stack, because recursive functions risk recursion depth exception
                     # - so check the function body to see if it calls another function
-                    if list(call_arg_expr.functionDef.find_instances(FunctionCall, StochasticObject)):
+                    if call_arg_expr.functionDef.has_instances(FunctionCall, StochasticObject):
                         call_arg_value = call_arg_expr
                     else:
                         try:
@@ -907,9 +901,8 @@ class FunctionCall(DslExpression):
                             )
                         except (RuntimeError, DslError) as e:
                             call_arg_value = call_arg_expr
-                elif call_arg_expr.has_instances((ForwardMarket, Market, Fixing, Choice, Settlement, FunctionDef,
-                                                  Stub)):
-                    # It's an underlying contract, or a stub. In any case, can't evaluate here, so pass it through.
+                elif call_arg_expr.has_instances(StochasticObject, Fixing, FunctionDef, Stub):
+                    # Can't evaluate these things here, pass them on.
                     call_arg_value = call_arg_expr
                 else:
                     # assert isinstance(call_arg_expr, DslExpression)
