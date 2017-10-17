@@ -152,11 +152,11 @@ class DslObject(six.with_metaclass(ABCMeta)):
             desc += str(args[posn])
             raise DslSyntaxError(error_msg, desc, self.node)
 
-    def list_instances(self, dsl_type):
-        return list(self.find_instances(dsl_type))
+    def list_instances(self, *dsl_types):
+        return list(self.find_instances(*dsl_types))
 
-    def has_instances(self, dsl_type):
-        for _ in self.find_instances(dsl_type):
+    def has_instances(self, *dsl_types):
+        for _ in self.find_instances(*dsl_types):
             return True
         else:
             return False
@@ -729,13 +729,13 @@ class FunctionDef(DslObject):
         call_cache_key_dict = {}
         for arg_name, arg_value in raw_dsl_locals.items():
             if isinstance(arg_value, FunctionCall):
-                if not list(arg_value.functionDef.find_instances(FunctionCall, StochasticObject)):
+                if not arg_value.functionDef.list_instances(FunctionCall, StochasticObject):
                     try:
                         arg_value = arg_value.call_functions()
                     except DslError as e:
                         raise Exception("Can't evaluate {}: {}: {}".format(arg_name, arg_value, e))
             elif isinstance(arg_value, DslExpression):
-                if not arg_value.find_instances(StochasticObject):
+                if not arg_value.list_instances(StochasticObject):
                     try:
                         arg_value = arg_value.evaluate()
                     except DslError as e:
@@ -824,8 +824,8 @@ class FunctionDef(DslObject):
         if isinstance(obj, dict):
             return hash(tuple(sorted([(a, self.create_hash(b)) for a, b in obj.items()])))
 
-        if isinstance(obj, list):
-            return hash(tuple(sorted([self.create_hash(a) for a in obj])))
+        # if isinstance(obj, list):
+        #     return hash(tuple(sorted([self.create_hash(a) for a in obj])))
 
         raise DslSystemError("Can't create hash from obj type '%s'" % type(obj), obj,
                              node=obj.node if isinstance(obj, DslObject) else None)

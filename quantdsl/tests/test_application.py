@@ -1219,22 +1219,22 @@ PowerPlant(Date('2012-01-01'), Date('{end_date}'), Market('SPARKSPREAD'), Runnin
         # Check single-sided vs. double sided deltas.
         self.assert_contract_value(specification.format(end_date='2012-01-13'),
                                    expected_value=11.771,
-                                   expected_call_count=47,
+                                   expected_call_count=37,
                                    periodisation='monthly',
                                    expected_deltas={'SPARKSPREAD-2012-1': 11.978})
 
         self.assert_contract_value(specification.format(end_date='2012-01-13'),
                                    expected_value=11.771,
-                                   expected_call_count=47,
+                                   expected_call_count=37,
                                    periodisation='monthly',
                                    expected_deltas={'SPARKSPREAD-2012-1': 11.978},
                                    is_double_sided_deltas=False)
 
         # Check the call counts.
-        self.assert_contract_value(specification.format(end_date='2012-01-13'), 11.771, expected_call_count=47)
-        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=51)
-        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=55)
-        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=59)
+        self.assert_contract_value(specification.format(end_date='2012-01-13'), 11.771, expected_call_count=37)
+        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=40)
+        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=43)
+        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=46)
 
     def test_generate_valuation_power_plant_option_power_and_gas_forward(self):
         specification = """
@@ -1290,11 +1290,11 @@ def Tomorrow(today):
 
 PowerPlant(Date('2012-1-1'), Date('{end_date}'), Stopped(2))
         """
-        self.assert_contract_value(specification.format(end_date='2012-01-13'), 22.195, expected_call_count=47)
-        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=51)
-        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=55)
-        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=59)
-        self.assert_contract_value(specification.format(end_date='2012-01-17'), expected_call_count=63)
+        self.assert_contract_value(specification.format(end_date='2012-01-13'), 22.195, expected_call_count=37)
+        self.assert_contract_value(specification.format(end_date='2012-01-14'), expected_call_count=40)
+        self.assert_contract_value(specification.format(end_date='2012-01-15'), expected_call_count=43)
+        self.assert_contract_value(specification.format(end_date='2012-01-16'), expected_call_count=46)
+        self.assert_contract_value(specification.format(end_date='2012-01-17'), expected_call_count=49)
 
     def test_call_recombinations_with_function_calls_advancing_values(self):
         # This wasn't working, because each function call was being carried into the next
@@ -1319,7 +1319,7 @@ def f2(d):
 
 f(9, 1)
 """
-        self.assert_contract_value(specification, expected_call_count=28)
+        self.assert_contract_value(specification, expected_call_count=20)
 
 
 class TestObservationDate(ApplicationTestCase):
