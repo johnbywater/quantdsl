@@ -38,8 +38,5 @@ def get_duration_years(start_date, end_date, days_per_year=DAYS_PER_YEAR):
         return r.years + r.months / 12.0 + (r.days + r.hours / 24) / float(days_per_year)
 
 
-def datetime_from_date(observation_date):
-    if isinstance(observation_date, datetime.date):
-        return datetime.datetime(observation_date.year, observation_date.month, observation_date.day)
-    else:
-        return observation_date
+def datetime_from_date(date):
+    return datetime.datetime(date.year, date.month, date.day)
