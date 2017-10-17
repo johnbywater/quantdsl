@@ -578,7 +578,7 @@ maximisation of the alternative expected continuation values (`Max`).
 
 Quant DSL source code can include function definitions. Expressions can involve calls to functions.
 
-When evaluating an expression that involves a call to a function definitions, the call to the 
+When evaluating an expression that involves a call to a function definition, the call to the 
 function definition is effectively replaced with the expression returned by the function definition,
 so that a larger expression is formed. Hence, the body of a function can have only one statement.
 
