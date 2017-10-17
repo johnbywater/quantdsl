@@ -430,10 +430,10 @@ def print_results(results, path_count):
                     print("{} {}".format(delivery_date, market_name))
                 else:
                     print(market_name)
-                delta = market_result['delta'].mean()
-                print("Delta: {: >8.2f}".format(delta))
                 price_simulated = market_result['price_simulated'].mean()
                 print("Price: {: >8.2f}".format(price_simulated))
+                delta = market_result['delta'].mean()
+                print("Delta: {: >8.2f}".format(delta))
                 hedge_units = market_result['hedge_units']
                 hedge_units_mean = hedge_units.mean()
                 hedge_units_stderr = hedge_units.std() / sqrt_path_count

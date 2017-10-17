@@ -312,7 +312,7 @@ class QuantDslApplication(EventSourcingApplication):
 
                 discounted_simulated_price_value = simulated_price_value * discount_rate
 
-                dx = market_simulation.perturbation_factor * discounted_simulated_price_value
+                dx = market_simulation.perturbation_factor * simulated_price_value
                 if evaluation.is_double_sided_deltas:
                     dx *= 2
                 delta = dy / dx
@@ -321,12 +321,13 @@ class QuantDslApplication(EventSourcingApplication):
                 # is the discount factor at the delivery date.
                 forward_contract_delta = discount_rate
 
-                # Delta hedging in forward markets.
+                # Flatten the book with delta hedging in forward markets.
+                # delta + hedge-units * hedge-delta = 0
+                # hence: hedge-units = -delta / hedge-delta
                 hedge_units = -delta / forward_contract_delta
 
-                # No need to inflate and then discount the cash.
-                # cash_in = hedge_units * discounted_simulated_price_value * discount_rate
-                hedge_cost = -delta * discounted_simulated_price_value
+                # Present value of cost of hedge.
+                hedge_cost = hedge_units * discounted_simulated_price_value
 
                 periods.append({
                     'market_name': market_name,

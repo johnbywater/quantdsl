@@ -1221,13 +1221,13 @@ PowerPlant(Date('2012-01-01'), Date('{end_date}'), Market('SPARKSPREAD'), Runnin
                                    expected_value=11.771,
                                    expected_call_count=37,
                                    periodisation='monthly',
-                                   expected_deltas={'SPARKSPREAD-2012-1': 11.978})
+                                   expected_deltas={'SPARKSPREAD-2012-1': 11.683})
 
         self.assert_contract_value(specification.format(end_date='2012-01-13'),
                                    expected_value=11.771,
                                    expected_call_count=37,
                                    periodisation='monthly',
-                                   expected_deltas={'SPARKSPREAD-2012-1': 11.978},
+                                   expected_deltas={'SPARKSPREAD-2012-1': 11.683},
                                    is_double_sided_deltas=False)
 
         # Check the call counts.
@@ -1572,9 +1572,9 @@ def Swing(start, end_date, quantity):
 Swing(Date('2011-2-1'), Date('2011-5-1'), 30)
 """
         self.assert_contract_value(specification, 29.898, {
-            'NBP-2011-3': 1.015,
-            'NBP-2011-4': 1.029,
-            'NBP-2011-5': 1.025,
+            'NBP-2011-3': 1.009,
+            'NBP-2011-4': 1.020,
+            'NBP-2011-5': 1.014,
         }, expected_call_count=11, periodisation='monthly')
 
     def test_simple_forward_market(self):
