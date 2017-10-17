@@ -99,7 +99,6 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
             contract_specification_id=contract_specification_id,
-            is_double_sided_deltas=is_double_sided_deltas
         )
 
 
@@ -119,7 +118,7 @@ def evaluate_contract_in_parallel(contract_valuation_id, contract_valuation_repo
     # assert isinstance(call_leafs, CallLeafs)
 
     for call_id in call_leafs.leaf_ids:
-        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id, is_double_sided_deltas))
+        call_evaluation_queue.put((contract_specification_id, contract_valuation_id, call_id))
 
 
 def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, call_requirement_repo,
@@ -128,7 +127,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
     while True:
         item = call_evaluation_queue.get()
         try:
-            contract_specification_id, contract_valuation_id, call_id, is_double_sided_deltas = item
+            contract_specification_id, contract_valuation_id, call_id = item
 
             evaluate_call_and_queue_next_calls(
                 contract_valuation_id=contract_valuation_id,
@@ -142,7 +141,6 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
                 simulated_price_repo=simulated_price_repo,
                 perturbation_dependencies_repo=perturbation_dependencies_repo,
                 simulated_price_requirements_repo=simulated_price_requirements_repo,
-                is_double_sided_deltas=is_double_sided_deltas
             )
         finally:
             call_evaluation_queue.task_done()
@@ -151,8 +149,7 @@ def loop_on_evaluation_queue(call_evaluation_queue, contract_valuation_repo, cal
 def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specification_id, call_id,
                                        contract_valuation_repo, call_requirement_repo, market_simulation_repo,
                                        call_dependencies_repo, call_result_repo, simulated_price_repo,
-                                       perturbation_dependencies_repo, simulated_price_requirements_repo,
-                                       is_double_sided_deltas):
+                                       perturbation_dependencies_repo, simulated_price_requirements_repo):
     # Get the contract valuation.
     contract_valuation = contract_valuation_repo[contract_valuation_id]
     assert isinstance(contract_valuation, ContractValuation)
@@ -180,7 +177,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
         call_result_repo=call_result_repo,
         simulated_price_repo=simulated_price_repo,
         simulation_requirements=simulation_requirements,
-        is_double_sided_deltas=is_double_sided_deltas,
+        is_double_sided_deltas=contract_valuation.is_double_sided_deltas,
     )
 
     # Register the call result.
@@ -190,7 +187,6 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
         perturbed_values=perturbed_values,
         contract_valuation_id=contract_valuation_id,
         contract_specification_id=contract_specification_id,
-        is_double_sided_deltas=is_double_sided_deltas,
     )
 
 
