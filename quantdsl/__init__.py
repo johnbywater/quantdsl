@@ -1,10 +1,15 @@
 __version__ = '1.3.4'
 
-# Todo: Option to switch between single- and double-sided deltas (currently always double-sided).
+# Todo: Finish off support for yearly periodisation, and also hourly.
+# Todo: Command line support, so QuantDSL can be written and executed without knowing Python.
+# Todo: Price process as DSL (included in module directly or by import, module named as arg to calc()).
+# Todo: Price process as DSL, either calibration params, or args for calibration with e.g. data from quandl).
+# Todo: More price processes (jumps, heston).
+# Todo: Better report object: separate out the delta hedging.
+# Todo: Better deltas (dx sometimes uses average of prices in month, when not all prices may be used in expression).
 # Todo: Tidy up how args are passed into evaluate(), it seems correct, but also a bit ad hoc.
 # Todo: Support names in expressions being resolved by evaluation args (e.g. like 'observation_date' but more general).
 # Todo: StockMarket element.
-# Todo: Better report object.
 # Todo: Warning when a built-in is being overridden by a user defined function. Or perhaps that would be useful? In any case, make sure this is handled properly (currently the user defined function will just be ignore?).
 # Todo: Make price process create calibration params from market observations, as well as consume the calibration parameters.
 # Todo: Develop a PriceProcess object that works as a network service client object, and as a server object (so price simulation is available over network).
