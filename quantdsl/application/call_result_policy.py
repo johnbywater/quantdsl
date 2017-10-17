@@ -92,6 +92,7 @@ class CallResultPolicy(object):
         # Remove from the local results dict.
         del (self.result[event.entity_id])
 
+        # Todo: Push this onto the repository object (after refactoring them to all be cached).
         # Remove from the call result repo.
         if isinstance(self.call_result_repo, dict):
             del (self.call_result_repo[event.entity_id])
