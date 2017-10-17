@@ -19,14 +19,14 @@ class TestForwardCurve(TestCase):
         c = SchwartzSmithForwardCurve({})
         # Check it works like a normal curve dict, with commodity names as keys
         # and values being a list of tuples ('YYYY-MM-DD', price).
-        self.assertEqual(c.keys(), [])
-        self.assertEqual(c.values(), [])
-        self.assertEqual(c.items(), [])
+        self.assertEqual(list(c.keys()), [])
+        self.assertEqual(list(c.values()), [])
+        self.assertEqual(list(c.items()), [])
         with self.assertRaises(KeyError):
             c['GAS']
 
         c = SchwartzSmithForwardCurve({
             'GAS': {},
         })
-        self.assertEqual(c.keys(), ['GAS'])
+        self.assertEqual(list(c.keys()), ['GAS'])
         self.assertEqual(c['GAS'], [])
