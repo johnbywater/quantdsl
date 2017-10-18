@@ -1221,6 +1221,11 @@ the price of power is high and the price of gas is low.
 
 Again, the net cash position across all hedges is very similar to the fair value.
 
+## Jupyter notebooks
+
+It's easy to use Quant DSL in a Jupyter notebook. See `valuation_template.ipynb`.
+
+Jupyter notebooks can be executed on a Jupyter hub.
 
 ## Library
 
