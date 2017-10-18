@@ -1,5 +1,6 @@
 __version__ = '1.3.5dev0'
 
+# Todo: Multiprocessing of repeat simulations and valuations, with combination of results, to increase accuracy.
 # Todo: Something to show estimated memory usage.
 # Todo: Finish off support for yearly periodisation, and also hourly.
 # Todo: Command line support, so QuantDSL can be written and executed without knowing Python.
