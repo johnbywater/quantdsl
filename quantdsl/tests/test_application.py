@@ -437,7 +437,7 @@ f1() + f2()
 
     def test_broken_python_syntax_in_imported_module(self):
         dsl_source = """
-from _quantdsl_with_broken_python_syntax import f1, f2
+from quantdsl.tests.lib.broken_python_syntax import f1, f2
 
 f1() + f2()
 """
