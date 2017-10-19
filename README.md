@@ -287,7 +287,7 @@ results. And `calc_print_plot()` which plots results using matplotlib.
 ### Settlement
 
 The `Settlement` element discounts the value of the included `Expression` from its given `Date` to the effective 
-present time (`t` in the semantics above) when the element is evaluated.
+present time `t` when the element is evaluated.
 
 ```
 <Settlement> ::= "Settlement(" <Date> ", " <Expression> ")"
