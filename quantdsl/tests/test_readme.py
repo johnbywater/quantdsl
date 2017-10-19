@@ -30,7 +30,7 @@ class TestReadmeFile(TestCase):
                 elif is_code:
                     line = line.strip('\n')
                     count_code_lines += 1
-                elif line.startswith('```python'):
+                elif line.strip() == '```python':
                     is_code = True
                     line = ''
                 else:

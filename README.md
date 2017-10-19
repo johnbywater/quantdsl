@@ -7,7 +7,7 @@
 
 Example of an American option expressed in Quant DSL. 
 
-```python
+```python skip-test
 AmericanOption(Date('2011-1-1'), Date('2012-1-1'), Market('Copper'), 7000, TimeDelta('1d'))
 
 def AmericanOption(start, expiry, underlying, strike, step):
