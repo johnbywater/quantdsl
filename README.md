@@ -8,15 +8,17 @@
 Example of an American option expressed in Quant DSL. 
 
 ```python
-def AmericanOption(start, expiry, strike, underlying, step):
+AmericanOption(Date('2011-1-1'), Date('2012-1-1'), Market('Copper'), 7000, TimeDelta('1d'))
+
+def AmericanOption(start, expiry, underlying, strike, step):
     if start <= expiry:
-        Option(start, strike, underlying, AmericanOption(
-            start + step, expiry, strike, underlying, step
+        Option(start, underlying, strike, AmericanOption(
+            start + step, expiry, underlying, strike, step
         ))
     else:
         0
 
-def Option(expiry, strike, underlying, alternative):
+def Option(expiry, underlying, strike, alternative):
     Wait(expiry, Choice(underlying - strike, alternative))
 ```
 
