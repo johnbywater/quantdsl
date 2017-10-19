@@ -229,7 +229,7 @@ class TestAndOr(TestCase):
         obj = And([Number(1), Or([Number(2), Number(3)])])
         self.assertEqual(str(obj), '(1 and (2 or 3))')
         # Check the indentation isn't propagated.
-        self.assertEqual(obj.pprint('    '), '    (1 and (2 or 3))')
+        self.assertEqual(str(obj), '(1 and (2 or 3))')
 
 
 class TestAdd(TestCase):
@@ -376,10 +376,7 @@ class TestName(TestCase):
 class TestFunctionDef(TestCase):
     def test_pprint(self):
         fd = FunctionDef('f', [], Name('a'), [])
-        code = fd.pprint(indent='')
-        self.assertEqual(code, "def f():\n    a")
-        code = fd.pprint(indent='    ')
-        self.assertEqual(code, "    def f():\n        a")
+        self.assertEqual(str(fd), "def f():\n    a")
 
 
 class TestFunctionCall(TestCase):
@@ -461,8 +458,7 @@ class TestFunctionCall(TestCase):
 class TestPresentTime(TestCase):
     def test_pprint(self):
         pt = PresentTime()
-        code = pt.pprint()
-        self.assertEqual(code, "PresentTime()")
+        self.assertEqual(str(pt), "PresentTime()")
 
     def test_validate(self):
         with self.assertRaises(DslSyntaxError):

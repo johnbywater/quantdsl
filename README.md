@@ -5,7 +5,7 @@
 [![Build Status](https://secure.travis-ci.org/johnbywater/quantdsl.png)](https://travis-ci.org/johnbywater/quantdsl)
 [![Coverage Status](https://coveralls.io/repos/github/johnbywater/quantdsl/badge.svg)](https://coveralls.io/github/johnbywater/quantdsl)
 
-An example of an American option expressed in Quant DSL. 
+Example of an American option expressed in Quant DSL. 
 
 ```python
 def AmericanOption(start, expiry, strike, underlying, step):
@@ -825,7 +825,7 @@ If the facility is full, injecting gas is not an option. Similarly,
 if the facility is empty, withdrawing gas is not an option.
 
 ```python
-source_code = """
+gas_storage = """
 def GasStorage(start, end, market, quantity, target, limit, step):
     if ((start < end) and (limit > 0)):
         if quantity <= 0:
@@ -883,10 +883,10 @@ This example uses a forward curve that has seasonal variation (prices are high i
 summer).
 
 ```python
-price_process = {
+gas = {
     'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
     'market': ['GAS'],
-    'sigma': [0.25],
+    'sigma': [0.3],
     'curve': {
         'GAS': (
             ('2011-1-1', 13.5),
@@ -930,15 +930,15 @@ with the overall fair value.
 
 ```python
 results = calc_print(
-    source_code=source_code,
+    source_code=gas_storage,
     observation_date='2011-1-1',
     interest_rate=2.5,
     periodisation='monthly',
-    price_process=price_process,
-    verbose=True
+    price_process=gas,
+    verbose=True,
 )
 
-assert round(results.fair_value.mean(), 2) == 15.83
+assert round(results.fair_value.mean(), 2) == 20.78, results.fair_value.mean()
 ```
 
 Below are the results printed by `calc_and_print()`, showing
@@ -946,89 +946,89 @@ deltas for each month for each market, and the fair value.
 
 ```
 Compiled 92 nodes 
-Compilation in 0.354s
-Simulation in 0.059s
+Compilation in 0.463s
+Simulation in 0.061s
 Starting 844 node evaluations, please wait...
-844/844 100.00% complete 194.23 eval/s running 5s eta 0s
-Evaluation in 4.358s
+844/844 100.00% complete 99.68 eval/s running 9s eta 0s
+Evaluation in 8.468s
 
 
 2011-04-01 GAS
 Price:     9.00
-Delta:    -0.41
-Hedge:     0.42 ± 0.01
-Cash:     -3.75 ± 0.31
+Delta:    -0.99
+Hedge:     1.00 ± 0.00
+Cash:     -8.94 ± 0.03
 
 2011-05-01 GAS
 Price:     7.50
-Delta:    -1.11
-Hedge:     1.11 ± 0.03
-Cash:     -8.28 ± 0.58
+Delta:    -0.99
+Hedge:     1.00 ± 0.00
+Cash:     -7.44 ± 0.03
 
 2011-06-01 GAS
 Price:     7.00
-Delta:    -1.19
-Hedge:     1.21 ± 0.03
-Cash:     -8.43 ± 0.74
+Delta:    -0.99
+Hedge:     1.00 ± 0.00
+Cash:     -6.93 ± 0.03
 
 2011-07-01 GAS
 Price:     6.49
-Delta:    -1.08
-Hedge:     1.10 ± 0.03
-Cash:     -7.04 ± 0.72
+Delta:    -0.99
+Hedge:     1.00 ± 0.00
+Cash:     -6.41 ± 0.03
 
 2011-08-01 GAS
 Price:     7.49
-Delta:    -1.02
-Hedge:     1.04 ± 0.03
-Cash:     -7.64 ± 0.78
+Delta:    -0.99
+Hedge:     1.00 ± 0.00
+Cash:     -7.38 ± 0.04
 
 2011-09-01 GAS
 Price:     8.49
-Delta:    -0.78
-Hedge:     0.79 ± 0.03
-Cash:     -6.49 ± 0.86
+Delta:    -0.98
+Hedge:     1.00 ± 0.00
+Cash:     -8.35 ± 0.04
 
 2011-10-01 GAS
-Price:     9.98
-Delta:     1.32
-Hedge:    -1.34 ± 0.04
-Cash:     13.91 ± 1.42
+Price:     9.97
+Delta:     0.98
+Hedge:    -1.00 ± 0.00
+Cash:      9.79 ± 0.05
 
 2011-11-01 GAS
 Price:    11.47
-Delta:     0.80
-Hedge:    -0.82 ± 0.03
-Cash:      8.82 ± 1.25
+Delta:     0.98
+Hedge:    -1.00 ± 0.00
+Cash:     11.23 ± 0.07
 
 2011-12-01 GAS
 Price:    11.98
-Delta:     0.84
-Hedge:    -0.86 ± 0.02
-Cash:      9.74 ± 1.02
+Delta:     0.98
+Hedge:    -1.00 ± 0.00
+Cash:     11.70 ± 0.07
 
 2012-01-01 GAS
-Price:    13.47
-Delta:     0.83
-Hedge:    -0.85 ± 0.02
-Cash:     10.81 ± 0.79
+Price:    13.46
+Delta:     0.98
+Hedge:    -1.00 ± 0.00
+Cash:     13.13 ± 0.09
 
 2012-02-01 GAS
 Price:    10.98
-Delta:     0.93
-Hedge:    -0.96 ± 0.03
-Cash:     10.30 ± 1.13
+Delta:     0.97
+Hedge:    -1.00 ± 0.00
+Cash:     10.68 ± 0.07
 
 2012-03-01 GAS
 Price:     9.99
-Delta:     0.44
-Hedge:    -0.46 ± 0.03
-Cash:      3.98 ± 0.98
+Delta:     0.97
+Hedge:    -1.00 ± 0.00
+Cash:      9.70 ± 0.07
 
-Net hedge GAS:       0.37 ± 0.26
-Net hedge cash:     15.93 ± 2.35
+Net hedge GAS:       0.00 ± 0.00
+Net hedge cash:     20.78 ± 0.28
 
-Fair value: 15.83 ± 0.12
+Fair value: 20.78 ± 0.28
 ```
 
 The value obtained is the extrinsic value. The intrinsic value can be 
@@ -1037,9 +1037,6 @@ with `path_count` of `1`.
 
 The recommended hedge positions suggest injecting gas when
 the price is low, and withdrawing when the price is high.
-
-The net cash position across all hedges is very similar to
-the fair value, which suggests the deltas are performing well.
 
 An alternative to `calc_print()` is the function in the same module
 `calc_print_plot()` which will also plot the prices, positions, and
@@ -1142,7 +1139,7 @@ gas_and_power = {
                 ('2012-1-2', 1.0),
                 ('2012-1-3', 11.0),
                 ('2012-1-4', 11.0),
-                ('2012-1-5', 10.0),
+                ('2012-1-5', 11.0),
             ]
         }
 }
@@ -1162,7 +1159,7 @@ results = calc_print(
     verbose=True
 )
 
-assert round(results.fair_value.mean(), 2) == 12.38
+assert round(results.fair_value.mean(), 2) == 12.82, results.fair_value.mean()
 ```
 
 These are the results printed by `calc_and_print()`, showing
@@ -1170,72 +1167,70 @@ monthly deltas for each of the two markets.
 
 ```
 Compiled 16 nodes 
-Compilation in 0.048s
-Simulation in 0.037s
+Compilation in 0.038s
+Simulation in 0.043s
 Starting 112 node evaluations, please wait...
-112/112 100.00% complete 218.81 eval/s running 1s eta 0s
-Evaluation in 0.514s
+112/112 100.00% complete 115.57 eval/s running 1s eta 0s
+Evaluation in 0.970s
 
-
-2012-01-02 POWER
-Price:     1.00
-Delta:     0.01
-Hedge:    -0.01 ± 0.00
-Cash:      0.01 ± 0.01
 
 2012-01-02 GAS
 Price:    10.98
-Delta:    -0.03
-Hedge:     0.04 ± 0.00
-Cash:     -0.31 ± 0.07
+Delta:    -0.05
+Hedge:     0.05 ± 0.00
+Cash:     -0.41 ± 0.04
+
+2012-01-02 POWER
+Price:     1.00
+Delta:     0.02
+Hedge:    -0.02 ± 0.00
+Cash:      0.02 ± 0.00
+
+2012-01-03 GAS
+Price:     1.00
+Delta:    -0.98
+Hedge:     1.00 ± 0.00
+Cash:     -0.97 ± 0.01
 
 2012-01-03 POWER
 Price:    10.98
 Delta:     0.32
-Hedge:    -0.32 ± 0.00
-Cash:      3.54 ± 0.08
+Hedge:    -0.33 ± 0.00
+Cash:      3.64 ± 0.05
 
-2012-01-03 GAS
+2012-01-04 GAS
 Price:     1.00
-Delta:    -0.97
+Delta:    -0.98
 Hedge:     1.00 ± 0.00
 Cash:     -0.97 ± 0.01
 
 2012-01-04 POWER
 Price:    10.98
-Delta:     0.97
+Delta:     0.98
 Hedge:    -1.00 ± 0.00
-Cash:     10.70 ± 0.07
-
-2012-01-04 GAS
-Price:     1.00
-Delta:    -0.97
-Hedge:     1.00 ± 0.00
-Cash:     -0.97 ± 0.01
-
-2012-01-05 POWER
-Price:     9.98
-Delta:     0.30
-Hedge:    -0.31 ± 0.00
-Cash:      3.37 ± 0.12
+Cash:     10.71 ± 0.07
 
 2012-01-05 GAS
 Price:    10.98
-Delta:    -0.30
-Hedge:     0.31 ± 0.00
-Cash:     -2.99 ± 0.10
+Delta:    -0.49
+Hedge:     0.50 ± 0.00
+Cash:     -4.95 ± 0.11
 
-Net hedge GAS:       2.34 ± 0.02
-Net hedge POWER:    -1.64 ± 0.01
-Net hedge cash:     12.37 ± 0.10
+2012-01-05 POWER
+Price:    10.98
+Delta:     0.49
+Hedge:    -0.50 ± 0.00
+Cash:      5.76 ± 0.13
 
-Fair value: 12.38 ± 0.09
+Net hedge GAS:       2.55 ± 0.01
+Net hedge POWER:    -1.85 ± 0.01
+Net hedge cash:     12.82 ± 0.10
+
+Fair value: 12.82 ± 0.10
 ```
 
 The recommended hedge positions suggest running the plant when
 the price of power is high and the price of gas is low.
-
-Again, the net cash position across all hedges is very similar to the fair value.
 
 ## Jupyter notebooks
 

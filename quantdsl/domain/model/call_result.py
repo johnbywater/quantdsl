@@ -22,13 +22,14 @@ class CallResult(EventSourcedEntity):
         pass
 
     def __init__(self, result_value, perturbed_values, contract_valuation_id, call_id, contract_specification_id,
-                 **kwargs):
+                 involved_market_names, **kwargs):
         super(CallResult, self).__init__(**kwargs)
         self._result_value = result_value
         self._perturbed_values = perturbed_values
         self._contract_valuation_id = contract_valuation_id
         self._call_id = call_id
         self._contract_specification_id = contract_specification_id
+        self._involved_market_names = involved_market_names
 
     @property
     def result_value(self):
@@ -38,8 +39,13 @@ class CallResult(EventSourcedEntity):
     def perturbed_values(self):
         return self._perturbed_values
 
+    @property
+    def involved_market_names(self):
+        return self._involved_market_names
 
-def register_call_result(call_id, result_value, perturbed_values, contract_valuation_id, contract_specification_id):
+
+def register_call_result(call_id, result_value, perturbed_values, contract_valuation_id, contract_specification_id,
+                         involved_market_names):
     call_result_id = make_call_result_id(contract_valuation_id, call_id)
     created_event = CallResult.Created(entity_id=call_result_id,
                                        result_value=result_value,
@@ -49,6 +55,7 @@ def register_call_result(call_id, result_value, perturbed_values, contract_valua
                                        # Todo: Don't persist this, get the contract valuation object when needed.
                                        # Todo: Also save the list of fixing dates separately (if needs to be saved).
                                        contract_specification_id=contract_specification_id,
+                                       involved_market_names=involved_market_names
                                        )
     call_result = CallResult.mutator(event=created_event)
 

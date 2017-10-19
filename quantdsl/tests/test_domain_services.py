@@ -145,13 +145,17 @@ double(1 + 1)
                                                '1': CallDependencies(dependencies=['2', '3'], entity_id=123,
                                                                      entity_version=0, timestamp=1),
                                            }[x])
+        call_result1 = Mock(spec=CallResult, result_value=12, perturbed_values={})
+        call_result2 = Mock(spec=CallResult, result_value=13, perturbed_values={})
         call_result_repo = MagicMock(spec=CallResultRepository,
                                      __getitem__=lambda self, x: {
-                                         'valuation2': Mock(spec=CallResult, result_value=12, perturbed_values={}),
-                                         'valuation3': Mock(spec=CallResult, result_value=13, perturbed_values={}),
+                                         'valuation2': call_result1,
+                                         'valuation3': call_result2,
                                      }[x])
         values = get_dependency_results('valuation', '1', call_dependencies_repo, call_result_repo)
-        self.assertEqual(values, {'2': (12, {}), '3': (13, {})})
+        self.assertEqual(len(values), 2)
+        self.assertEqual(values['2'].result_value, 12)
+        self.assertEqual(values['3'].result_value, 13)
 
 
 class TestCallLinks(unittest.TestCase):
@@ -172,21 +176,22 @@ class TestCallLinks(unittest.TestCase):
 class TestListMarketNamesAndFixingDates(unittest.TestCase):
     def test_list_market_names_and_fixing_dates(self):
         contract_specification = Mock(spec=ContractSpecification, id=1)
+        call_requirement1 = Mock(spec=CallRequirement, dsl_source="Fixing('2011-01-01', Market('1'))",
+                    present_time=datetime.datetime(2011, 1, 1), _dsl_expr=None, id=1)
+        call_requirement2 = Mock(spec=CallRequirement, dsl_source="Fixing('2012-02-02', Market('2'))",
+                    present_time=datetime.datetime(2011, 2, 2), _dsl_expr=None, id=2)
+        call_requirement3 = Mock(spec=CallRequirement, dsl_source="Fixing('2013-03-03', Market('3'))",
+                    present_time=datetime.datetime(2011, 3, 3), _dsl_expr=None, id=3)
         call_requirement_repo = MagicMock(spec=CallRequirementRepository,
                                           __getitem__=lambda self, x: {
-                                              1: Mock(spec=CallRequirement,
-                                                      dsl_source="Fixing('2011-01-01', Market('1'))",
-                                                      present_time=datetime.datetime(2011, 1, 1),
-                                                      _dsl_expr=None),
-                                              2: Mock(spec=CallRequirement,
-                                                      dsl_source="Fixing('2012-02-02', Market('2'))",
-                                                      present_time=datetime.datetime(2011, 2, 2),
-                                                      _dsl_expr=None),
-                                              3: Mock(spec=CallRequirement,
-                                                      dsl_source="Fixing('2013-03-03', Market('3'))",
-                                                      present_time=datetime.datetime(2011, 3, 3),
-                                                      _dsl_expr=None),
+                                              1: call_requirement1,
+                                              2: call_requirement2,
+                                              3: call_requirement3,
                                           }[x])
+
+        self.assertEqual(call_requirement1.id, 1)
+        self.assertEqual(call_requirement2.id, 2)
+        self.assertEqual(call_requirement3.id, 3)
         call_link_repo = MagicMock(spec=CallLinkRepository,
                                    __getitem__=lambda self, x: {
                                        1: Mock(spec=CallLink, call_id=2),

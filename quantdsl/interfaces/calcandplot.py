@@ -423,8 +423,7 @@ def print_results(results, path_count):
 
         market_name_width = max([len(k) for k in results.by_market_name.keys()])
         for delivery_date, markets_results in sorted(results.by_delivery_date.items()):
-
-            for market_result in markets_results:
+            for market_result in sorted(markets_results, key=lambda x: x['market_name']):
                 market_name = market_result['market_name']
                 if delivery_date:
                     print("{} {}".format(delivery_date, market_name))

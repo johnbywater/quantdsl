@@ -149,7 +149,7 @@ class QuantDslApplication(EventSourcingApplication):
         return register_call_dependents(call_id=call_id, dependents=dependents)
 
     def identify_simulation_requirements(self, contract_specification, observation_date, requirements, periodisation):
-        assert isinstance(contract_specification, ContractSpecification), contract_specification
+        assert isinstance(contract_specification, ContractSpecification), type(contract_specification)
         assert isinstance(requirements, set)
         return identify_simulation_requirements(contract_specification.id,
                                                 self.call_requirement_repo,
