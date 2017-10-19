@@ -17,12 +17,14 @@ elif six.PY3:
         from importlib.util import find_loader
 
 
-
 def find_module_path(name):
     # Find path.
 
     if six.PY2:
-        module = import_module(name)
+        try:
+            module = import_module(name)
+        except SyntaxError as e:
+            raise DslSyntaxError("Can't import {}: {}".format(name, e))
         path = module.__file__.strip('c')
     elif six.PY3:
         if find_loader:
