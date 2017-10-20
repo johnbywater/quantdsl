@@ -1,5 +1,6 @@
 __version__ = '1.3.6dev0'
 
+# Todo: Write test for import module that doesn't exist (currently fails with AttributeError cos spec is None).
 # Todo: Support things like "third Wednesday of contract month" e.g. for settlement of futures.
 # Todo: Multiprocessing of repeat simulations and valuations, with combination of results, to increase accuracy.
 # Todo: Something to show estimated memory usage.
@@ -10,7 +11,8 @@ __version__ = '1.3.6dev0'
 # Todo: More price processes (jumps, heston).
 # Todo: Better report object: separate out the delta hedging.
 # Todo: Better interface objects: separate out the print() statements.
-# Todo: Better deltas (dx sometimes uses average of prices in month, when not all prices may be used in expression).
+# Todo: Better deltas (dx sometimes uses average of prices in month, when not all prices may be used in expression,
+# so identify which are involved and just use those).
 # Todo: Tidy up how args are passed into evaluate(), it seems correct, but also a bit ad hoc.
 # Todo: Support names in expressions being resolved by evaluation args (e.g. like 'observation_date' but more general).
 # Todo: StockMarket element.
