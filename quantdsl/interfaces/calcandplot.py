@@ -423,8 +423,7 @@ def print_results(results, path_count):
 
         market_name_width = max([len(k) for k in results.by_market_name.keys()])
         for delivery_date, markets_results in sorted(results.by_delivery_date.items()):
-
-            for market_result in markets_results:
+            for market_result in sorted(markets_results, key=lambda x: x['market_name']):
                 market_name = market_result['market_name']
                 if delivery_date:
                     print("{} {}".format(delivery_date, market_name))
@@ -485,10 +484,6 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         return
 
     NUM_STD_DEVS = 2
-    OUTER_COLOUR = 'y'
-    MID_COLOUR = 'g'
-    INNER_COLOUR = 'b'
-    MEAN_COLOUR = '0.1'
     for i, name in enumerate(names):
 
         _periods = [p for p in periods if p['market_name'] == name]
@@ -496,129 +491,83 @@ def plot_periods(periods, title, periodisation, interest_rate, path_count, pertu
         dates = [p['delivery_date'] for p in _periods]
         price_plot = subplots[i]
 
-        prices_mean = [p['price_simulated'].mean() for p in _periods]
-        # prices_1 = [p['price'][0] for p in _periods]
-        # prices_2 = [p['price'][1] for p in _periods]
-        # prices_3 = [p['price'][2] for p in _periods]
-        # prices_4 = [p['price'][3] for p in _periods]
-        prices_std = [p['price_simulated'].std() for p in _periods]
-        prices_plus = list(numpy.array(prices_mean) + NUM_STD_DEVS * numpy.array(prices_std))
-        prices_minus = list(numpy.array(prices_mean) - NUM_STD_DEVS * numpy.array(prices_std))
+        prices = [p['price_simulated'] for p in _periods]
 
         price_plot.set_title('Prices - {}'.format(name))
-        price_plot.plot(
-            # dates, prices_1, 'g',
-            # dates, prices_2, 'b',
-            # dates, prices_3, 'm',
-            # dates, prices_4, 'c',
-            dates, prices_plus, '0.75',
-            dates, prices_minus, '0.75',
-            dates, prices_mean, '0.25',
-        )
+        plot_args = rainbow_plot_args(prices, dates)
+        price_plot.plot(*plot_args)
 
-        ymin = min(0, min(prices_minus)) - 1
-        ymax = max(0, max(prices_plus)) + 1
-        price_plot.set_ylim([ymin, ymax])
-
-        cum_pos = []
-        for p in _periods:
-            pos = p['hedge_units']
-            if cum_pos:
-                pos += cum_pos[-1]
-            cum_pos.append(pos)
-        cum_pos_mean = [p.mean() for p in cum_pos]
-        cum_pos_p5 = [nanpercentile(p, 5) for p in cum_pos]
-        cum_pos_p10 = [nanpercentile(p, 10) for p in cum_pos]
-        cum_pos_p25 = [nanpercentile(p, 25) for p in cum_pos]
-        cum_pos_p50 = [nanpercentile(p, 50) for p in cum_pos]
-        cum_pos_p75 = [nanpercentile(p, 75) for p in cum_pos]
-        cum_pos_p90 = [nanpercentile(p, 90) for p in cum_pos]
-        cum_pos_p95 = [nanpercentile(p, 95) for p in cum_pos]
-
-        cum_pos_std = [p.std() for p in cum_pos]
-        cum_pos_stderr = [p / math.sqrt(path_count) for p in cum_pos_std]
-        cum_pos_std_offset = NUM_STD_DEVS * numpy.array(cum_pos_std)
-        cum_pos_std_plus = list(numpy.array(cum_pos_mean) + cum_pos_std_offset)
-        cum_pos_std_minus = list(numpy.array(cum_pos_mean) - cum_pos_std_offset)
-        com_pos_stderr_offset = NUM_STD_DEVS * numpy.array(cum_pos_stderr)
-        cum_pos_stderr_plus = list(numpy.array(cum_pos_mean) + com_pos_stderr_offset)
-        cum_pos_stderr_minus = list(numpy.array(cum_pos_mean) - com_pos_stderr_offset)
+        cum_pos = cumsum(_periods, 'hedge_units')
 
         pos_plot = subplots[len(names) + i]
         pos_plot.set_title('Position - {}'.format(name))
 
-        pos_plot.plot(
-            # dates, cum_pos_std_plus, '0.85',
-            # dates, cum_pos_std_minus, '0.85',
-            dates, cum_pos_p25, INNER_COLOUR,
-            dates, cum_pos_p75, INNER_COLOUR,
-            dates, cum_pos_p10, MID_COLOUR,
-            dates, cum_pos_p90, MID_COLOUR,
-            dates, cum_pos_p5, OUTER_COLOUR,
-            dates, cum_pos_p95, OUTER_COLOUR,
-            # dates, cum_pos_stderr_plus, '0.5',
-            # dates, cum_pos_stderr_minus, '0.5',
-            dates, cum_pos_p50, MEAN_COLOUR,
-        )
+        plot_args = rainbow_plot_args(cum_pos, dates)
+        pos_plot.plot(*plot_args)
 
-        ymin = min(0, min(cum_pos_std_minus)) - 1
-        ymax = max(0, max(cum_pos_std_plus)) + 1
-        pos_plot.set_ylim([ymin, ymax])
 
     profit_plot = subplots[-1]
     profit_plot.set_title('Profit')
 
-    hedge_cost_by_date = defaultdict(list)
-
+    # Sum cash across all markets in each period.
+    # Todo: Period objects, with net cash from markets in period, and data for each market in period.
     dates = []
+    hedge_cash_by_date = defaultdict(int)
     for period in periods:
         date = period['delivery_date']
         if date not in dates:
             dates.append(date)
-        hedge_cost_by_date[date].append(-period['hedge_cost'])
+        hedge_cash_by_date[date] += -period['hedge_cost']
 
-    cum_hedge_cost = []
-    for date in dates:
-        hedge_cost = sum(hedge_cost_by_date[date])
-        if cum_hedge_cost:
-            hedge_cost += cum_hedge_cost[-1]
-        cum_hedge_cost.append(hedge_cost)
+    _periods = [{'cash': v} for d,v in sorted(hedge_cash_by_date.items())]
+    cum_hedge_cost = cumsum(_periods, 'cash')
 
-    cum_cash_p5 = [nanpercentile(p, 5) for p in cum_hedge_cost]
-    cum_cash_p10 = [nanpercentile(p, 10) for p in cum_hedge_cost]
-    cum_cash_p25 = [nanpercentile(p, 25) for p in cum_hedge_cost]
-    cum_cash_p50 = [nanpercentile(p, 50) for p in cum_hedge_cost]
-    cum_cash_p75 = [nanpercentile(p, 75) for p in cum_hedge_cost]
-    cum_cash_p90 = [nanpercentile(p, 90) for p in cum_hedge_cost]
-    cum_cash_p95 = [nanpercentile(p, 95) for p in cum_hedge_cost]
-    cum_cash_mean = [p.mean() for p in cum_hedge_cost]
-    cum_cash_std = [p.std() for p in cum_hedge_cost]
-    cum_cash_stderr = [p / math.sqrt(path_count) for p in cum_cash_std]
-
-    cum_cash_std_offset = NUM_STD_DEVS * numpy.array(cum_cash_std)
-    cum_cash_std_plus = list(numpy.array(cum_cash_mean) + cum_cash_std_offset)
-    cum_cash_std_minus = list(numpy.array(cum_cash_mean) - cum_cash_std_offset)
-
-    cum_cash_stderr_offset = NUM_STD_DEVS * numpy.array(cum_cash_stderr)
-    cum_cash_stderr_plus = list(numpy.array(cum_cash_mean) + cum_cash_stderr_offset)
-    cum_cash_stderr_minus = list(numpy.array(cum_cash_mean) - cum_cash_stderr_offset)
-
-    profit_plot.plot(
-        # dates, cum_cash_std_plus, '0.8',
-        # dates, cum_cash_std_minus, '0.8',
-        dates, cum_cash_p25, INNER_COLOUR,
-        dates, cum_cash_p75, INNER_COLOUR,
-        dates, cum_cash_p10, MID_COLOUR,
-        dates, cum_cash_p90, MID_COLOUR,
-        dates, cum_cash_p5, OUTER_COLOUR,
-        dates, cum_cash_p95, OUTER_COLOUR,
-        # dates, cum_cash_stderr_plus, '0.5',
-        # dates, cum_cash_stderr_minus, '0.5',
-        dates, cum_cash_p50, MEAN_COLOUR
-    )
+    plot_args = rainbow_plot_args(cum_hedge_cost, dates)
+    profit_plot.plot(*plot_args)
 
     f.autofmt_xdate(rotation=60)
 
     [p.grid() for p in subplots]
 
     plt.show()
+
+
+def cumsum(_periods, name):
+    values = [p[name] for p in _periods]
+    c = numpy.cumsum(numpy.array(values), axis=0)
+    return c
+
+
+PLOT_COLOUR_VIOLET = '#9400D3'
+PLOT_COLOUR_BLUE = '#0000FF'
+PLOT_COLOUR_GREEN = '#00FF00'
+PLOT_COLOUR_YELLOW = '#FFFF00'
+PLOT_COLOUR_ORANGE = '#FF7F00'
+PLOT_COLOUR_RED = '#FF0000'
+
+OUTER_COLOUR = PLOT_COLOUR_YELLOW
+MID_COLOUR = PLOT_COLOUR_YELLOW
+INNER_COLOUR = PLOT_COLOUR_ORANGE
+MEAN_COLOUR = PLOT_COLOUR_RED
+
+
+def rainbow_plot_args(results, dates):
+    """results is a list of random variables, one for each date"""
+    plot_args = []
+    rainbow = [
+        (45, PLOT_COLOUR_ORANGE), (55, PLOT_COLOUR_ORANGE),
+        (35, PLOT_COLOUR_YELLOW), (65, PLOT_COLOUR_YELLOW),
+        (25, PLOT_COLOUR_GREEN), (75, PLOT_COLOUR_GREEN),
+        (15, PLOT_COLOUR_BLUE), (85, PLOT_COLOUR_BLUE),
+        (5, PLOT_COLOUR_VIOLET), (95, PLOT_COLOUR_VIOLET),
+    ]
+    for percentile, colour in rainbow:
+        data = [nanpercentile(p, percentile) for p in results]
+        plot_args.append(dates)
+        plot_args.append(data)
+        plot_args.append(colour)
+    data = [p.mean() for p in results]
+    plot_args.append(dates)
+    plot_args.append(data)
+    plot_args.append(PLOT_COLOUR_RED)
+    return plot_args

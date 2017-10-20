@@ -1,15 +1,14 @@
 import datetime
+from collections import defaultdict
 
 import scipy
 import six
-from collections import defaultdict
 from eventsourcing.application.base import EventSourcingApplication
 
 from quantdsl.application.call_result_policy import CallResultPolicy
 from quantdsl.application.persistence_policy import PersistencePolicy
 from quantdsl.domain.model.call_dependencies import register_call_dependencies
 from quantdsl.domain.model.call_dependents import register_call_dependents
-from quantdsl.domain.model.call_link import register_call_link
 from quantdsl.domain.model.call_result import make_call_result_id
 from quantdsl.domain.model.contract_specification import ContractSpecification, register_contract_specification
 from quantdsl.domain.model.contract_valuation import ContractValuation, start_contract_valuation
@@ -18,7 +17,7 @@ from quantdsl.domain.model.market_simulation import register_market_simulation
 from quantdsl.domain.model.perturbation_dependencies import PerturbationDependencies
 from quantdsl.domain.model.simulated_price import make_simulated_price_id
 from quantdsl.domain.services.call_links import regenerate_execution_order
-from quantdsl.domain.services.contract_valuations import evaluate_call_and_queue_next_calls, loop_on_evaluation_queue
+from quantdsl.domain.services.contract_valuations import loop_on_evaluation_queue
 from quantdsl.domain.services.simulated_prices import identify_simulation_requirements
 from quantdsl.infrastructure.dependency_graph_subscriber import DependencyGraphSubscriber
 from quantdsl.infrastructure.evaluation_subscriber import EvaluationSubscriber
@@ -150,7 +149,7 @@ class QuantDslApplication(EventSourcingApplication):
         return register_call_dependents(call_id=call_id, dependents=dependents)
 
     def identify_simulation_requirements(self, contract_specification, observation_date, requirements, periodisation):
-        assert isinstance(contract_specification, ContractSpecification), contract_specification
+        assert isinstance(contract_specification, ContractSpecification), type(contract_specification)
         assert isinstance(requirements, set)
         return identify_simulation_requirements(contract_specification.id,
                                                 self.call_requirement_repo,
@@ -301,7 +300,6 @@ class QuantDslApplication(EventSourcingApplication):
                     dy = perturbed_value - perturbed_value_negative
                 else:
                     dy = perturbed_value - fair_value
-
 
                 discount_rate = discount(
                     value=1,

@@ -229,7 +229,7 @@ class TestAndOr(TestCase):
         obj = And([Number(1), Or([Number(2), Number(3)])])
         self.assertEqual(str(obj), '(1 and (2 or 3))')
         # Check the indentation isn't propagated.
-        self.assertEqual(obj.pprint('    '), '    (1 and (2 or 3))')
+        self.assertEqual(str(obj), '(1 and (2 or 3))')
 
 
 class TestAdd(TestCase):
@@ -376,10 +376,7 @@ class TestName(TestCase):
 class TestFunctionDef(TestCase):
     def test_pprint(self):
         fd = FunctionDef('f', [], Name('a'), [])
-        code = fd.pprint(indent='')
-        self.assertEqual(code, "def f():\n    a")
-        code = fd.pprint(indent='    ')
-        self.assertEqual(code, "    def f():\n        a")
+        self.assertEqual(str(fd), "def f():\n    a")
 
 
 class TestFunctionCall(TestCase):
@@ -397,6 +394,8 @@ class TestFunctionCall(TestCase):
     def test_call_functions_with_pending_call_stack(self):
         fc = FunctionCall(Name('f'), [Name('x')])
         fd = FunctionDef('f', [FunctionArg('a', '')], Name('a'), [])
+        namespace = DslNamespace({fd.name: fd})
+        fd.module_namespace = namespace
         number = Number(1234)
         ns = DslNamespace({
             'f': fd,
@@ -443,7 +442,6 @@ class TestFunctionCall(TestCase):
         first_call = queue.put.mock_calls[0]
         self.assertEqual(first_call[2]['stub_id'], expr.name)
         self.assertEqual(first_call[2]['stacked_function_def'], fd)
-        self.assertEqual(first_call[2]['stacked_globals'], {})
         self.assertEqual(first_call[2]['stacked_locals'], {'a': 1234})  # Maybe this should be Number(1234)?
         self.assertEqual(first_call[2]['present_time'], t1)
 
@@ -460,8 +458,7 @@ class TestFunctionCall(TestCase):
 class TestPresentTime(TestCase):
     def test_pprint(self):
         pt = PresentTime()
-        code = pt.pprint()
-        self.assertEqual(code, "PresentTime()")
+        self.assertEqual(str(pt), "PresentTime()")
 
     def test_validate(self):
         with self.assertRaises(DslSyntaxError):

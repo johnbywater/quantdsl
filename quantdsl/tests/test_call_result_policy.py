@@ -57,7 +57,7 @@ class TestCallResultPolicy(TestCase):
 
         # Register call result for call1.
         # - this should trigger deletion of call2 result
-        call1_result = register_call_result(call1_id, 1.0, {}, contract_valuation_id, contract_specification_id)
+        call1_result = register_call_result(call1_id, 1.0, {}, contract_valuation_id, contract_specification_id, [])
 
         # Check the policy has the result for call1.
         self.assertTrue(call1_result.id in self.policy.result)
@@ -66,7 +66,7 @@ class TestCallResultPolicy(TestCase):
         self.assertTrue(call1_result.id in self.call_result_repo)
 
         # Register call result for call2.
-        call2_result = register_call_result(call2_id, 1.0, {}, contract_valuation_id, contract_specification_id)
+        call2_result = register_call_result(call2_id, 1.0, {}, contract_valuation_id, contract_specification_id, [])
 
         # Check the policy has the result for call2.
         self.assertTrue(call2_result.id in self.policy.result)

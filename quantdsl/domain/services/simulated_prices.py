@@ -1,3 +1,5 @@
+import six
+
 from quantdsl.domain.model.call_dependencies import CallDependencies
 from quantdsl.domain.model.call_link import CallLinkRepository
 from quantdsl.domain.model.call_requirement import CallRequirementRepository, CallRequirement
@@ -10,7 +12,7 @@ from quantdsl.domain.services.call_links import regenerate_execution_order
 from quantdsl.domain.services.parser import dsl_parse
 from quantdsl.domain.services.price_processes import get_price_process
 from quantdsl.priceprocess.base import PriceProcess
-from quantdsl.semantics import DslObject
+from quantdsl.semantics import DslObject, AbstractMarket
 
 
 def generate_simulated_prices(market_simulation, market_calibration):
@@ -39,6 +41,8 @@ def identify_simulation_requirements(contract_specification_id, call_requirement
 
     all_perturbation_dependencies = {}
 
+    call_requirements = []
+
     for call_id in regenerate_execution_order(contract_specification_id, call_link_repo):
 
         # Get the stubbed expression.
@@ -53,6 +57,20 @@ def identify_simulation_requirements(contract_specification_id, call_requirement
             call_requirement._dsl_expr = dsl_expr
         assert isinstance(dsl_expr, DslObject), dsl_expr
 
+        call_requirements.append(call_requirement)
+
+    all_market_names = set()
+    for call_requirement in call_requirements:
+        dsl_expr = call_requirement._dsl_expr
+        for market in dsl_expr.find_instances(AbstractMarket):
+            assert isinstance(market.commodity_name, six.string_types)
+            all_market_names.add(market.commodity_name)
+
+    for call_requirement in call_requirements:
+        dsl_expr = call_requirement._dsl_expr
+
+        call_id = call_requirement.id
+
         # Todo: Consolidate 'date' attributes to be a single element (rather than a possibly long sum expression).
 
         # Identify this call's requirements for simulated prices.
@@ -63,6 +81,7 @@ def identify_simulation_requirements(contract_specification_id, call_requirement
             present_time=present_time,
             observation_date=observation_date,
             periodisation=periodisation,
+            all_market_names=all_market_names,
         )
 
         # Register the simulation requirements for each call (needed during evaluation).

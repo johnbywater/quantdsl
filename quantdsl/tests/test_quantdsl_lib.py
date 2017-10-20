@@ -8,7 +8,7 @@ from quantdsl.lib.european1 import European
 
 European(Date('2012-01-11'), 9, Market('NBP'))
 """
-        self.assert_contract_value(specification, 2.480, {}, expected_call_count=None)
+        self.assert_contract_value(specification, 2.397, {}, expected_call_count=None)
 
     def test_american1(self):
         specification = """
@@ -16,7 +16,7 @@ from quantdsl.lib.american1 import American
 
 American(Date('2012-01-01'), Date('2012-01-11'), 5, Market('NBP'), TimeDelta('1d'))
 """
-        self.assert_contract_value(specification, 5.612, {}, expected_call_count=None)
+        self.assert_contract_value(specification, 5.0356, {}, expected_call_count=None)
 
     def test_storage1(self):
         specification_tmpl = """
@@ -52,7 +52,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 0,
             'limit': 10
         }
-        self.assert_contract_value(specification, 0.0270, {}, expected_call_count=6)
+        self.assert_contract_value(specification, -0.0015, {}, expected_call_count=6)
 
         # Capacity, and inventory to discharge.
         specification = specification_tmpl % {
@@ -62,7 +62,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 19.998, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 19.982, {}, expected_call_count=10)
 
         # Capacity, and inventory to discharge in future.
         specification = specification_tmpl % {
@@ -72,7 +72,7 @@ GasStorage(Date('%(start_date)s'), Date('%(end_date)s'), '%(commodity)s', %(quan
             'quantity': 2,
             'limit': 2
         }
-        self.assert_contract_value(specification, 17.1827, {}, expected_call_count=10)
+        self.assert_contract_value(specification, 15.971, {}, expected_call_count=10)
 
         # Capacity, zero inventory, in future.
         specification = specification_tmpl % {

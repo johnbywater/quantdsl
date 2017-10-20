@@ -80,7 +80,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
         simulation_requirements = simulated_price_dependencies_repo[call_id].requirements
 
         # Compute the call result.
-        result_value, perturbed_values = compute_call_result(
+        result_value, perturbed_values, involved_market_names = compute_call_result(
             contract_valuation=contract_valuation,
             call_requirement=call_requirement,
             market_simulation=market_simulation,
@@ -99,6 +99,7 @@ def evaluate_contract_in_series(contract_valuation_id, contract_valuation_repo, 
             perturbed_values=perturbed_values,
             contract_valuation_id=contract_valuation_id,
             contract_specification_id=contract_specification_id,
+            involved_market_names=involved_market_names
         )
 
 
@@ -168,7 +169,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
     simulation_requirements = simulated_price_requirements_repo[call_id].requirements
 
     # Compute the call result.
-    result_value, perturbed_values = compute_call_result(
+    result_value, perturbed_values, involved_market_names = compute_call_result(
         contract_valuation=contract_valuation,
         call_requirement=call_requirement,
         market_simulation=market_simulation,
@@ -187,6 +188,7 @@ def evaluate_call_and_queue_next_calls(contract_valuation_id, contract_specifica
         perturbed_values=perturbed_values,
         contract_valuation_id=contract_valuation_id,
         contract_specification_id=contract_specification_id,
+        involved_market_names=involved_market_names
     )
 
 
@@ -209,12 +211,14 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
 
     simulation_id = contract_valuation.market_simulation_id
 
-    first_commodity_name = None
+    involved_market_names = set()
 
     for simulation_requirement in simulation_requirements:
         (commodity_name, fixing_date, delivery_date) = simulation_requirement
-        if first_commodity_name is None:
-            first_commodity_name = commodity_name
+
+        # Accumulate involved market names (needed in Choice for regressions).
+        involved_market_names.add(commodity_name)
+
         price_id = make_simulated_price_id(simulation_id, commodity_name, fixing_date, delivery_date)
         simulated_price = simulated_price_repo[price_id]
         simulated_value_dict[price_id] = simulated_price.value
@@ -227,26 +231,32 @@ def compute_call_result(contract_valuation, call_requirement, market_simulation,
         result_repo=call_result_repo,
     )
 
+    # Accumulate market names from dependency results.
+    for dependency_result in dependency_results.values():
+        assert isinstance(dependency_result, CallResult), dependency_result
+        involved_market_names.update(dependency_result.involved_market_names)
+
     result_value, perturbed_values = evaluate_dsl_expr(call_requirement._dsl_expr,
-                                                       first_commodity_name,
                                                        market_simulation.id,
                                                        market_simulation.interest_rate, present_time,
                                                        simulated_value_dict,
                                                        perturbation_dependencies.dependencies,
-                                                       dependency_results, market_simulation.path_count,
+                                                       dependency_results,
+                                                       market_simulation.path_count,
                                                        market_simulation.perturbation_factor,
                                                        contract_valuation.periodisation,
                                                        call_requirement.cost,
                                                        market_simulation.observation_date,
-                                                       is_double_sided_deltas)
+                                                       is_double_sided_deltas,
+                                                       involved_market_names)
 
     # Return the result.
-    return result_value, perturbed_values
+    return result_value, perturbed_values, involved_market_names
 
 
-def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_rate, present_time, simulated_value_dict,
+def evaluate_dsl_expr(dsl_expr, simulation_id, interest_rate, present_time, simulated_value_dict,
                       perturbation_dependencies, dependency_results, path_count, perturbation_factor, periodisation,
-                      estimated_cost_of_expr, observation_date, is_double_sided_deltas):
+                      estimated_cost_of_expr, observation_date, is_double_sided_deltas, involved_market_names):
 
     evaluation_kwds = {
         'simulated_value_dict': simulated_value_dict,
@@ -255,7 +265,7 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
         'perturbation_factor': perturbation_factor,
         'observation_date': observation_date,
         'present_time': present_time,
-        'first_commodity_name': first_commodity_name,
+        'involved_market_names': involved_market_names,
         'path_count': path_count,
         'periodisation': periodisation,
     }
@@ -264,22 +274,23 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
     perturbed_values = {}
 
     # Decide perturbation names.
-    perturbation_names = [None] + perturbation_dependencies
+    perturbation_names = perturbation_dependencies
     if is_double_sided_deltas:
         perturbation_names += ['-' + p for p in perturbation_dependencies]
 
-    for perturbation in perturbation_names:
 
-        evaluation_kwds['active_perturbation'] = perturbation
+    for perturbation_name in [''] + perturbation_names:
+
+        evaluation_kwds['active_perturbation'] = perturbation_name
 
         # Initialise namespace with the dependency values.
         dependency_values = {}
         for stub_id in dependency_results.keys():
-            (dependency_result_value, dependency_perturbed_values) = dependency_results[stub_id]
+            dependency_result = dependency_results[stub_id]
             try:
-                dependency_value = dependency_perturbed_values[str(perturbation)]
+                dependency_value = dependency_result.perturbed_values[perturbation_name]
             except KeyError:
-                dependency_value = dependency_result_value
+                dependency_value = dependency_result.result_value
             dependency_values[stub_id] = dependency_value
 
         # Prepare the namespace with the values the expression depends on.
@@ -290,11 +301,11 @@ def evaluate_dsl_expr(dsl_expr, first_commodity_name, simulation_id, interest_ra
 
         # Evaluate the expression.
         expr_value = dsl_expr_resolved.evaluate(**evaluation_kwds)
-        if perturbation is None:
+        if not perturbation_name:
             assert result_value is None
             result_value = expr_value
         else:
-            perturbed_values[perturbation] = expr_value
+            perturbed_values[perturbation_name] = expr_value
 
         # Publish result value computed event.
         publish(ResultValueComputed(estimated_cost_of_expr))
@@ -311,5 +322,5 @@ def get_dependency_results(contract_valuation_id, call_id, dependencies_repo, re
         call_result_id = make_call_result_id(contract_valuation_id, stub_id)
         stub_result = result_repo[call_result_id]
         assert isinstance(stub_result, CallResult)
-        dependency_results[stub_id] = (stub_result.result_value, stub_result.perturbed_values)
+        dependency_results[stub_id] = stub_result
     return dependency_results

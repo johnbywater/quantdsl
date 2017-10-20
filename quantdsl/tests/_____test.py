@@ -100,7 +100,6 @@ class DslTestCase(unittest.TestCase):
             #     'sim1NBP2013-01-01': Mock(spec=SimulatedPrice, value=scipy.array([10])),
             # },
             'simulation_id': 'sim1',
-            'first_commodity_name': '#1',
         })
         return dsl_eval(dsl_source, evaluation_kwds=evaluation_kwds)
 

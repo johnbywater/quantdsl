@@ -97,7 +97,8 @@ class TestEventSourcedRepos(ApplicationTestCase):
 
         register_call_result(call_id=call_id, result_value=123, perturbed_values={},
                              contract_valuation_id=contract_valuation_id,
-                             contract_specification_id=contract_specification_id)
+                             contract_specification_id=contract_specification_id,
+                             involved_market_names=[])
 
         call_result = self.app.call_result_repo[call_result_id]
         assert isinstance(call_result, CallResult)

@@ -40,36 +40,38 @@ class DslObject(six.with_metaclass(ABCMeta)):
         """
         Returns DSL source code, that can be parsed to generate a clone of self.
         """
-        return self.pprint()
+        return "\n".join(self.pprint())
 
     # Todo: More tests that this round trip actually works.
     def pprint(self, indent=''):
         """Returns Quant DSL source code for the DSL object."""
-        msg = self.__class__.__name__ + "("
-        lenArgs = len(self._args)
-        if lenArgs > 1:
-            msg += "\n"
-        tab = 4
-        indent += ' ' * tab
+        args_lines = []
+        one_liner = True
         for i, arg in enumerate(self._args):
-            if lenArgs > 1:
-                msg += indent
-            # if isinstance(arg, DslObject):
-            #     msg += arg.pprint(indent)
-            # else:
-            #     msg += str(arg)
             assert isinstance(arg, DslObject), type(arg)
-            msg += arg.pprint(indent)
+            arg_lines = arg.pprint()
+            args_lines.append(arg_lines)
+            if len(arg_lines) > 1:
+                one_liner = False
 
-            if i < lenArgs - 1:
-                msg += ","
-            if lenArgs > 1:
-                msg += "\n"
-        indent = indent[:-tab]
-        if lenArgs > 1:
-            msg += indent
-        msg += ")"
-        return msg
+        if one_liner:
+            line = self.__class__.__name__ + '('
+            if args_lines:
+                for arg_lines in args_lines:
+                    line += arg_lines[0]
+                    line += ', '
+                line = line[:-2]  # Drop the last comma-space.
+            line += ')'
+            lines = [line]
+        else:
+            lines = [self.__class__.__name__ + '(']
+            for arg_lines in args_lines:
+                lines += ['   ' + l for l in arg_lines]
+                lines[-1] += ','
+            lines[-1] = lines[-1][:-1]  # Drop the last comma.
+
+            lines += [')']
+        return lines
 
     @property
     def hash(self):
@@ -253,7 +255,7 @@ class DslConstant(DslExpression):
     required_type = None
 
     def pprint(self, indent=''):
-        return repr(self.value)
+        return [repr(self.value)]
 
     def validate(self, args):
         self.assert_args_len(args, required_len=1)
@@ -264,7 +266,10 @@ class DslConstant(DslExpression):
     @property
     def value(self):
         if not hasattr(self, '_value'):
-            self._value = self.parse(self._args[0])
+            try:
+                self._value = self.parse(self._args[0])
+            except IndexError:
+                pass
         return self._value
 
     def evaluate(self, **_):
@@ -292,7 +297,7 @@ class Date(DslConstant):
     required_type = six.string_types + (String, datetime.date, datetime.datetime)
 
     def pprint(self, indent=''):
-        return "Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)
+        return ["Date('%04d-%02d-%02d')" % (self.value.year, self.value.month, self.value.day)]
 
     def parse(self, value):
         # Return a datetime.datetime.
@@ -317,7 +322,7 @@ class TimeDelta(DslConstant):
     required_type = (String, datetime.timedelta, relativedelta)
 
     def pprint(self, indent=''):
-        return "{}({})".format(self.__class__.__name__, self._args[0])
+        return ["{}({})".format(self.__class__.__name__, self._args[0])]
 
     def parse(self, value, regex=re.compile(r'((?P<days>\d+?)d|(?P<months>\d+?)m|(?P<years>\d+?)y)?')):
         if isinstance(value, String):
@@ -335,7 +340,9 @@ class UnaryOp(DslExpression):
     opchar = None
 
     def pprint(self, indent=''):
-        return str(self.opchar) + str(self.operand)
+        lines = self.operand.pprint()
+        lines[0] = str(self.opchar) + lines[0]
+        return lines
 
     def validate(self, args):
         self.assert_args_len(args, required_len=1)
@@ -389,9 +396,19 @@ class BoolOp(DslExpression):
 
     def pprint(self, indent=''):
         operator = self.__class__.__name__.lower()
-        padded = ' ' + operator + ' '
-        text = padded.join([str(i) for i in self._args[0]])
-        return indent + '(' + text + ')'
+        lines = []
+        padded_operator = ' ' + operator + ' '
+        for arg in self._args[0]:
+            arg_lines = arg.pprint()
+            if lines:
+                lines[-1] += padded_operator + arg_lines[0]
+                lines += ['    ' + l for l in arg_lines[1:]]
+            else:
+                lines += [l for l in arg_lines]
+
+        lines[0] = '(' + lines[0]
+        lines[-1] += ')'
+        return lines
 
 
 class Or(BoolOp):
@@ -414,17 +431,29 @@ class BinOp(DslExpression):
     op_code = ''
 
     def pprint(self, indent=''):
-        if self.op_code:
-            def makeStr(dsl_expr):
-                dslString = str(dsl_expr)
-                if isinstance(dsl_expr, BinOp):
-                    dslString = "(" + dslString + ")"
-                return dslString
+        def make_lines(dsl_expr):
+            lines = dsl_expr.pprint()
+            if self.op_code and isinstance(dsl_expr, BinOp) and dsl_expr.op_code:
+                lines[0] = '(' + lines[0]
+                lines[-1] += ')'
+            return lines
 
-            text = makeStr(self.left) + " " + self.op_code + " " + makeStr(self.right)
+        left_lines = make_lines(self.left)
+        right_lines = make_lines(self.right)
+
+        if self.op_code:
+            lines = left_lines[:-1]
+            lines.append(left_lines[-1] + " " + self.op_code + " " + right_lines[0])
+            lines += right_lines[1:]
+        elif len(left_lines) == 1 and len(right_lines) == 1:
+            lines = ['%s(' % self.__class__.__name__ + left_lines[0] + ', ' + right_lines[0] + ')']
         else:
-            text = '%s(%s, %s)' % (self.__class__.__name__, self.left, self.right)
-        return indent + text
+            lines = ['%s(' % self.__class__.__name__]
+            lines += ['    ' + l for l in left_lines[:-1]]
+            lines.append('    ' + left_lines[-1] + ',')
+            lines += ['    ' + l for l in right_lines]
+            lines += [')']
+        return lines
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
@@ -583,7 +612,7 @@ class Name(DslExpression):
     relative_cost = 0
 
     def pprint(self, indent=''):
-        return indent + self.name
+        return [self.name]
 
     def validate(self, args):
         assert isinstance(args[0], (six.string_types, String)), type(args[0])
@@ -631,7 +660,7 @@ class Stub(Name):
         # Can't just return a Python string, like with Names, because this
         # is normally a UUID, and UUIDs are not valid Python variable names
         # because they have dashes and sometimes start with numbers.
-        return "Stub('%s')" % self.name
+        return ["Stub('%s')" % self.name]
 
 
 class FunctionDef(DslObject):
@@ -642,26 +671,19 @@ class FunctionDef(DslObject):
     """
 
     def pprint(self, indent=''):
-        msg = ""
+        lines = []
         for decorator_name in self.decorator_names:
-            msg += indent + "@" + decorator_name + "\n"
-        msg += indent + "def %s(%s):\n" % (self.name, ", ".join(self.call_arg_names))
-        if isinstance(self.body, DslObject):
-            try:
-                msg += self.body.pprint(indent=indent + '    ')
-            except TypeError:
-                raise DslSystemError("DSL object can't handle indent: %s" % type(self.body))
-        else:
-            msg += str(self.body)
-        return msg
+            lines.append("@" + decorator_name)
+        lines.append("def %s(%s):" % (self.name, ", ".join(self.call_arg_names)))
+        assert isinstance(self.body, DslObject)
+        lines += ['    ' + l for l in self.body.pprint()]
+        return lines
 
     def __init__(self, *args, **kwds):
         super(FunctionDef, self).__init__(*args, **kwds)
         # Initialise the function call cache for this function def.
         self.call_cache = {}
-        self.enclosed_namespace = DslNamespace()
 
-        # Second attempt to implement module namespaces...
         self.module_namespace = None
 
     def validate(self, args):
@@ -699,7 +721,7 @@ class FunctionDef(DslObject):
                 raise DslSyntaxError('expected call arg not found',
                                      "arg '%s' not in call arg namespace %s" % (call_arg_name, dsl_locals.keys()))
 
-    def apply(self, dsl_globals=None, present_time=None, observation_date=None, pending_call_stack=None,
+    def apply(self, present_time=None, observation_date=None, pending_call_stack=None,
               is_destacking=False, **raw_dsl_locals):
 
         # Decide either to stub out the function in the caller, and put
@@ -707,42 +729,29 @@ class FunctionDef(DslObject):
         # generate a DSL expression.
         do_apply = pending_call_stack is None or is_destacking or 'inline' in self.decorator_names
 
-        # Sort out the namespaces.
-        if dsl_globals is None:
-            dsl_globals = DslNamespace()
-        if self.module_namespace is None:
-            module_namespace = DslNamespace()
-        else:
-            module_namespace = self.module_namespace
-        # Todo: This can be simpler... module_namespace and dsl_globals are trying to do the same thing.
-        new_dsl_globals = DslNamespace(itertools.chain(
-            self.enclosed_namespace.items(),
-            module_namespace.items(),
-            dsl_globals.items())
-        )
-
         # Validate the call args with the definition.
         self.validateCallArgs(raw_dsl_locals)
 
         # Create the cache key.
-        new_dsl_locals = DslNamespace()
+        dsl_locals = DslNamespace()
         call_cache_key_dict = {}
         for arg_name, arg_value in raw_dsl_locals.items():
             if isinstance(arg_value, FunctionCall):
-                if not arg_value.functionDef.list_instances(FunctionCall, StochasticObject):
+                if not arg_value.functionDef.has_instances(FunctionCall, StochasticObject):
                     try:
                         arg_value = arg_value.call_functions()
                     except DslError as e:
-                        raise Exception("Can't evaluate {}: {}: {}".format(arg_name, arg_value, e))
+                        raise Exception("Can't evaluate {}: {}: {}"
+                                        .format(arg_name, arg_value, e))
             elif isinstance(arg_value, DslExpression):
-                if not arg_value.list_instances(StochasticObject):
+                if not arg_value.has_instances(StochasticObject):
                     try:
                         arg_value = arg_value.evaluate()
                     except DslError as e:
-                        raise Exception("Can't evaluate {}, a non-stochastic expression: {}: {}".format(arg_name,
-                                                                                                    arg_value, e))
+                        raise Exception("Can't evaluate {}, a non-stochastic expression: {}: {}"
+                                        .format(arg_name, arg_value, e))
 
-            new_dsl_locals[arg_name] = arg_value
+            dsl_locals[arg_name] = arg_value
             call_cache_key_dict[arg_name] = arg_value
         call_cache_key_dict["__present_time__"] = present_time
         call_cache_key_dict["__do_apply__"] = do_apply
@@ -755,7 +764,7 @@ class FunctionDef(DslObject):
         if do_apply:
             # Select expression from body.
             dsl_expr = self.body
-            ns = new_dsl_globals.combine(new_dsl_locals)
+            ns = self.module_namespace.combine(dsl_locals)
             ns['observation_date'] = observation_date
             ns['present_time'] = present_time
             while isinstance(dsl_expr, BaseIf):
@@ -769,7 +778,7 @@ class FunctionDef(DslObject):
 
             # Reduce the selected expression.
             assert isinstance(dsl_expr, DslExpression)
-            dsl_expr = dsl_expr.substitute_names(ns.combine(new_dsl_locals))
+            dsl_expr = dsl_expr.substitute_names(ns.combine(dsl_locals))
             dsl_expr = dsl_expr.call_functions(
                 present_time=present_time,
                 observation_date=observation_date,
@@ -791,8 +800,7 @@ class FunctionDef(DslObject):
             pending_call_stack.put(
                 stub_id=stub_id,
                 stacked_function_def=self,
-                stacked_locals=new_dsl_locals.copy(),
-                stacked_globals=new_dsl_globals.copy(),
+                stacked_locals=dsl_locals,
                 present_time=present_time
             )
 
@@ -833,8 +841,12 @@ class FunctionDef(DslObject):
 
 class FunctionCall(DslExpression):
     def pprint(self, indent=''):
-        return indent + "%s(%s)" % (self.functionDef,
-                                    ", ".join([str(arg) for arg in self.callArgExprs]))
+        lines = []
+        lines.append("%s(" % self.functionDef)
+        for arg in self.callArgExprs:
+            lines += arg.pprint()
+        lines.append(')')
+        return lines
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
@@ -1000,24 +1012,34 @@ class BaseIf(DslExpression):
 
 class If(BaseIf):
     def pprint(self, indent=''):
-        msg = "\n"
-        msg += indent + "if %s:\n" % self.test
-        msg += indent + "    %s\n" % self.body
-        msg += self.orelse_to_str(self.orelse, indent)
-        return msg
+        lines = []
+        test_lines = self.test.pprint()
+        lines.append("if %s:" % test_lines[0])
+        lines += test_lines[1:]
+
+        body_lines = self.body.pprint()
+        lines += ['    ' + l for l in body_lines]
+        lines += self.orelse_to_str(self.orelse, indent)
+        return lines
 
     def orelse_to_str(self, orelse, indent):
-        msg = ''
+        lines = []
         if isinstance(orelse, If):
-            msg += indent + "elif %s:\n" % orelse.test
-            msg += indent + "    %s\n" % orelse.body
+            test_lines = orelse.test.pprint()
+            body_lines = orelse.body.pprint()
+            lines += ["elif " + test_lines[0]]
+            lines += ['        ' + l for l in test_lines[1:]]
+            lines[-1] += ':'
+            lines += ['    ' + l for l in body_lines]
+
             # Recurse down "linked list" of alternatives...
-            msg += self.orelse_to_str(orelse.orelse, indent)
+            lines += self.orelse_to_str(orelse.orelse, indent)
         else:
             # ...until we reach the final alternative.
-            msg += indent + "else:\n"
-            msg += indent + "    %s\n" % orelse
-        return msg
+            lines += ["else:"]
+            orelse_lines = orelse.pprint()
+            lines += ['    ' + l for l in orelse_lines]
+        return lines
 
 
 class IfExp(If):
@@ -1026,7 +1048,7 @@ class IfExp(If):
     """
 
     def pprint(self, indent=''):
-        return indent + "%s if %s else %s" % (self.body, self.test, self.orelse)
+        return ["%s if %s else %s" % (self.body, self.test, self.orelse)]
 
 
 class Compare(DslExpression):
@@ -1051,9 +1073,9 @@ class Compare(DslExpression):
     }
 
     def pprint(self, indent=''):
-        return indent + str(self.left) + ' ' + " ".join(
+        return [str(self.left) + ' ' + " ".join(
             [str(self.opcodes[op]) + ' ' + str(right) for (op, right) in zip(self.op_names, self.comparators)]
-        )
+        )]
 
     def validate(self, args):
         self.assert_args_len(args, 3)
@@ -1122,7 +1144,10 @@ class Module(DslObject):
         super(Module, self).__init__(*args, **kwds)
 
     def pprint(self, indent=''):
-        return indent + "\n".join([str(statement) for statement in self.body])
+        lines = []
+        for statement in self.body:
+            lines += statement.pprint()
+        return lines
 
     def validate(self, args):
         self.assert_args_len(args, 2)
@@ -1152,9 +1177,12 @@ class DslNamespace(dict):
         return copy
 
     def combine(self, other):
-        copy = self.copy()
-        copy.update(other)
-        return copy
+        if other is None:
+            return self
+        else:
+            copy = self.copy()
+            copy.update(other)
+            return copy
 
 
 class StochasticObject(DslObject):
@@ -1326,11 +1354,16 @@ class AbstractMarket(StochasticObject, DslExpression):
         return present_time, present_time
 
 
-
 class Market(AbstractMarket):
     def validate(self, args):
         self.assert_args_len(args, required_len=1)
         self.assert_args_arg(args, posn=0, required_type=(six.string_types + (String, Name)))
+
+    def pprint(self, indent=''):
+        msg = self.__class__.__name__ + '('
+        msg += self._args[0].pprint()[0]
+        msg += ')'
+        return [msg]
 
 
 class ForwardMarket(AbstractMarket):
@@ -1392,14 +1425,6 @@ class Fixing(DatedDslObject):
     A fixing defines the 'present_time' used for evaluating its expression.
     """
     relative_cost = 0
-
-
-    def pprint(self, indent=''):
-        date_expr = self.get_date_expr()
-        return indent + "%s(%s, %s)" % (
-            self.__class__.__name__,
-            date_expr,
-            self.expr)
 
     def validate(self, args):
         self.assert_args_len(args, required_len=2)
@@ -1482,23 +1507,22 @@ class Choice(StochasticObject, DslExpression):
     def evaluate(self, **kwds):
         # Run the least-squares monte-carlo routine.
         present_time = self.get_present_time(kwds)
-        # Todo: Check this is ok. Is it symmetric, e.g. with two commdities does a choice with the second work as if
-        # the second were the first?
-        first_commodity_name = kwds['first_commodity_name']
+        involved_market_names = kwds['involved_market_names']
         simulated_value_dict = kwds['simulated_value_dict']
 
         simulation_id = kwds['simulation_id']
         initial_state = LongstaffSchwartzState(self, present_time)
         final_states = [LongstaffSchwartzState(a, present_time) for a in self._args]
-        longstaff_schwartz = LongstaffSchwartz(initial_state, final_states, first_commodity_name,
+        longstaff_schwartz = LongstaffSchwartz(initial_state, final_states, involved_market_names,
                                                simulated_value_dict, simulation_id)
         result = longstaff_schwartz.evaluate(**kwds)
         return result
 
     def identify_price_simulation_requirements(self, requirements, **kwds):
         present_time = kwds['present_time']
-        for dsl_market in self.list_instances(AbstractMarket):
-            requirements.add((dsl_market.commodity_name, present_time, present_time))
+        all_market_names = kwds['all_market_names']
+        for market_name in all_market_names:
+            requirements.add((market_name, present_time, present_time))
         super(Choice, self).identify_price_simulation_requirements(requirements, **kwds)
 
 
@@ -1508,13 +1532,13 @@ class LongstaffSchwartz(object):
     on valuing American options (for reference, see Quant DSL paper).
     """
 
-    def __init__(self, initial_state, subsequent_states, first_commodity_name, simulated_price_dict, simulation_id):
+    def __init__(self, initial_state, subsequent_states, involved_market_names, simulated_price_dict, simulation_id):
         self.initial_state = initial_state
         for subsequent_state in subsequent_states:
             self.initial_state.add_subsequent_state(subsequent_state)
         self.states = None
         self.states_by_time = None
-        self.first_commodity_name = first_commodity_name
+        self.involved_market_names = involved_market_names
         self.simulated_price_dict = simulated_price_dict
         self.simulation_id = simulation_id
 
@@ -1532,14 +1556,13 @@ class LongstaffSchwartz(object):
 
                 for subsequent_state in state.subsequent_states:
                     regression_variables = []
-                    dsl_markets = subsequent_state.dsl_object.list_instances(AbstractMarket)
-                    market_names = set([m.commodity_name for m in dsl_markets])
-                    for market_name in market_names:
+                    for market_name in self.involved_market_names:
                         market_price = self.get_simulated_value(market_name, state.time)
                         regression_variables.append(market_price)
                     # Todo: Either use or remove 'get_payoff()', payoffValue not used ATM.
                     # payoffValue = self.get_payoff(state, subsequent_state)
                     expected_continuation_value = value_of_being_in[subsequent_state]
+
                     expected_continuation_values.append(expected_continuation_value)
                     if len(regression_variables):
                         conditional_expected_value = LeastSquares(regression_variables,
@@ -1582,8 +1605,6 @@ class LongstaffSchwartz(object):
                                                                                       self.simulated_price_dict.keys())
             raise KeyError(msg)
         return simulated_price
-        # underlying_value = numpy_from_sharedmem(simulated_price)
-        # return underlying_value
 
     def get_times(self):
         return self.get_states_by_time().keys()
@@ -1690,7 +1711,7 @@ class LeastSquares(object):
 
 class ObservationDate(Date):
     def pprint(self, indent=''):
-        return "ObservationDate()"
+        return ["ObservationDate()"]
 
     def validate(self, args):
         self.assert_args_len(args, required_len=0)
@@ -1701,7 +1722,7 @@ class ObservationDate(Date):
 
 class PresentTime(Date):
     def pprint(self, indent=''):
-        return "PresentTime()"
+        return ["PresentTime()"]
 
     def validate(self, args):
         self.assert_args_len(args, required_len=0)
@@ -1737,5 +1758,4 @@ defaultDslClasses.update({
     'IsDayOfMonth': IsDayOfMonth,
 })
 
-PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'stacked_globals',
-                                         'present_time'])
+PendingCall = namedtuple('PendingCall', ['stub_id', 'stacked_function_def', 'stacked_locals', 'present_time'])

@@ -6,13 +6,35 @@ import sys
 from quantdsl.exceptions import DslSyntaxError
 from quantdsl.semantics import FunctionDef, DslNamespace
 
-from importlib import import_module
+if six.PY2:
+    from importlib import import_module
+elif six.PY3:
+    find_spec = None
+    find_loader = None
+    try:
+        from importlib.util import find_spec
+    except:
+        from importlib.util import find_loader
 
 
 def find_module_path(name):
     # Find path.
-    module = import_module(name)
-    path = module.__file__.strip('c')  # .py not .pyc
+
+    if six.PY2:
+        try:
+            module = import_module(name)
+        except SyntaxError as e:
+            raise DslSyntaxError("Can't import {}: {}".format(name, e))
+        path = module.__file__.strip('c')
+    elif six.PY3:
+        if find_loader:
+            loader = find_loader(name)
+            path = loader.path
+        else:
+            spec = find_spec(name)
+            path = spec.origin
+
+    assert path.endswith('.py'), path
     return path
 
 
@@ -78,9 +100,10 @@ class DslParser(object):
         for n in node.body:
             dsl_object = self.visitAstNode(n)
 
+            # Put function defs in module namespace.
             if isinstance(dsl_object, FunctionDef):
-                # Put function def in module namespace.
                 module_namespace[dsl_object.name] = dsl_object
+
                 # Share module namespace with this function.
                 if dsl_object.module_namespace is None:
                     dsl_object.module_namespace = module_namespace

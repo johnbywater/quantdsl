@@ -47,7 +47,7 @@ class TestDslParser(unittest.TestCase):
         assert isinstance(dsl_module, Module)
 
         # Check the parsed DSL can be rendered as a string that is equal to the original source.
-        self.assertEqual(str(dsl_module).strip(), dsl_source.strip())
+        self.assertEqual(str(dsl_module), dsl_source.strip())
 
         # Assume this test is dealing with modules that have one statement only.
         dsl_expr = dsl_module.body[0]

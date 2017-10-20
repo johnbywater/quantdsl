@@ -61,7 +61,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
             },
         )
 
-        self.assertAlmostEqual(results.fair_value.mean(), 6, places=0)
+        self.assertAlmostEqual(results.fair_value.mean(), 8.7977, places=0)
         self.assertEqual(len(results.periods), 6)
 
     def test_periodisation_alltime(self):
@@ -110,7 +110,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
             },
         )
 
-        self.assertAlmostEqual(results.fair_value.mean(), 6, places=0)
+        self.assertAlmostEqual(results.fair_value.mean(), 8.749, places=0)
         self.assertEqual(len(results.periods), 1)
 
     def test_periodisation_none(self):
@@ -158,7 +158,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
             },
         )
 
-        self.assertAlmostEqual(results.fair_value.mean(), 6, places=0)
+        self.assertAlmostEqual(results.fair_value.mean(), 8.6359, places=0)
         self.assertEqual(len(results.periods), 0)
 
     def test_timeout(self):
