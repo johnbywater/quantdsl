@@ -113,9 +113,12 @@ function `[[v]](t)` from present time `t` to a random
 variable in a probability space.
 
 Constant interest rate `r` is used in discounting settlements.
+
 For market `i`, the last price `Si` and volatility `σi` are determined
 using only market price data generated before `t0`. Brownian
-motion `z` is used in diffusion.
+motion `z` is used in diffusion. In the software, this `Market` semantic is
+a user option, so that other market models can be used to simulate prices,
+for example models with multiple factors, mean reversion, and jump diffusion.
 
 Choices are made using conditioning, expectation `E` is conditioned
 on filtration `F` at `t`, so that choices are made only with
@@ -718,12 +721,23 @@ def EuropeanPut(expiry, strike, underlying):
     EuropeanOption(expiry, -strike, -underlying)
 ```
 
-A European stock option can be expressed as a `EuropeanOption`, with the `underlying` being the spot price at the 
-start of the contract, discounted forward from `start`, and observed at the option `expiry` time.
+A European stock option can be expressed as a `EuropeanOption`, with the `underlying` being the index at
+maturity. The `IndexAtMaturity` has the spot price at the observation date
+(using `ForwardMarket`) observed at a time in the future, discounted forward from the observation date (due
+to the `Settlement`) to a time in the future. This "time in the future" is the effective
+present time set by the `Wait` element of the `Option` definition above.
 
 ```python
 def EuropeanStockOption(expiry, strike, stock):
     EuropeanOption(expiry, strike, IndexAtMaturity(stock))
+```
+
+The expression `IndexAtMaturity` is passed into the `Option` definition and, due to the `Wait` 
+element in that definition, is evaluated with `expiry` as the present time. Therefore the spot 
+price is discounted forward to the `expiry`, and the fixing date of the `ForwardMarket` is `expiry`, so that the
+spot price is subjected to stochastic evolution as well as interest rates.
+
+```python
 
 def IndexAtMaturity(stock):
     Settlement(ObservationDate(), ForwardMarket(ObservationDate(), stock))
