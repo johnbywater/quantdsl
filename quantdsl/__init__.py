@@ -1,4 +1,4 @@
-__version__ = '1.3.5dev0'
+__version__ = '1.3.5'
 
 # Todo: Support things like "third Wednesday of contract month" e.g. for settlement of futures.
 # Todo: Multiprocessing of repeat simulations and valuations, with combination of results, to increase accuracy.
