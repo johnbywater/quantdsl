@@ -14,87 +14,25 @@ import dateutil.parser
 import six
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 
-from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, DEFAULT_CONFIDENCE_INTERVAL
-from quantdsl.interfaces.results import Results
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
+from quantdsl.defaults import DEFAULT_INTEREST_RATE, DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, DEFAULT_PATH_COUNT, \
+    DEFAULT_PERTURBATION_FACTOR
 from quantdsl.domain.model.call_dependents import CallDependents
 from quantdsl.domain.model.call_link import CallLink
 from quantdsl.domain.model.call_requirement import CallRequirement
 from quantdsl.domain.model.call_result import CallResult, ResultValueComputed, make_call_result_id
 from quantdsl.domain.model.simulated_price_requirements import SimulatedPriceRequirements
 from quantdsl.exceptions import InterruptSignalReceived, TimeoutError
+from quantdsl.interfaces.results import Results
 from quantdsl.priceprocess.base import datetime_from_date
 
-
-# def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
-#                     path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
-#                     max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, show_plot=False,
-#                     timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_CONFIDENCE_INTERVAL):
-#     # Calculate and print the results.
-#     results = calc_print(source_code,
-#                          max_dependency_graph_size=max_dependency_graph_size,
-#                          observation_date=observation_date,
-#                          interest_rate=interest_rate,
-#                          path_count=path_count,
-#                          perturbation_factor=perturbation_factor,
-#                          price_process=price_process,
-#                          periodisation=periodisation,
-#                          dsl_classes=dsl_classes,
-#                          timeout=timeout,
-#                          verbose=verbose,
-#                          is_double_sided_deltas=is_double_sided_deltas,
-#                          interval=interval,
-#                          )
-#
-#     # Plot the results.
-#     fig = plot_results(results, observation_date, title, path_count, perturbation_factor, interest_rate, interval)
-#
-#     return results, fig
-#
-#     if results.periods:
-#         plot_periods(
-#             periods=results.periods,
-#             title=title,
-#             periodisation=periodisation,
-#             interest_rate=interest_rate,
-#             path_count=path_count,
-#             perturbation_factor=perturbation_factor,
-#             interval=interval
-#         )
-#     return results
-#
+__version__ = '1.3.6dev0'
 
 
-# def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-#                price_process=None, periodisation=None, dsl_classes=None,
-#                max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-#                timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_CONFIDENCE_INTERVAL):
-#     # Calculate the results.
-#     results = calc(
-#         source_code=source_code,
-#         interest_rate=interest_rate,
-#         path_count=path_count,
-#         observation_date=observation_date,
-#         perturbation_factor=perturbation_factor,
-#         price_process=price_process,
-#         periodisation=periodisation,
-#         dsl_classes=dsl_classes,
-#         max_dependency_graph_size=max_dependency_graph_size,
-#         timeout=timeout,
-#         verbose=verbose,
-#         is_double_sided_deltas=is_double_sided_deltas,
-#         interval=interval,
-#     )
-#
-#     # Print the results.
-#     # print_results(results, path_count)
-#     return results
-
-
-def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
-         perturbation_factor=0.01, price_process=None, periodisation=None, dsl_classes=None,
-         max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+def calc(source_code, observation_date=None, interest_rate=DEFAULT_INTEREST_RATE, path_count=DEFAULT_PATH_COUNT,
+         perturbation_factor=DEFAULT_PERTURBATION_FACTOR, price_process=None, periodisation=None,
+         dsl_classes=None, max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
          timeout=None, is_double_sided_deltas=True, verbose=False):
     cmd = Calculate(
         source_code=source_code,
@@ -218,7 +156,8 @@ class Calculate(object):
                 # Estimate the cost of the evaluation (to show progress).
                 # Todo: Improve the call cost estimation, perhaps by running over the depenendency graph and coding
                 # each DSL class to know how long it will take relative to others.
-                call_counts, call_costs = app.calc_counts_and_costs(contract_specification.id, self.is_double_sided_deltas)
+                call_counts, call_costs = app.calc_counts_and_costs(contract_specification.id,
+                                                                    self.is_double_sided_deltas)
                 self.result_count_expected = sum(call_counts.values())
                 self.result_cost_expected = sum(call_costs.values())
                 if self.verbose:
@@ -236,7 +175,8 @@ class Calculate(object):
                 )
 
                 # Wait for the result.
-                self.root_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
+                self.root_result_id = make_call_result_id(contract_valuation.id,
+                                                          contract_valuation.contract_specification_id)
                 if not self.root_result_id in app.call_result_repo:
                     while not self.is_finished.wait(timeout=1):
                         self.check_has_app_thread_errored(app)
@@ -433,7 +373,6 @@ def print_results(results, path_count):
         net_hedge_cost = 0.0
         net_hedge_units = defaultdict(int)
 
-        market_name_width = max([len(k) for k in results.by_market_name.keys()])
         for delivery_date, markets_results in sorted(results.by_delivery_date.items()):
             for market_result in sorted(markets_results, key=lambda x: x['market_name']):
                 market_name = market_result['market_name']
@@ -463,7 +402,7 @@ def print_results(results, path_count):
         for commodity in sorted(net_hedge_units.keys()):
             units = net_hedge_units[commodity]
             print("Net hedge {:6} {: >8.2f} ± {: >.2f}".format(
-                commodity+':', units.mean(), 3 * units.std() / sqrt_path_count)
+                commodity + ':', units.mean(), 3 * units.std() / sqrt_path_count)
             )
 
         net_hedge_cost_mean = net_hedge_cost.mean()

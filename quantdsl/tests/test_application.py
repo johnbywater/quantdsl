@@ -12,7 +12,7 @@ from quantdsl.domain.model.market_simulation import MarketSimulation
 from quantdsl.exceptions import CallLimitError, DslBinOpArgsError, DslCompareArgsError, \
     DslTestExpressionCannotBeEvaluated, RecursionDepthError, DslSyntaxError
 from quantdsl.semantics import discount
-from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
+from quantdsl.defaults import DEFAULT_PRICE_PROCESS_NAME
 
 
 class ApplicationTestCase(unittest.TestCase):

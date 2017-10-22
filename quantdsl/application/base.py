@@ -3,6 +3,7 @@ import datetime
 import six
 from eventsourcing.application.base import EventSourcingApplication
 
+from quantdsl import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.call_result_policy import CallResultPolicy
 from quantdsl.application.persistence_policy import PersistencePolicy
 from quantdsl.domain.model.call_dependencies import register_call_dependencies
@@ -34,8 +35,6 @@ from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_re
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 from quantdsl.semantics import discount
 
-DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
-DEFAULT_CONFIDENCE_INTERVAL = 95
 
 
 class QuantDslApplication(EventSourcingApplication):

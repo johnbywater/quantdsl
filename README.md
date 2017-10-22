@@ -584,14 +584,16 @@ assert round(results.fair_value.mean(), 2) == 82.06
 ```
 
 When the `Choice` element is evaluated, the value of each alternative is
-regressed as a random variable by least squares to the simulated value of the underlyings
-at the effective present time of the choice. The choice of alternative on each path is then
-made using the regressed value (the "conditional expected value") but the chosen
-value on each path is taken from the unregressed value of the chosen alternative for that path
-(the "expected continuation value"). The result is a new simulated value that combines the
-expected continuation value of the alternatives, according to information in the simulation
-at the time of the choice. This conditioning gives a quantitatively different result from simple
-maximisation of the alternative expected continuation values (`Max`). 
+regressed as a random variable by least squares with second order polynomial regression
+to the underlying simulated values at the effective present time of the choice.
+The choice of alternative on each path is then made using the regressed value (the
+"conditional expected value") but the chosen value on each path is taken from the
+unregressed value of the chosen alternative for that path (the "expected continuation
+value"). The result is a new simulated value that combines the expected continuation
+value of the alternatives, according to information in the simulation at the time of
+the choice. This conditioning gives a quantitatively different result from simple
+maximisation of the alternative expected continuation values (`Max`).
+
 
 ### Function definitions
 

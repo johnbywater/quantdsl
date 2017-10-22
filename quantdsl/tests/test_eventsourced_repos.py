@@ -11,7 +11,7 @@ from quantdsl.domain.model.contract_specification import ContractSpecification
 from quantdsl.domain.model.market_calibration import MarketCalibration
 from quantdsl.domain.model.simulated_price import SimulatedPrice, make_simulated_price_id, register_simulated_price
 from quantdsl.domain.services.uuids import create_uuid4
-from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
+from quantdsl.defaults import DEFAULT_PRICE_PROCESS_NAME
 from quantdsl.tests.test_application import ApplicationTestCase
 
 

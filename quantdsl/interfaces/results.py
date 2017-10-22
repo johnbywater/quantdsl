@@ -1,17 +1,15 @@
-from collections import defaultdict
-
 import datetime
+from collections import defaultdict
 
 import pandas
 import pandas.plotting
 import scipy
+from matplotlib import pylab as plt
 from numpy import nanpercentile
 from numpy.core.multiarray import array
 from pandas import DataFrame, Series
 
-from matplotlib import pylab as plt
-
-from quantdsl.application.base import DEFAULT_CONFIDENCE_INTERVAL
+from quantdsl.defaults import DEFAULT_CONFIDENCE_INTERVAL
 from quantdsl.domain.model.call_result import CallResult
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
@@ -19,7 +17,7 @@ from quantdsl.domain.model.market_simulation import MarketSimulation
 
 class Results(object):
     def __init__(self, valuation_result, periods, contract_valuation, market_simulation):
-        assert isinstance(contract_valuation, ContractValuation),type(contract_valuation)
+        assert isinstance(contract_valuation, ContractValuation), type(contract_valuation)
         assert isinstance(market_simulation, MarketSimulation), type(market_simulation)
         assert isinstance(valuation_result, CallResult), type(valuation_result)
         assert isinstance(periods, list)
@@ -136,7 +134,6 @@ class Results(object):
             values = values.sum(axis=0)
             pass
 
-
         if measure == 'mean':
             values = values.mean(axis=-1)
         elif measure == 'std':
@@ -181,7 +178,7 @@ class Results(object):
             fair_value_mean = self.fair_value
         return fair_value_mean
 
-    def plot(self, title, confidence_interval=DEFAULT_CONFIDENCE_INTERVAL, block=False, pause=0, figsize=None):
+    def plot(self, title='', confidence_interval=DEFAULT_CONFIDENCE_INTERVAL, block=False, pause=0, figsize=(14, 14)):
 
         self.init_dataframe_errors(confidence_interval)
 
@@ -200,7 +197,7 @@ class Results(object):
         else:
             observation_date = self.observation_date
 
-        fig.suptitle('On {}, rate {}%, {} paths, pert {}%, conf {}%'.format(
+        fig.suptitle('On {}, rate {}%, paths {}, pert {}%, conf {}%'.format(
             observation_date, self.interest_rate, self.path_count,
             self.perturbation_factor * 100,
             confidence_interval))
@@ -232,4 +229,3 @@ class Results(object):
             plt.pause(pause)
         else:
             plt.show(block=block)
-

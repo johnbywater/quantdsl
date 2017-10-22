@@ -16,7 +16,7 @@ from quantdsl.semantics import Add, Compare, Date, Div, DslExpression, DslNamesp
     FunctionDef, If, IfExp, Max, Mod, Module, Mult, Name, Number, On, Pow, String, Sub, TimeDelta, UnarySub, \
     StochasticObject, Market, AbstractMarket
 from quantdsl.domain.services.dependency_graphs import extract_defs_and_exprs
-from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME, DEFAULT_PATH_COUNT
+from quantdsl.defaults import DEFAULT_PATH_COUNT, DEFAULT_PRICE_PROCESS_NAME
 from quantdsl.syntax import DslParser
 
 
