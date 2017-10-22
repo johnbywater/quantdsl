@@ -102,6 +102,7 @@ class Calculate(object):
         self.times = collections.deque()
         self.call_result_count = 0
         self.call_requirement_count = 1
+        # self.memory_usage_max = 0
 
         if self.timeout:
             timeout_thread = Thread(target=self.wait_then_set_is_timed_out)
@@ -292,20 +293,29 @@ class Calculate(object):
             seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
 
             percent_complete = (100.0 * self.result_cost) / self.result_cost_expected
+
+            from memory_profiler import memory_usage
+            import psutil
+            # memory_usage_current = memory_usage()[0]
+            # self.memory_usage_max = max(memory_usage_current, self.memory_usage_max)
+
             msg = (
                 "\r"
                 "{}/{} "
                 "{:.2f}% complete "
                 "{:.2f} eval/s "
+                # "{:.0f} MiB max {:.0f} MiB "
                 "running {:.0f}s "
                 "eta {:.0f}s     ").format(
                 self.result_count,
                 self.result_count_expected,
                 percent_complete,
                 rate_count,
+                # memory_usage_current, self.memory_usage_max,
                 seconds_running,
                 eta,
             )
+
 
             if self.timeout:
                 msg += ' timeout in {:.0f}s'.format(self.timeout - seconds_running)

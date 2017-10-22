@@ -30,6 +30,10 @@ setup(
         'eventsourcing==0.9.4',
         'pytz',
         'blist',
+        'pandas',
+        'pandas_datareader',
+        'memory_profiler',
+        'psutil',
         # 'numexpr'
     ],
 

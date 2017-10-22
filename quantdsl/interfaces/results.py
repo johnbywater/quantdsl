@@ -178,7 +178,7 @@ class Results(object):
             fair_value_mean = self.fair_value
         return fair_value_mean
 
-    def plot(self, title='', confidence_interval=DEFAULT_CONFIDENCE_INTERVAL, block=False, pause=0, figsize=(14, 14)):
+    def plot(self, title='', confidence_interval=DEFAULT_CONFIDENCE_INTERVAL, block=False, pause=0, figsize=None):
 
         self.init_dataframe_errors(confidence_interval)
 
