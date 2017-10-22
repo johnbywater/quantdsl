@@ -103,6 +103,8 @@ class Calculate(object):
         self.call_result_count = 0
         self.call_requirement_count = 1
         # self.memory_usage_max = 0
+        self.last_printed_progress = None
+        self.duration_evaluating = None
 
         if self.timeout:
             timeout_thread = Thread(target=self.wait_then_set_is_timed_out)
@@ -150,8 +152,10 @@ class Calculate(object):
                     periodisation=self.periodisation,
                 )
                 end_simulate = datetime.datetime.now()
+
                 if self.verbose:
-                    # Todo: Separate this, not all users want print statements.
+                    # Todo: Print number of simulated prices (subscribe to and count SimulatedPrice.Created events).
+                    # Todo: Separate this, not all users want print statements?
                     print("Simulation in {:.3f}s".format((end_simulate - start_simulate).total_seconds()))
 
                 # Estimate the cost of the evaluation (to show progress).
@@ -162,7 +166,8 @@ class Calculate(object):
                 self.result_count_expected = sum(call_counts.values())
                 self.result_cost_expected = sum(call_costs.values())
                 if self.verbose:
-                    print("Starting {} node evaluations, please wait...".format(self.result_count_expected))
+                    print("Starting {} node evaluations, please wait...".format(self.result_count_expected),
+                          flush=True)
                 # self.expected_num_call_requirements = len(call_costs)
 
                 # Evaluate the contract specification.
@@ -185,10 +190,10 @@ class Calculate(object):
                     self.check_is_interrupted()
 
                 # Todo: Separate this, not all users want print statements.
-                end_calc = datetime.datetime.now()
-                if self.verbose:
-                    print("")
-                    print("Evaluation in {:.3f}s".format((end_calc - start_calc).total_seconds()))
+
+                if self.verbose and self.duration_evaluating:
+                    print("", flush=True)
+                    print("Evaluation in {:.3f}s".format(self.duration_evaluating.total_seconds()))
 
                 # Read the results.
                 valuation_result = app.get_result(contract_valuation)
@@ -279,25 +284,52 @@ class Calculate(object):
 
         # Todo: Settle this down, needs closer accounting of cost of element evaluation to stop estimate being so
         # jumpy. Perhaps estimating the complexity is something to do when building the dependency graph?
-        # i = len(self.times) // 2
-        i = 0
-        j = len(self.times) - 1
-        self.times.append(datetime.datetime.now())
 
-        if self.verbose and j > i:
-            duration = self.times[j] - self.times[i]
-            rate_cost = self.result_cost / duration.total_seconds()
-            rate_count = self.result_count / duration.total_seconds()
-            eta = (self.result_cost_expected - self.result_cost) / rate_cost
-            seconds_running = (datetime.datetime.now() - self.started).total_seconds()
-            seconds_evaluating = (datetime.datetime.now() - self.started_evaluating).total_seconds()
+        datetime_now = datetime.datetime.now()
+        self.times.append(datetime_now)
 
-            percent_complete = (100.0 * self.result_cost) / self.result_cost_expected
+        if len(self.times) < 2:
+            return
+
+        seconds_running = (datetime_now - self.started).total_seconds()
+        seconds_evaluating = (datetime_now - self.started_evaluating).total_seconds()
+
+        duration = self.times[-1] - self.times[0]
+        rate_cost = self.result_cost / duration.total_seconds()
+        eta = (self.result_cost_expected - self.result_cost) / rate_cost
+
+        # Abort if there isn't enough time left.
+        if self.timeout:
+            out_of_time = self.timeout < seconds_running + eta
+            if out_of_time and seconds_evaluating > 15 and eta > 2:
+                msg = ('eta still {:.0f}s after {:.0f}s, so '
+                       'aborting in anticipation of {:.0f}s timeout'
+                       ).format(eta, seconds_running, self.timeout)
+                self.set_is_timed_out(msg)
+                raise Exception(msg)
+
+        percent_complete = (100.0 * self.result_cost) / self.result_cost_expected
+
+        if percent_complete == 100:
+            self.duration_evaluating = duration
+
+        SCREEN_STALE_AFTER_SECONDS = 1
+        if self.last_printed_progress is None:
+            is_screen_stale = True
+        else:
+            seconds_since_printed = (datetime_now - self.last_printed_progress).total_seconds()
+            is_screen_stale = seconds_since_printed > SCREEN_STALE_AFTER_SECONDS
+        requires_refresh = is_screen_stale
+        can_refresh = seconds_evaluating > 1
+        must_refresh = percent_complete == 100
+        if self.verbose and must_refresh or (can_refresh and requires_refresh):
 
             from memory_profiler import memory_usage
             import psutil
             # memory_usage_current = memory_usage()[0]
             # self.memory_usage_max = max(memory_usage_current, self.memory_usage_max)
+
+            rate_count = self.result_count / duration.total_seconds()
 
             msg = (
                 "\r"
@@ -312,25 +344,17 @@ class Calculate(object):
                 percent_complete,
                 rate_count,
                 # memory_usage_current, self.memory_usage_max,
-                seconds_running,
+                seconds_evaluating,
                 eta,
             )
 
-
             if self.timeout:
                 msg += ' timeout in {:.0f}s'.format(self.timeout - seconds_running)
+
             sys.stdout.write(msg)
             sys.stdout.flush()
 
-            # Abort if there isn't enough time left.
-            if self.timeout:
-                out_of_time = self.timeout < seconds_running + eta
-                if out_of_time and seconds_evaluating > 15 and eta > 2:
-                    msg = ('eta still {:.0f}s after {:.0f}s, so '
-                           'aborting in anticipation of {:.0f}s timeout'
-                           ).format(eta, seconds_running, self.timeout)
-                    self.set_is_timed_out(msg)
-                    raise Exception(msg)
+            self.last_printed_progress = datetime_now
 
     def wait_then_set_is_timed_out(self):
         sleep(self.timeout)

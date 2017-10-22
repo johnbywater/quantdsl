@@ -197,9 +197,9 @@ class Results(object):
         else:
             observation_date = self.observation_date
 
-        fig.suptitle('On {}, rate {}%, paths {}, pert {}%, conf {}%'.format(
+        fig.suptitle('Obs {}, rate {}%, path {}, pert {}, conf {}%'.format(
             observation_date, self.interest_rate, self.path_count,
-            self.perturbation_factor * 100,
+            self.perturbation_factor,
             confidence_interval))
 
         with pandas.plotting.plot_params.use('x_compat', False):
@@ -212,15 +212,15 @@ class Results(object):
             #     seaborn.boxplot(prices, prices.to_series().apply(lambda x: x.strftime('%Y%m%d')), ax=axes[0])
 
             self.prices_mean.plot(ax=axes[0], kind='bar', yerr=self.prices_errors)
-            axes[0].set_title('Prices')
+            axes[0].set_title('Market prices')
             axes[0].get_xaxis().set_visible(False)
 
             self.hedges_mean.plot(ax=axes[1], kind='bar', yerr=self.hedges_errors).axhline(0, color='0.5')
-            axes[1].set_title('Hedges')
+            axes[1].set_title('Delta hedges')
             axes[1].get_xaxis().set_visible(False)
 
             self.cash_mean.plot(ax=axes[2], kind='bar', yerr=self.cash_errors, color='g').axhline(0, color='0.5')
-            axes[2].set_title('Cash')
+            axes[2].set_title('Cash account')
             axes[2].get_xaxis().set_visible(True)
 
         fig.autofmt_xdate(rotation=30)
