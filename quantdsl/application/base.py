@@ -4,6 +4,10 @@ from collections import defaultdict
 import scipy
 import six
 from eventsourcing.application.base import EventSourcingApplication
+from numpy.lib.nanfunctions import nanpercentile
+from pandas.core.frame import DataFrame
+from pandas.core.series import Series
+from scipy import array
 
 from quantdsl.application.call_result_policy import CallResultPolicy
 from quantdsl.application.persistence_policy import PersistencePolicy
@@ -37,6 +41,7 @@ from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 from quantdsl.semantics import discount
 
 DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
+DEFAULT_INTERVAL = 95
 
 
 class QuantDslApplication(EventSourcingApplication):
@@ -203,7 +208,7 @@ class QuantDslApplication(EventSourcingApplication):
         return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
                                              is_double_sided_deltas)
 
-    def read_results(self, evaluation):
+    def read_results(self, evaluation, interval):
         assert isinstance(evaluation, ContractValuation)
 
         market_simulation = self.market_simulation_repo[evaluation.market_simulation_id]
@@ -258,6 +263,8 @@ class QuantDslApplication(EventSourcingApplication):
                     'price_simulated': price,
                     'price_discounted': price,
                     'hedge_cost': hedge_cost,
+                    'cash': -hedge_cost,
+
                 })
 
             elif len(perturbed_name_split) > 2:
@@ -336,9 +343,10 @@ class QuantDslApplication(EventSourcingApplication):
                     'price_simulated': simulated_price_value,
                     'price_discounted': discounted_simulated_price_value,
                     'hedge_cost': hedge_cost,
+                    'cash': -hedge_cost,
                 })
 
-        return Results(fair_value, periods)
+        return Results(fair_value, periods, market_simulation.observation_date, interval)
 
     def wait_results(self, contract_valuation):
         self.get_result(contract_valuation)
@@ -377,16 +385,147 @@ class QuantDslApplication(EventSourcingApplication):
 
 
 class Results(object):
-    def __init__(self, fair_value, periods):
+    def __init__(self, fair_value, periods, observation_date, interval):
         assert isinstance(periods, list)
         self.fair_value = fair_value
         self.periods = periods
+        self.observation_date = observation_date
+        if not self.periods:
+            return
+
+        names = set()
+        dates = set()
+        periods_by_market_and_date = defaultdict(dict)
+        periods_by_date_and_market = defaultdict(dict)
+        for p in periods:
+            name = p['market_name']
+            names.add(name)
+            date = p['delivery_date']
+            # date = np.datetime64(date)
+            dates.add(date)
+            periods_by_market_and_date[name][date] = p
+            periods_by_date_and_market[date][name] = p
+
+        names = sorted(names)
+        dates = sorted(dates)
+
+        # self.index = DatetimeIndex(dates)
+
+        def get_dataframe(attr, measure='mean', sum=False, cum=False):
+            values = []
+            for name in names:
+                market_periods_by_date = periods_by_market_and_date[name]
+                values.append([market_periods_by_date[date][attr] for date in dates])
+
+            # M = len(names)
+            # N = len(dates)
+            # P = path_count
+            values = array(values)  # shape is names-dates-samples
+
+            if cum:
+                # Accumulate over the dates, the second axis.
+                # shape is the same: names-dates-samples
+                values = values.cumsum(axis=1)
+
+            if sum:
+                # Sum over the names, the first axis.
+                # shape is dates-samples
+                values = values.sum(axis=0)
+                pass
+
+            low_percentile = (100 - interval) / 2.0
+            high_percentile = 100 - low_percentile
+
+            if measure == 'mean':
+                values = values.mean(axis=-1)
+            elif measure == 'std':
+                values = values.std(axis=-1)
+            elif measure == 'quantile':
+                mean = values.mean(axis=-1)
+                low = mean - nanpercentile(values, q=low_percentile, axis=-1)
+                high = nanpercentile(values, q=high_percentile, axis=-1) - mean
+                errors = []
+                if sum:
+                    # Need to return 2-len(dates) sized array, for a Series.
+                    errors.append([low, high])
+                else:
+                    # Need to return len(names)-2-len(dates) sized array, for a DateFrame.
+                    for i in range(len(names)):
+                        errors.append([low[i], high[i]])
+                values = array(errors)
+                return values
+            elif measure == 'direct':
+                raise NotImplementedError()
+                if len(values) == 1:
+                    values = values[0]
+                else:
+                    raise NotImplementedError()
+                return DataFrame(values, index=dates, columns=names)
+            else:
+                raise Exception("Measure '{}' not supported".format(measure))
+
+            if sum:
+                return Series(values, index=dates)
+            else:
+                return DataFrame(values.T, index=dates, columns=names)
+
+        # Price.
+        # self.prices_raw = get_dataframe('price_simulated', measure='direct')
+        self.prices_mean = get_dataframe('price_simulated')
+        self.prices_errors = get_dataframe('price_simulated', measure='quantile')
+
+        # Hedge units.
+        self.hedges_mean = get_dataframe('hedge_units')
+        self.hedges_errors = get_dataframe('hedge_units', measure='quantile')
+
+        # Cash.
+        self.cash_mean = get_dataframe('cash', sum=True, cum=True)
+        self.cash_errors = get_dataframe('cash', sum=True, cum=True, measure='quantile')
 
         self.deltas = {p['perturbation_name']: p['delta'] for p in self.periods}
-        self.by_delivery_date = defaultdict(list)
-        self.by_market_name = defaultdict(list)
-        [self.by_delivery_date[p['delivery_date']].append(p) for p in self.periods]
-        [self.by_market_name[p['market_name']].append(p) for p in self.periods]
+
+        #
+        # raise Exception(data)
+        # # Market names.
+        # names = sorted(set([p['market_name'] for p in periods]))
+        #
+        # # Dates.
+        # dates = sorted(set([p['delivery_date'] for p in periods]))
+        #
+        # # Periods by date.
+        # periods_by_date = defaultdict(list)
+        # [periods_by_date[p['delivery_date']].append(p) for p in self.periods]
+        #
+        # # Cash.
+        # self._cash = [sum([d['cash'] for d in periods_by_date[date]]) for date in dates]
+        #
+        # # Hedges.
+        # self._hedges = {}
+        # self.hedges_mean = {}
+        #
+        # hedges_mean = []
+        # for date in dates:
+        #     _periods = periods_by_date[date]
+        #     hedges = {name: 0 for name in names}
+        #     for p in _periods:
+        #         hedges.update({p['market_name']: p['hedge_units']})
+        #     for name, hedge_units in sorted(hedges.items()):
+        #         hedges_mean.append(hedge_units.mean())
+        #
+        # self.hedges_mean = DataFrame(hedges_mean, index=self.index)
+        # for name in names:
+        #     _hedges = [d['hedge_units'] for d in periods if d['market_name'] == name]
+        #     self._hedges[name] = _hedges
+        #     self.hedges_mean[name] = DataFrame(
+        #         data=[1, 2, 3],
+        #         # data=[hedge.mean() for hedge in _hedges],
+        #         index=self.index
+        #     )
+        #
+        # self.by_delivery_date = defaultdict(list)
+        # self.by_market_name = defaultdict(list)
+        # [self.by_delivery_date[p['delivery_date']].append(p) for p in self.periods]
+        # [self.by_market_name[p['market_name']].append(p) for p in self.periods]
 
     @property
     def fair_value_mean(self):

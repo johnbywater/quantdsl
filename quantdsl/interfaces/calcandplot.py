@@ -12,11 +12,13 @@ from time import sleep
 
 import dateutil.parser
 import numpy
+import pandas
+import seaborn as seaborn
 import six
 from eventsourcing.domain.model.events import subscribe, unsubscribe
 from numpy.lib.nanfunctions import nanpercentile
 
-from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, Results
+from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, Results, DEFAULT_INTERVAL
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
 from quantdsl.domain.model.call_dependents import CallDependents
@@ -31,7 +33,7 @@ from quantdsl.priceprocess.base import datetime_from_date
 def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
                     path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
                     max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                    timeout=None, verbose=False, is_double_sided_deltas=True):
+                    timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
     # Calculate and print the results.
     results = calc_print(source_code,
                          max_dependency_graph_size=max_dependency_graph_size,
@@ -44,10 +46,14 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
                          dsl_classes=dsl_classes,
                          timeout=timeout,
                          verbose=verbose,
-                         is_double_sided_deltas=is_double_sided_deltas
+                         is_double_sided_deltas=is_double_sided_deltas,
+                         interval=interval,
                          )
 
     # Plot the results.
+    plot_results(results, observation_date, title, path_count, perturbation_factor, interest_rate, interval)
+
+    return results
     if results.periods:
         plot_periods(
             periods=results.periods,
@@ -56,14 +62,56 @@ def calc_print_plot(source_code, title='', observation_date=None, periodisation=
             interest_rate=interest_rate,
             path_count=path_count,
             perturbation_factor=perturbation_factor,
+            interval=interval
         )
     return results
+
+
+def plot_results(results, observation_date, title, path_count, perturbation_factor, interest_rate, interval):
+    from matplotlib import pylab as plt
+    plt.ioff()
+
+    if not results.periods:
+        return
+
+    fig, axes = plt.subplots(nrows=3, ncols=1)
+    # fig, axes = plt.subplots(nrows=3, ncols=1)
+
+    if title:
+        fig.canvas.set_window_title(title)
+
+    fig.suptitle('On {}, rate {}%, {} paths, pert {}%, err {}%'.format(
+        observation_date, interest_rate, path_count, perturbation_factor * 100, interval))
+
+    with pandas.plotting.plot_params.use('x_compat', False):
+
+        # Todo: Try to get the box plots working: https://stackoverflow.com/questions/38120688/pandas-box-plot-for-multiple-column
+
+        # if len(results.prices_raw) == 1:
+        #     prices = results.prices_raw[0]
+        #     seaborn.boxplot(prices, prices.to_series().apply(lambda x: x.strftime('%Y%m%d')), ax=axes[0])
+
+        results.prices_mean.plot(ax=axes[0], kind='bar', yerr=results.prices_errors)
+        axes[0].set_title('Prices')
+        axes[0].get_xaxis().set_visible(False)
+
+        results.hedges_mean.plot(ax=axes[1], kind='bar', yerr=results.hedges_errors).axhline(0, color='0.5')
+        axes[1].set_title('Hedges')
+        axes[1].get_xaxis().set_visible(False)
+
+        results.cash_mean.plot(ax=axes[2], kind='bar', yerr=results.cash_errors, color='g').axhline(0, color='0.5')
+        axes[2].set_title('Cash')
+        axes[2].get_xaxis().set_visible(True)
+
+    fig.autofmt_xdate(rotation=30)
+
+    plt.show()
 
 
 def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                price_process=None, periodisation=None, dsl_classes=None,
                max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None, verbose=False, is_double_sided_deltas=True):
+               timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
     # Calculate the results.
     results = calc(
         source_code=source_code,
@@ -77,18 +125,19 @@ def calc_print(source_code, observation_date=None, interest_rate=0, path_count=2
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
-        is_double_sided_deltas=is_double_sided_deltas
+        is_double_sided_deltas=is_double_sided_deltas,
+        interval=interval,
     )
 
     # Print the results.
-    print_results(results, path_count)
+    # print_results(results, path_count)
     return results
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
          perturbation_factor=0.01, price_process=None, periodisation=None, dsl_classes=None,
          max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None, verbose=False, is_double_sided_deltas=True):
+         timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -101,7 +150,8 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
         verbose=verbose,
-        is_double_sided_deltas=is_double_sided_deltas
+        is_double_sided_deltas=is_double_sided_deltas,
+        interval=interval
     )
     with cmd:
         try:
@@ -117,7 +167,7 @@ class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, dsl_classes=None,
                  max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None, verbose=False, is_double_sided_deltas=True):
+                 timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
         self.timeout = timeout
         self.source_code = source_code
         if observation_date is not None:
@@ -136,6 +186,7 @@ class Calculate(object):
         # self.repetitions = repetitions
         self.dsl_classes = dsl_classes
         self.is_double_sided_deltas = is_double_sided_deltas
+        self.interval = interval
 
     def __enter__(self):
         self.orig_sigterm_handler = signal.signal(signal.SIGTERM, self.shutdown)
@@ -245,7 +296,7 @@ class Calculate(object):
                     print("Evaluation in {:.3f}s".format((end_calc - start_calc).total_seconds()))
 
                 # Read the results.
-                results = app.read_results(evaluation)
+                results = app.read_results(evaluation, self.interval)
             finally:
 
                 self.unsubscribe()
