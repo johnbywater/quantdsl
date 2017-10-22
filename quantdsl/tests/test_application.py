@@ -5,7 +5,7 @@ from copy import deepcopy
 import scipy
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.application.base import Results
+from quantdsl.interfaces.results import Results
 from quantdsl.application.with_pythonobjects import QuantDslApplicationWithPythonObjects
 from quantdsl.domain.model.contract_valuation import ContractValuation
 from quantdsl.domain.model.market_simulation import MarketSimulation
@@ -133,10 +133,10 @@ class ApplicationTestCase(unittest.TestCase):
             is_double_sided_deltas=is_double_sided_deltas
         )
         assert isinstance(contract_valuation, ContractValuation)
-        self.app.wait_results(contract_valuation)
-        results = self.app.read_results(contract_valuation)
-        assert isinstance(results, Results)
-        return results
+        valuation_result = self.app.get_result(contract_valuation)
+        periods = self.app.get_periods(contract_valuation)
+
+        return Results(valuation_result, periods, market_simulation.observation_date)
 
     def calc_call_count(self, contract_specification_id):
         return self.app.calc_call_count(contract_specification_id)

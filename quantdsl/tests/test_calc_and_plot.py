@@ -2,7 +2,7 @@ from unittest.case import TestCase
 
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.application.base import Results
+from quantdsl.interfaces.results import Results
 from quantdsl.exceptions import CallLimitError
 from quantdsl.interfaces.calcandplot import calc_print, calc
 

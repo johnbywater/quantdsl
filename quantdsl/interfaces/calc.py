@@ -11,14 +11,11 @@ from threading import Event, Thread
 from time import sleep
 
 import dateutil.parser
-import numpy
-import pandas
-import seaborn as seaborn
 import six
 from eventsourcing.domain.model.events import subscribe, unsubscribe
-from numpy.lib.nanfunctions import nanpercentile
 
-from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, Results, DEFAULT_INTERVAL
+from quantdsl.application.base import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, DEFAULT_CONFIDENCE_INTERVAL
+from quantdsl.interfaces.results import Results
 from quantdsl.application.with_multithreading_and_python_objects import \
     QuantDslApplicationWithMultithreadingAndPythonObjects
 from quantdsl.domain.model.call_dependents import CallDependents
@@ -30,114 +27,75 @@ from quantdsl.exceptions import InterruptSignalReceived, TimeoutError
 from quantdsl.priceprocess.base import datetime_from_date
 
 
-def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
-                    path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
-                    max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                    timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
-    # Calculate and print the results.
-    results = calc_print(source_code,
-                         max_dependency_graph_size=max_dependency_graph_size,
-                         observation_date=observation_date,
-                         interest_rate=interest_rate,
-                         path_count=path_count,
-                         perturbation_factor=perturbation_factor,
-                         price_process=price_process,
-                         periodisation=periodisation,
-                         dsl_classes=dsl_classes,
-                         timeout=timeout,
-                         verbose=verbose,
-                         is_double_sided_deltas=is_double_sided_deltas,
-                         interval=interval,
-                         )
-
-    # Plot the results.
-    plot_results(results, observation_date, title, path_count, perturbation_factor, interest_rate, interval)
-
-    return results
-    if results.periods:
-        plot_periods(
-            periods=results.periods,
-            title=title,
-            periodisation=periodisation,
-            interest_rate=interest_rate,
-            path_count=path_count,
-            perturbation_factor=perturbation_factor,
-            interval=interval
-        )
-    return results
-
-
-def plot_results(results, observation_date, title, path_count, perturbation_factor, interest_rate, interval):
-    from matplotlib import pylab as plt
-    plt.ioff()
-
-    if not results.periods:
-        return
-
-    fig, axes = plt.subplots(nrows=3, ncols=1)
-    # fig, axes = plt.subplots(nrows=3, ncols=1)
-
-    if title:
-        fig.canvas.set_window_title(title)
-
-    fig.suptitle('On {}, rate {}%, {} paths, pert {}%, err {}%'.format(
-        observation_date, interest_rate, path_count, perturbation_factor * 100, interval))
-
-    with pandas.plotting.plot_params.use('x_compat', False):
-
-        # Todo: Try to get the box plots working: https://stackoverflow.com/questions/38120688/pandas-box-plot-for-multiple-column
-
-        # if len(results.prices_raw) == 1:
-        #     prices = results.prices_raw[0]
-        #     seaborn.boxplot(prices, prices.to_series().apply(lambda x: x.strftime('%Y%m%d')), ax=axes[0])
-
-        results.prices_mean.plot(ax=axes[0], kind='bar', yerr=results.prices_errors)
-        axes[0].set_title('Prices')
-        axes[0].get_xaxis().set_visible(False)
-
-        results.hedges_mean.plot(ax=axes[1], kind='bar', yerr=results.hedges_errors).axhline(0, color='0.5')
-        axes[1].set_title('Hedges')
-        axes[1].get_xaxis().set_visible(False)
-
-        results.cash_mean.plot(ax=axes[2], kind='bar', yerr=results.cash_errors, color='g').axhline(0, color='0.5')
-        axes[2].set_title('Cash')
-        axes[2].get_xaxis().set_visible(True)
-
-    fig.autofmt_xdate(rotation=30)
-
-    plt.show()
+# def calc_print_plot(source_code, title='', observation_date=None, periodisation=None, interest_rate=0,
+#                     path_count=20000, perturbation_factor=0.01, price_process=None, dsl_classes=None,
+#                     max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, show_plot=False,
+#                     timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_CONFIDENCE_INTERVAL):
+#     # Calculate and print the results.
+#     results = calc_print(source_code,
+#                          max_dependency_graph_size=max_dependency_graph_size,
+#                          observation_date=observation_date,
+#                          interest_rate=interest_rate,
+#                          path_count=path_count,
+#                          perturbation_factor=perturbation_factor,
+#                          price_process=price_process,
+#                          periodisation=periodisation,
+#                          dsl_classes=dsl_classes,
+#                          timeout=timeout,
+#                          verbose=verbose,
+#                          is_double_sided_deltas=is_double_sided_deltas,
+#                          interval=interval,
+#                          )
+#
+#     # Plot the results.
+#     fig = plot_results(results, observation_date, title, path_count, perturbation_factor, interest_rate, interval)
+#
+#     return results, fig
+#
+#     if results.periods:
+#         plot_periods(
+#             periods=results.periods,
+#             title=title,
+#             periodisation=periodisation,
+#             interest_rate=interest_rate,
+#             path_count=path_count,
+#             perturbation_factor=perturbation_factor,
+#             interval=interval
+#         )
+#     return results
+#
 
 
-def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
-               price_process=None, periodisation=None, dsl_classes=None,
-               max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-               timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
-    # Calculate the results.
-    results = calc(
-        source_code=source_code,
-        interest_rate=interest_rate,
-        path_count=path_count,
-        observation_date=observation_date,
-        perturbation_factor=perturbation_factor,
-        price_process=price_process,
-        periodisation=periodisation,
-        dsl_classes=dsl_classes,
-        max_dependency_graph_size=max_dependency_graph_size,
-        timeout=timeout,
-        verbose=verbose,
-        is_double_sided_deltas=is_double_sided_deltas,
-        interval=interval,
-    )
-
-    # Print the results.
-    # print_results(results, path_count)
-    return results
+# def calc_print(source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
+#                price_process=None, periodisation=None, dsl_classes=None,
+#                max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
+#                timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_CONFIDENCE_INTERVAL):
+#     # Calculate the results.
+#     results = calc(
+#         source_code=source_code,
+#         interest_rate=interest_rate,
+#         path_count=path_count,
+#         observation_date=observation_date,
+#         perturbation_factor=perturbation_factor,
+#         price_process=price_process,
+#         periodisation=periodisation,
+#         dsl_classes=dsl_classes,
+#         max_dependency_graph_size=max_dependency_graph_size,
+#         timeout=timeout,
+#         verbose=verbose,
+#         is_double_sided_deltas=is_double_sided_deltas,
+#         interval=interval,
+#     )
+#
+#     # Print the results.
+#     # print_results(results, path_count)
+#     return results
 
 
 def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
          perturbation_factor=0.01, price_process=None, periodisation=None, dsl_classes=None,
          max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-         timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
+         timeout=None, is_double_sided_deltas=True, verbose=False):
     cmd = Calculate(
         source_code=source_code,
         observation_date=observation_date,
@@ -149,9 +107,8 @@ def calc(source_code, observation_date=None, interest_rate=0, path_count=20000,
         dsl_classes=dsl_classes,
         max_dependency_graph_size=max_dependency_graph_size,
         timeout=timeout,
-        verbose=verbose,
         is_double_sided_deltas=is_double_sided_deltas,
-        interval=interval
+        verbose=verbose,
     )
     with cmd:
         try:
@@ -167,7 +124,7 @@ class Calculate(object):
     def __init__(self, source_code, observation_date=None, interest_rate=0, path_count=20000, perturbation_factor=0.01,
                  price_process=None, periodisation=None, dsl_classes=None,
                  max_dependency_graph_size=DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE,
-                 timeout=None, verbose=False, is_double_sided_deltas=True, interval=DEFAULT_INTERVAL):
+                 timeout=None, verbose=False, is_double_sided_deltas=True):
         self.timeout = timeout
         self.source_code = source_code
         if observation_date is not None:
@@ -176,8 +133,6 @@ class Calculate(object):
         self.interest_rate = interest_rate
         self.path_count = path_count
         self.perturbation_factor = perturbation_factor
-        # Todo: Optional double or single sided deltas.
-        # self.double_sided_deltas = double_sided_deltas
         self.price_process = price_process
         self.periodisation = periodisation
         self.max_dependency_graph_size = max_dependency_graph_size
@@ -186,7 +141,6 @@ class Calculate(object):
         # self.repetitions = repetitions
         self.dsl_classes = dsl_classes
         self.is_double_sided_deltas = is_double_sided_deltas
-        self.interval = interval
 
     def __enter__(self):
         self.orig_sigterm_handler = signal.signal(signal.SIGTERM, self.shutdown)
@@ -274,7 +228,7 @@ class Calculate(object):
                 # Evaluate the contract specification.
                 start_calc = datetime.datetime.now()
                 self.started_evaluating = datetime.datetime.now()
-                evaluation = app.evaluate(
+                contract_valuation = app.evaluate(
                     contract_specification_id=contract_specification.id,
                     market_simulation_id=market_simulation.id,
                     periodisation=self.periodisation,
@@ -282,7 +236,7 @@ class Calculate(object):
                 )
 
                 # Wait for the result.
-                self.root_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
+                self.root_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
                 if not self.root_result_id in app.call_result_repo:
                     while not self.is_finished.wait(timeout=1):
                         self.check_has_app_thread_errored(app)
@@ -296,9 +250,16 @@ class Calculate(object):
                     print("Evaluation in {:.3f}s".format((end_calc - start_calc).total_seconds()))
 
                 # Read the results.
-                results = app.read_results(evaluation, self.interval)
-            finally:
+                valuation_result = app.get_result(contract_valuation)
+                periods = app.get_periods(contract_valuation)
+                results = Results(
+                    valuation_result=valuation_result,
+                    periods=periods,
+                    contract_valuation=contract_valuation,
+                    market_simulation=market_simulation,
+                )
 
+            finally:
                 self.unsubscribe()
 
         return results
@@ -397,7 +358,7 @@ class Calculate(object):
                 "{:.2f}% complete "
                 "{:.2f} eval/s "
                 "running {:.0f}s "
-                "eta {:.0f}s").format(
+                "eta {:.0f}s     ").format(
                 self.result_count,
                 self.result_count_expected,
                 percent_complete,
@@ -510,115 +471,4 @@ def print_results(results, path_count):
 
         print("Net hedge cash:  {: >8.2f} ± {: >.2f}".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
         print()
-    # if isinstance(results.fair_value, ndarray):
-    #     print("nans: {}".format(isnan(results.fair_value).sum()))
     print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
-
-
-def plot_periods(periods, title, periodisation, interest_rate, path_count, perturbation_factor):
-    from matplotlib import dates as mdates, pylab as plt
-
-    names = set([p['market_name'] for p in periods])
-
-    f, subplots = plt.subplots(1 + 2 * len(names), sharex=True)
-    f.canvas.set_window_title(title)
-    f.suptitle('paths:{} perturbation:{} interest:{}% '.format(
-        path_count, perturbation_factor, interest_rate))
-
-    if periodisation == 'monthly':
-        subplots[0].xaxis.set_major_locator(mdates.MonthLocator())
-        subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    elif periodisation == 'daily':
-        subplots[0].xaxis.set_major_locator(mdates.DayLocator())
-        subplots[0].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    else:
-        return
-
-    NUM_STD_DEVS = 2
-    for i, name in enumerate(names):
-
-        _periods = [p for p in periods if p['market_name'] == name]
-
-        dates = [p['delivery_date'] for p in _periods]
-        price_plot = subplots[i]
-
-        prices = [p['price_simulated'] for p in _periods]
-
-        price_plot.set_title('Prices - {}'.format(name))
-        plot_args = rainbow_plot_args(prices, dates)
-        price_plot.plot(*plot_args)
-
-        cum_pos = cumsum(_periods, 'hedge_units')
-
-        pos_plot = subplots[len(names) + i]
-        pos_plot.set_title('Position - {}'.format(name))
-
-        plot_args = rainbow_plot_args(cum_pos, dates)
-        pos_plot.plot(*plot_args)
-
-
-    profit_plot = subplots[-1]
-    profit_plot.set_title('Profit')
-
-    # Sum cash across all markets in each period.
-    # Todo: Period objects, with net cash from markets in period, and data for each market in period.
-    dates = []
-    hedge_cash_by_date = defaultdict(int)
-    for period in periods:
-        date = period['delivery_date']
-        if date not in dates:
-            dates.append(date)
-        hedge_cash_by_date[date] += -period['hedge_cost']
-
-    _periods = [{'cash': v} for d,v in sorted(hedge_cash_by_date.items())]
-    cum_hedge_cost = cumsum(_periods, 'cash')
-
-    plot_args = rainbow_plot_args(cum_hedge_cost, dates)
-    profit_plot.plot(*plot_args)
-
-    f.autofmt_xdate(rotation=60)
-
-    [p.grid() for p in subplots]
-
-    plt.show()
-
-
-def cumsum(_periods, name):
-    values = [p[name] for p in _periods]
-    c = numpy.cumsum(numpy.array(values), axis=0)
-    return c
-
-
-PLOT_COLOUR_VIOLET = '#9400D3'
-PLOT_COLOUR_BLUE = '#0000FF'
-PLOT_COLOUR_GREEN = '#00FF00'
-PLOT_COLOUR_YELLOW = '#FFFF00'
-PLOT_COLOUR_ORANGE = '#FF7F00'
-PLOT_COLOUR_RED = '#FF0000'
-
-OUTER_COLOUR = PLOT_COLOUR_YELLOW
-MID_COLOUR = PLOT_COLOUR_YELLOW
-INNER_COLOUR = PLOT_COLOUR_ORANGE
-MEAN_COLOUR = PLOT_COLOUR_RED
-
-
-def rainbow_plot_args(results, dates):
-    """results is a list of random variables, one for each date"""
-    plot_args = []
-    rainbow = [
-        (45, PLOT_COLOUR_ORANGE), (55, PLOT_COLOUR_ORANGE),
-        (35, PLOT_COLOUR_YELLOW), (65, PLOT_COLOUR_YELLOW),
-        (25, PLOT_COLOUR_GREEN), (75, PLOT_COLOUR_GREEN),
-        (15, PLOT_COLOUR_BLUE), (85, PLOT_COLOUR_BLUE),
-        (5, PLOT_COLOUR_VIOLET), (95, PLOT_COLOUR_VIOLET),
-    ]
-    for percentile, colour in rainbow:
-        data = [nanpercentile(p, percentile) for p in results]
-        plot_args.append(dates)
-        plot_args.append(data)
-        plot_args.append(colour)
-    data = [p.mean() for p in results]
-    plot_args.append(dates)
-    plot_args.append(data)
-    plot_args.append(PLOT_COLOUR_RED)
-    return plot_args
