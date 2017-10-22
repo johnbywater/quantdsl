@@ -2,8 +2,9 @@ from unittest.case import TestCase
 
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.exceptions import TimeoutError, CallLimitError
-from quantdsl.interfaces.calcandplot import calc_print
+from quantdsl.application.base import Results
+from quantdsl.exceptions import CallLimitError
+from quantdsl.interfaces.calcandplot import calc_print, calc
 
 
 class TestCalcPrint(TestCase):
@@ -209,3 +210,51 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
                 },
                 max_dependency_graph_size=1,
             )
+
+    def test_results_dataframes(self):
+        source_code = """
+from quantdsl.lib.storage2 import GasStorage        
+GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
+        """
+
+        results = calc(
+            source_code=source_code,
+            observation_date='2011-1-1',
+            interest_rate=2.5,
+            periodisation='monthly',
+            price_process={
+                'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+                'market': ['GAS'],
+                'sigma': [0.5],
+                'curve': {
+                    'GAS': (
+                        ('2011-1-1', 13.5),
+                        ('2011-2-1', 16.5),
+                        ('2011-3-1', 19.5),
+                        ('2011-4-1', 17.5),
+                    )
+                }
+            },
+        )
+        assert isinstance(results, Results)
+        # self.assertIsInstance(results.cash_mean, DataFrame)
+
+
+        import matplotlib.pyplot as plt
+        #
+        plt.ioff()
+
+        results.prices_mean.plot(title='Prices')
+
+        plt.pause(1)
+
+        results.hedges_mean.plot(title='Hedges')
+
+        plt.pause(1)
+
+        results.cash.plot(title='Cash')
+
+        plt.show()
+
+        # import matplotlib; import matplotlib.pyplot; print(matplotlib.backends.backend)
+

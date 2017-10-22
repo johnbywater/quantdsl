@@ -3,7 +3,8 @@ import unittest
 
 import scipy
 
-from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess, calc_sigma
+from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess, calc_sigma_from_curve, historical_volatility, \
+    get_yahoo_data, historical_volatility_std_over_mean, historical_volatility_log_returns
 
 
 class TestBlackScholesPriceProcess(unittest.TestCase):
@@ -198,10 +199,20 @@ class TestBlackScholesPriceProcess(unittest.TestCase):
 
 class TestCalcSigma(unittest.TestCase):
     def test(self):
-        sigma = calc_sigma([
+        sigma = calc_sigma_from_curve([
             (datetime.datetime(2011, 1, 1), 10),
             (datetime.datetime(2011, 2, 1), 11),
             (datetime.datetime(2011, 3, 1), 9),
             (datetime.datetime(2011, 4, 1), 10),
         ])
         self.assertAlmostEqual(sigma, 0.14, places=2)
+
+
+class TestHistoricalVolatility(unittest.TestCase):
+    def test(self):
+        quotes = get_yahoo_data('GOOG', 30)
+        "Return the annualized stddev of daily log returns of `sym`."
+        vol_log_returns = historical_volatility_log_returns(quotes)
+        vol_std_over_mean = historical_volatility_std_over_mean(quotes.values, list(quotes.index.values))
+
+        raise Exception((vol_log_returns, vol_std_over_mean))
