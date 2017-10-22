@@ -283,9 +283,6 @@ Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`
 Setting `is_verbose` will cause progress of a calculation to
 be printed to standard output.
 
-See also `calc_and_print()` which can format and print
-results. And `calc_print_plot()` which plots results using matplotlib.
-
 
 ### Settlement
 
@@ -957,8 +954,7 @@ results = calc_print(
 assert round(results.fair_value.mean(), 2) == 20.78, results.fair_value.mean()
 ```
 
-Below are the results printed by `calc_and_print()`, showing
-deltas for each month for each market, and the fair value.
+The results, showing deltas for each month for each market, and the fair value.
 
 ```
 Compiled 92 nodes 
@@ -1178,8 +1174,12 @@ results = calc_print(
 assert round(results.fair_value.mean(), 2) == 12.82, results.fair_value.mean()
 ```
 
-These are the results printed by `calc_and_print()`, showing
-monthly deltas for each of the two markets.
+These are the results, showing monthly deltas for each of the two markets.
+The recommended hedge positions suggest running the plant when
+the price of power is high and the price of gas is low. The relative
+inefficiency of running the plant from `Cold()` is reflected in the delta
+for `POWER` in `2012-01-03`.
+
 
 ```
 Compiled 16 nodes 
@@ -1244,9 +1244,6 @@ Net hedge cash:     12.82 ± 0.10
 
 Fair value: 12.82 ± 0.10
 ```
-
-The recommended hedge positions suggest running the plant when
-the price of power is high and the price of gas is low.
 
 ## Jupyter notebooks
 
