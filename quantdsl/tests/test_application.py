@@ -136,7 +136,12 @@ class ApplicationTestCase(unittest.TestCase):
         valuation_result = self.app.get_result(contract_valuation)
         periods = self.app.get_periods(contract_valuation)
 
-        return Results(valuation_result, periods, market_simulation.observation_date)
+        return Results(
+            valuation_result=valuation_result,
+            periods=periods,
+            contract_valuation=contract_valuation,
+            market_simulation=market_simulation
+        )
 
     def calc_call_count(self, contract_specification_id):
         return self.app.calc_call_count(contract_specification_id)

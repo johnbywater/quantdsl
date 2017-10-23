@@ -4,10 +4,10 @@ from eventsourcing.domain.model.events import assert_event_handlers_empty
 
 from quantdsl.interfaces.results import Results
 from quantdsl.exceptions import CallLimitError
-from quantdsl.interfaces.calcandplot import calc_print, calc
+from quantdsl.calculate import calc
 
 
-class TestCalcPrint(TestCase):
+class TestCalc(TestCase):
     def setUp(self):
         assert_event_handlers_empty()
 
@@ -21,7 +21,7 @@ class TestCalcPrint(TestCase):
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        results = calc_print(
+        results = calc(
             source_code=source_code,
             observation_date='2011-1-1',
             interest_rate=2.5,
@@ -71,7 +71,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        results = calc_print(
+        results = calc(
             source_code=source_code,
             observation_date='2011-1-1',
             interest_rate=2.5,
@@ -120,7 +120,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        results = calc_print(
+        results = calc(
             source_code=source_code,
             observation_date='2011-1-1',
             interest_rate=2.5,
@@ -169,7 +169,7 @@ GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 """
 
         with self.assertRaises(SystemExit):
-            calc_print(
+            calc(
                 source_code=source_code,
                 observation_date='2011-1-1',
                 interest_rate=2.5,
@@ -194,7 +194,7 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
 """
 
         with self.assertRaises(CallLimitError):
-            calc_print(
+            calc(
                 source_code=source_code,
                 observation_date='2011-1-1',
                 interest_rate=2.5,
@@ -239,22 +239,4 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
         assert isinstance(results, Results)
         # self.assertIsInstance(results.cash_mean, DataFrame)
 
-
-        import matplotlib.pyplot as plt
-        #
-        plt.ioff()
-
-        results.prices_mean.plot(title='Prices')
-
-        plt.pause(1)
-
-        results.hedges_mean.plot(title='Hedges')
-
-        plt.pause(1)
-
-        results.cash.plot(title='Cash')
-
-        plt.show()
-
-        # import matplotlib; import matplotlib.pyplot; print(matplotlib.backends.backend)
-
+        results.plot()

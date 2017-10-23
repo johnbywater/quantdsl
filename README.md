@@ -212,7 +212,7 @@ The examples below use the library function `calc()` to evaluate Quant DSL sourc
 methods of the `QuantDslApplication` mentioned above.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
+from quantdsl.calculate import calc
 ```
 
 When called, the function `calc()` returns a results object, with an attribute `fair_value` that is the
@@ -933,18 +933,12 @@ gas = {
 }
 ```
 
-This example uses the library function `calc_print()` to calculate and then print results.
-
-```python
-from quantdsl.interfaces.calcandplot import calc_print
-```
-
 Because the `periodisation` argument is set to `'monthly'`, the deltas for each market in each month will be 
 calculated, and estimated risk neutral hedge positions will be printed for each market in each period, along
 with the overall fair value.
 
 ```python
-results = calc_print(
+results = calc(
     source_code=gas_storage,
     observation_date='2011-1-1',
     interest_rate=2.5,
@@ -1051,10 +1045,6 @@ with `path_count` of `1`.
 
 The recommended hedge positions suggest injecting gas when
 the price is low, and withdrawing when the price is high.
-
-An alternative to `calc_print()` is the function in the same module
-`calc_print_plot()` which will also plot the prices, positions, and
-cash. You will need to install matplotlib to use `calc_print_plot()`.
 
 
 ### Gas fired power station
@@ -1164,7 +1154,7 @@ calculated, and estimated risk neutral hedge positions will be printed for each 
 with the overall fair value.
 
 ```python
-results = calc_print(
+results = calc(
     source_code=power_plant,
     observation_date='2011-1-1',
     interest_rate=2.5,

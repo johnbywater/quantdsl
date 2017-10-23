@@ -209,7 +209,7 @@ class TestCalcSigma(unittest.TestCase):
 
 
 class TestHistoricalVolatility(unittest.TestCase):
-    def test(self):
+    def _test(self):
         quotes = get_yahoo_data('GOOG', 30)
         "Return the annualized stddev of daily log returns of `sym`."
         vol_log_returns = historical_volatility_log_returns(quotes)
