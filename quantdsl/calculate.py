@@ -193,7 +193,7 @@ class Calculate(object):
                 # Todo: Separate this, not all users want print statements.
 
                 if self.verbose and self.duration_evaluating:
-                    print("", flush=True)
+                    sys.stdout.flush()
                     print("Evaluation in {:.3f}s".format(self.duration_evaluating.total_seconds()))
 
                 # Read the results.
