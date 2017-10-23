@@ -324,8 +324,8 @@ class Calculate(object):
         must_refresh = percent_complete == 100
         if self.verbose and must_refresh or (can_refresh and requires_refresh):
 
-            from memory_profiler import memory_usage
-            import psutil
+            # from memory_profiler import memory_usage
+            # import psutil
             # memory_usage_current = memory_usage()[0]
             # self.memory_usage_max = max(memory_usage_current, self.memory_usage_max)
 

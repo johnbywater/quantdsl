@@ -1,10 +1,15 @@
 from unittest.case import TestCase
 
+import matplotlib.pyplot
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.interfaces.results import Results
-from quantdsl.exceptions import CallLimitError
 from quantdsl.calculate import calc
+from quantdsl.exceptions import CallLimitError
+from quantdsl.interfaces.results import Results
+
+# Need to plot() on Travis
+# - otherwise matplotlib/backends/backend_qt5.py says: RuntimeError('Invalid DISPLAY variable')
+matplotlib.pyplot.switch_backend('agg')
 
 
 class TestCalc(TestCase):
@@ -15,7 +20,6 @@ class TestCalc(TestCase):
         assert_event_handlers_empty()
 
     def test_periodisation_monthly(self):
-
         source_code = """from quantdsl.lib.storage2 import GasStorage
         
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
