@@ -166,8 +166,9 @@ class Calculate(object):
                 self.result_count_expected = sum(call_counts.values())
                 self.result_cost_expected = sum(call_costs.values())
                 if self.verbose:
-                    print("Starting {} node evaluations, please wait...".format(self.result_count_expected),
-                          flush=True)
+                    print("Starting {} node evaluations, please wait...".format(self.result_count_expected))
+                    # Flush, because otherwise on Jupyter hub sometimes this message disrupts the progress display.
+                    sys.stdout.flush()
                 # self.expected_num_call_requirements = len(call_costs)
 
                 # Evaluate the contract specification.
