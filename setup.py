@@ -32,8 +32,9 @@ setup(
         'blist',
         'pandas',
         'pandas_datareader',
-        'memory_profiler',
-        'psutil',
+        'matplotlib',
+        # 'memory_profiler',
+        # 'psutil',
         # 'numexpr'
     ],
 

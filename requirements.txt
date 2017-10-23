@@ -9,6 +9,7 @@ pytz
 blist
 pandas
 pandas_datareader
-memory_profiler
-psutil
+#memory_profiler
+#psutil
+matplotlib
 #numexpr
