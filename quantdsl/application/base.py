@@ -1,10 +1,9 @@
 import datetime
-from collections import defaultdict
 
-import scipy
 import six
 from eventsourcing.application.base import EventSourcingApplication
 
+from quantdsl import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE
 from quantdsl.application.call_result_policy import CallResultPolicy
 from quantdsl.application.persistence_policy import PersistencePolicy
 from quantdsl.domain.model.call_dependencies import register_call_dependencies
@@ -36,7 +35,6 @@ from quantdsl.infrastructure.event_sourced_repos.simulated_price_dependencies_re
 from quantdsl.infrastructure.simulation_subscriber import SimulationSubscriber
 from quantdsl.semantics import discount
 
-DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE = 10000
 
 
 class QuantDslApplication(EventSourcingApplication):
@@ -203,12 +201,16 @@ class QuantDslApplication(EventSourcingApplication):
         return self.start_contract_valuation(contract_specification_id, market_simulation_id, periodisation,
                                              is_double_sided_deltas)
 
-    def read_results(self, evaluation):
-        assert isinstance(evaluation, ContractValuation)
+    def get_result(self, contract_valuation):
+        call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
+        return self.call_result_repo[call_result_id]
 
-        market_simulation = self.market_simulation_repo[evaluation.market_simulation_id]
+    def get_periods(self, contract_valuation):
+        assert isinstance(contract_valuation, ContractValuation)
 
-        call_result_id = make_call_result_id(evaluation.id, evaluation.contract_specification_id)
+        market_simulation = self.market_simulation_repo[contract_valuation.market_simulation_id]
+
+        call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
         call_result = self.call_result_repo[call_result_id]
 
         fair_value = call_result.result_value
@@ -221,7 +223,7 @@ class QuantDslApplication(EventSourcingApplication):
         for perturbation_name in perturbation_names:
 
             perturbed_value = call_result.perturbed_values[perturbation_name]
-            if evaluation.is_double_sided_deltas:
+            if contract_valuation.is_double_sided_deltas:
                 perturbed_value_negative = call_result.perturbed_values['-' + perturbation_name]
             else:
                 perturbed_value_negative = None
@@ -236,13 +238,13 @@ class QuantDslApplication(EventSourcingApplication):
 
                 simulated_price = self.simulated_price_repo[simulated_price_id]
                 price = simulated_price.value
-                if evaluation.is_double_sided_deltas:
+                if contract_valuation.is_double_sided_deltas:
                     dy = perturbed_value - perturbed_value_negative
                 else:
                     dy = perturbed_value - fair_value
 
                 dx = market_simulation.perturbation_factor * price
-                if evaluation.is_double_sided_deltas:
+                if contract_valuation.is_double_sided_deltas:
                     dx *= 2
 
                 delta = dy / dx
@@ -258,6 +260,8 @@ class QuantDslApplication(EventSourcingApplication):
                     'price_simulated': price,
                     'price_discounted': price,
                     'hedge_cost': hedge_cost,
+                    'cash': -hedge_cost,
+
                 })
 
             elif len(perturbed_name_split) > 2:
@@ -296,7 +300,7 @@ class QuantDslApplication(EventSourcingApplication):
                     simulated_price_value = sum_simulated_prices / count_simulated_prices
 
                 # Assume present time of perturbed values is observation date.
-                if evaluation.is_double_sided_deltas:
+                if contract_valuation.is_double_sided_deltas:
                     dy = perturbed_value - perturbed_value_negative
                 else:
                     dy = perturbed_value - fair_value
@@ -311,7 +315,7 @@ class QuantDslApplication(EventSourcingApplication):
                 discounted_simulated_price_value = simulated_price_value * discount_rate
 
                 dx = market_simulation.perturbation_factor * simulated_price_value
-                if evaluation.is_double_sided_deltas:
+                if contract_valuation.is_double_sided_deltas:
                     dx *= 2
                 delta = dy / dx
 
@@ -336,16 +340,9 @@ class QuantDslApplication(EventSourcingApplication):
                     'price_simulated': simulated_price_value,
                     'price_discounted': discounted_simulated_price_value,
                     'hedge_cost': hedge_cost,
+                    'cash': -hedge_cost,
                 })
-
-        return Results(fair_value, periods)
-
-    def wait_results(self, contract_valuation):
-        self.get_result(contract_valuation)
-
-    def get_result(self, contract_valuation):
-        call_result_id = make_call_result_id(contract_valuation.id, contract_valuation.contract_specification_id)
-        return self.call_result_repo[call_result_id]
+        return periods
 
     def calc_call_count(self, contract_specification_id):
         # Todo: Return the call count from the compilation method?
@@ -374,24 +371,3 @@ class QuantDslApplication(EventSourcingApplication):
             counts[call_id] = num_evaluations
 
         return counts, costs
-
-
-class Results(object):
-    def __init__(self, fair_value, periods):
-        assert isinstance(periods, list)
-        self.fair_value = fair_value
-        self.periods = periods
-
-        self.deltas = {p['perturbation_name']: p['delta'] for p in self.periods}
-        self.by_delivery_date = defaultdict(list)
-        self.by_market_name = defaultdict(list)
-        [self.by_delivery_date[p['delivery_date']].append(p) for p in self.periods]
-        [self.by_market_name[p['market_name']].append(p) for p in self.periods]
-
-    @property
-    def fair_value_mean(self):
-        if isinstance(self.fair_value, scipy.ndarray):
-            fair_value_mean = self.fair_value.mean()
-        else:
-            fair_value_mean = self.fair_value
-        return fair_value_mean

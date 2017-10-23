@@ -1,12 +1,18 @@
 from unittest.case import TestCase
 
+import matplotlib.pyplot
 from eventsourcing.domain.model.events import assert_event_handlers_empty
 
-from quantdsl.exceptions import TimeoutError, CallLimitError
-from quantdsl.interfaces.calcandplot import calc_print
+from quantdsl.calculate import calc
+from quantdsl.exceptions import CallLimitError
+from quantdsl.interfaces.results import Results
+
+# Need to plot() on Travis
+# - otherwise matplotlib/backends/backend_qt5.py says: RuntimeError('Invalid DISPLAY variable')
+matplotlib.pyplot.switch_backend('agg')
 
 
-class TestCalcPrint(TestCase):
+class TestCalc(TestCase):
     def setUp(self):
         assert_event_handlers_empty()
 
@@ -14,13 +20,12 @@ class TestCalcPrint(TestCase):
         assert_event_handlers_empty()
 
     def test_periodisation_monthly(self):
-
         source_code = """from quantdsl.lib.storage2 import GasStorage
         
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        results = calc_print(
+        results = calc(
             source_code=source_code,
             observation_date='2011-1-1',
             interest_rate=2.5,
@@ -70,7 +75,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        results = calc_print(
+        results = calc(
             source_code=source_code,
             observation_date='2011-1-1',
             interest_rate=2.5,
@@ -119,7 +124,7 @@ GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 GasStorage(Date('2011-6-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
 """
 
-        results = calc_print(
+        results = calc(
             source_code=source_code,
             observation_date='2011-1-1',
             interest_rate=2.5,
@@ -168,7 +173,7 @@ GasStorage(Date('2011-1-1'), Date('2011-12-1'), 'GAS', 0, 0, 50000, TimeDelta('1
 """
 
         with self.assertRaises(SystemExit):
-            calc_print(
+            calc(
                 source_code=source_code,
                 observation_date='2011-1-1',
                 interest_rate=2.5,
@@ -193,7 +198,7 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
 """
 
         with self.assertRaises(CallLimitError):
-            calc_print(
+            calc(
                 source_code=source_code,
                 observation_date='2011-1-1',
                 interest_rate=2.5,
@@ -209,3 +214,33 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
                 },
                 max_dependency_graph_size=1,
             )
+
+    def test_results_dataframes(self):
+        source_code = """
+from quantdsl.lib.storage2 import GasStorage        
+GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
+        """
+
+        results = calc(
+            source_code=source_code,
+            observation_date='2011-1-1',
+            interest_rate=2.5,
+            periodisation='monthly',
+            price_process={
+                'name': 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess',
+                'market': ['GAS'],
+                'sigma': [0.5],
+                'curve': {
+                    'GAS': (
+                        ('2011-1-1', 13.5),
+                        ('2011-2-1', 16.5),
+                        ('2011-3-1', 19.5),
+                        ('2011-4-1', 17.5),
+                    )
+                }
+            },
+        )
+        assert isinstance(results, Results)
+        # self.assertIsInstance(results.cash_mean, DataFrame)
+
+        results.plot()

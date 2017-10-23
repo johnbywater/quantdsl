@@ -2,10 +2,11 @@ from __future__ import division
 
 import datetime
 import math
+from collections import defaultdict
 
 import scipy
 import scipy.linalg
-from collections import defaultdict
+from pandas_datareader.data import DataReader
 from scipy.linalg import LinAlgError
 
 from quantdsl.exceptions import DslError
@@ -150,11 +151,47 @@ class BlackScholesPriceProcess(PriceProcess):
         return correlation
 
 
-def calc_sigma(curve):
+def calc_sigma_from_curve(curve):
     dates = scipy.array([i[0] for i in curve])
     prices = scipy.array([i[1] for i in curve])
+    return historical_volatility_std_over_mean(prices, dates)
+
+
+def historical_volatility_std_over_mean(prices, dates):
     volatility = prices.std() / prices.mean()
-    duration = max(dates) - min(dates)
-    years = duration.total_seconds() / datetime.timedelta(365).total_seconds()
+    max_date = max(dates)
+    min_date = min(dates)
+    if isinstance(max_date, np.datetime64):
+        max_date = max_date.astype('O') / 1e9
+        min_date = min_date.astype('O') / 1e9
+    duration = max_date - min_date
+    if isinstance(duration, datetime.timedelta):
+        duration_seconds = duration.total_seconds()
+    else:
+        duration_seconds = duration
+    years = duration_seconds / datetime.timedelta(365).total_seconds()
     assert years > 0, "Can't calculate volatility for price series with zero days duration"
     return float(volatility) / math.sqrt(years)
+
+
+import numpy as np
+
+
+def historical_volatility(sym, days):
+    quotes = get_yahoo_data(sym, days)
+    "Return the annualized stddev of daily log returns of `sym`."
+    # return historical_volatility_log_returns(quotes)
+    return historical_volatility_std_over_mean(quotes.values, list(quotes.index.values))
+
+
+def historical_volatility_log_returns(quotes):
+    logreturns = np.log(quotes / quotes.shift(1))
+    return np.sqrt(252 * logreturns.var())
+
+
+def get_yahoo_data(sym, days):
+    try:
+        return DataReader(sym, 'yahoo')['Close'][-days:]
+    except Exception as e:
+        msg = "Error getting data for symbol '{}': {}".format(sym, e)
+        raise Exception(msg)
