@@ -2,7 +2,6 @@ from __future__ import division
 
 import datetime
 from collections import defaultdict
-from statistics import median
 
 import numpy
 import numpy as np
@@ -183,7 +182,7 @@ def generate_calibration_params(start, end, markets, get_historical_data=get_his
 
             # Next month.
             date = date + relativedelta(months=1)
-        sigma = median(forward_vols)
+        sigma = np.median(forward_vols)
         sigmas.append(sigma)
         all_curves[market_name] = forward_curve
     # Todo: Align dates and drop rows that aren't full.
