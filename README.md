@@ -620,7 +620,7 @@ assert results.fair_value == 20
 
 Although the function body can have only one statement, that statement can be an if-else block.
 The call args of the function definition can be used in an if-else block, to select different
-expressions according to the value of the function call arguments. This is effectively implements
+expressions according to the value of the function call arguments, which effectively implements
 a "case branch".
 
 Each function call becomes a node on a dependency graph. For efficiency, each call is cached, so if a 
