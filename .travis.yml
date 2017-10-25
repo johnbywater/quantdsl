@@ -26,6 +26,8 @@ install:
 - pip install python-coveralls
 
 script:
+- echo "Python version:"
+- python --version
 - coverage run -m unittest discover quantdsl.tests -v
 
 after_success:
