@@ -197,9 +197,9 @@ class Results(object):
         else:
             plt.show(block=block)
 
-    def print_(self):
-        print("")
-        print("")
+    def __str__(self):
+        s = ''
+        s += "\n\n"
 
         dates = []
         for period in self.periods:
@@ -223,37 +223,37 @@ class Results(object):
                 for market_result in sorted(markets_results, key=lambda x: x['market_name']):
                     market_name = market_result['market_name']
                     if delivery_date:
-                        print("{} {}".format(delivery_date, market_name))
+                        s += "{} {}\n".format(delivery_date, market_name)
                     else:
-                        print(market_name)
+                        s += market_name
                     price_simulated = market_result['price_simulated'].mean()
-                    print("Price: {: >8.2f}".format(price_simulated))
+                    s += "Price: {: >8.2f}\n".format(price_simulated)
                     delta = market_result['delta'].mean()
-                    print("Delta: {: >8.2f}".format(delta))
+                    s += "Delta: {: >8.2f}\n".format(delta)
                     hedge_units = market_result['hedge_units']
                     hedge_units_mean = hedge_units.mean()
                     hedge_units_stderr = hedge_units.std() / sqrt_path_count
-                    print("Hedge: {: >8.2f} ± {:.2f}".format(hedge_units_mean, hedge_units_stderr))
+                    s += "Hedge: {: >8.2f} ± {:.2f}\n".format(hedge_units_mean, hedge_units_stderr)
                     hedge_cost = market_result['hedge_cost']
                     hedge_cost_mean = hedge_cost.mean()
                     hedge_cost_stderr = hedge_cost.std() / sqrt_path_count
                     net_hedge_cost += hedge_cost
-                    print("Cash:  {: >8.2f} ± {:.2f}".format(-hedge_cost_mean, 3 * hedge_cost_stderr))
+                    s += "Cash:  {: >8.2f} ± {:.2f}\n".format(-hedge_cost_mean, 3 * hedge_cost_stderr)
                     if len(dates) > 1:
                         market_name = market_result['market_name']
                         net_hedge_units[market_name] += hedge_units
 
-                    print()
+                    s += '\n'
 
             for commodity in sorted(net_hedge_units.keys()):
                 units = net_hedge_units[commodity]
-                print("Net hedge {:6} {: >8.2f} ± {: >.2f}".format(
+                s += "Net hedge {:6} {: >8.2f} ± {: >.2f}\n".format(
                     commodity + ':', units.mean(), 3 * units.std() / sqrt_path_count)
-                )
 
             net_hedge_cost_mean = net_hedge_cost.mean()
             net_hedge_cost_stderr = net_hedge_cost.std() / sqrt_path_count
 
-            print("Net hedge cash:  {: >8.2f} ± {: >.2f}".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
-            print()
-        print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))
+            s += "Net hedge cash:  {: >8.2f} ± {: >.2f}\n".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr)
+            s += '\n'
+        s += "Fair value: {:.2f} ± {:.2f}\n".format(fair_value_mean, 3 * fair_value_stderr)
+        return s
