@@ -1,7 +1,7 @@
 from quantdsl.defaults import DEFAULT_MAX_DEPENDENCY_GRAPH_SIZE, DEFAULT_PATH_COUNT, DEFAULT_PERTURBATION_FACTOR, \
     DEFAULT_PRICE_PROCESS_NAME, DEFAULT_INTEREST_RATE
 
-__version__ = '1.4.0'
+__version__ = '1.4.1dev0'
 
 
 def calc(source_code, observation_date=None, interest_rate=DEFAULT_INTEREST_RATE, path_count=DEFAULT_PATH_COUNT,
