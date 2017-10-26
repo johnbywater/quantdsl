@@ -2,8 +2,8 @@ language: python
 
 sudo: false
 
-services:
-  - rabbitmq
+#services:
+#  - rabbitmq
 
 python:
   - "2.7"
@@ -12,13 +12,13 @@ python:
   - "3.5"
   - "3.6"
 
-before_install:
-- travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
-- chmod +x miniconda.sh
-- bash miniconda.sh -b -p $HOME/miniconda
-- export PATH=/home/travis/miniconda/bin:$PATH
-- conda update --yes conda
-- conda install --yes atlas numpy scipy matplotlib
+#before_install:
+#- travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
+#- chmod +x miniconda.sh
+#- bash miniconda.sh -b -p $HOME/miniconda
+#- export PATH=/home/travis/miniconda/bin:$PATH
+#- conda update --yes conda
+#- conda install --yes atlas numpy scipy matplotlib
 
 install:
 - pip install -U pip
