@@ -58,7 +58,7 @@ such as:
 
 The elements of the language can be freely composed into expressions of value. The validity of
 Monte Carlo simulation for all possible expressions in the language is
-[proven by induction](http://www.appropriatesoftware.org/quant/docs/quant-dsl-definition-and-proof.pdf).
+[proven by induction](./doc/quant-dsl-definition-and-proof.pdf).
 
 
 ### Syntax
