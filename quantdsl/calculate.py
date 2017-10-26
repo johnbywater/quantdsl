@@ -191,9 +191,9 @@ class Calculate(object):
                     self.check_is_interrupted()
 
                 # Todo: Separate this, not all users want print statements.
-
                 if self.verbose and self.duration_evaluating:
                     sys.stdout.flush()
+                    print("")
                     print("Evaluation in {:.3f}s".format(self.duration_evaluating.total_seconds()))
 
                 # Read the results.
@@ -384,65 +384,3 @@ class Calculate(object):
         if self.is_interrupted.is_set():
             self.set_is_finished()
             raise InterruptSignalReceived(self.interruption_msg)
-
-
-def print_results(results, path_count):
-    print("")
-    print("")
-
-    dates = []
-    for period in results.periods:
-        date = period['delivery_date']
-        if date not in dates:
-            dates.append(date)
-
-    sqrt_path_count = math.sqrt(path_count)
-    if isinstance(results.fair_value, six.integer_types + (float,)):
-        fair_value_mean = results.fair_value
-        fair_value_stderr = 0
-    else:
-        fair_value_mean = results.fair_value.mean()
-        fair_value_stderr = results.fair_value.std() / sqrt_path_count
-
-    if results.periods:
-        net_hedge_cost = 0.0
-        net_hedge_units = defaultdict(int)
-
-        for delivery_date, markets_results in sorted(results.by_delivery_date.items()):
-            for market_result in sorted(markets_results, key=lambda x: x['market_name']):
-                market_name = market_result['market_name']
-                if delivery_date:
-                    print("{} {}".format(delivery_date, market_name))
-                else:
-                    print(market_name)
-                price_simulated = market_result['price_simulated'].mean()
-                print("Price: {: >8.2f}".format(price_simulated))
-                delta = market_result['delta'].mean()
-                print("Delta: {: >8.2f}".format(delta))
-                hedge_units = market_result['hedge_units']
-                hedge_units_mean = hedge_units.mean()
-                hedge_units_stderr = hedge_units.std() / sqrt_path_count
-                print("Hedge: {: >8.2f} ± {:.2f}".format(hedge_units_mean, hedge_units_stderr))
-                hedge_cost = market_result['hedge_cost']
-                hedge_cost_mean = hedge_cost.mean()
-                hedge_cost_stderr = hedge_cost.std() / sqrt_path_count
-                net_hedge_cost += hedge_cost
-                print("Cash:  {: >8.2f} ± {:.2f}".format(-hedge_cost_mean, 3 * hedge_cost_stderr))
-                if len(dates) > 1:
-                    market_name = market_result['market_name']
-                    net_hedge_units[market_name] += hedge_units
-
-                print()
-
-        for commodity in sorted(net_hedge_units.keys()):
-            units = net_hedge_units[commodity]
-            print("Net hedge {:6} {: >8.2f} ± {: >.2f}".format(
-                commodity + ':', units.mean(), 3 * units.std() / sqrt_path_count)
-            )
-
-        net_hedge_cost_mean = net_hedge_cost.mean()
-        net_hedge_cost_stderr = net_hedge_cost.std() / sqrt_path_count
-
-        print("Net hedge cash:  {: >8.2f} ± {: >.2f}".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr))
-        print()
-    print("Fair value: {:.2f} ± {:.2f}".format(fair_value_mean, 3 * fair_value_stderr))

@@ -306,7 +306,7 @@ results = calc("Settlement('2111-1-1', 1000)",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 2) == 82.08, results.fair_value
+assert round(results.fair_value, 2) == 82.08
 ```
 
 Similarly, the value of `82.085` settled in `'2011-1-1'` has a present value of `1000.00` on `'2111-1-1'` 
@@ -318,7 +318,7 @@ results = calc("Settlement('2011-1-1', 82.085)",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 2) == 1000.00, results.fair_value
+assert round(results.fair_value, 2) == 1000.00
 ```
 
 Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
@@ -350,7 +350,8 @@ results = calc("Fixing('2051-1-1', Settlement('2111-1-1', 1000))",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 2) == 223.13, results.fair_value
+assert round(results.fair_value, 2) == 223.13
+
 ```   
 
 
@@ -620,7 +621,7 @@ assert results.fair_value == 20
 
 Although the function body can have only one statement, that statement can be an if-else block.
 The call args of the function definition can be used in an if-else block, to select different
-expressions according to the value of the function call arguments. This is effectively implements
+expressions according to the value of the function call arguments, which effectively implements
 a "case branch".
 
 Each function call becomes a node on a dependency graph. For efficiency, each call is cached, so if a 
@@ -947,7 +948,9 @@ results = calc(
     verbose=True,
 )
 
-assert round(results.fair_value.mean(), 2) == 20.78, results.fair_value.mean()
+assert round(results.fair_value.mean(), 2) == 20.78
+
+print(results)
 ```
 
 The results, showing deltas for each month for each market, and the fair value.
@@ -1163,7 +1166,9 @@ results = calc(
     verbose=True
 )
 
-assert round(results.fair_value.mean(), 2) == 12.82, results.fair_value.mean()
+assert round(results.fair_value.mean(), 2) == 12.82
+
+print(results)
 ```
 
 These are the results, showing monthly deltas for each of the two markets.
@@ -1239,7 +1244,7 @@ Fair value: 12.82 ± 0.10
 
 ## Jupyter notebooks
 
-It's easy to use Quant DSL in a Jupyter notebook. See [valuation_template.ipynb](./valuation_template.ipynb).
+It's easy to use Quant DSL in a Jupyter notebook. See [example_notebook.ipynb](./example_notebook.ipynb).
 
 Jupyter notebooks can be executed on a Jupyter hub.
 

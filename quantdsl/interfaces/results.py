@@ -1,9 +1,12 @@
+# coding=utf-8
 import datetime
 from collections import defaultdict
 
+import math
 import pandas
 import pandas.plotting
 import scipy
+import six
 from matplotlib import pylab as plt
 from numpy import nanpercentile
 from numpy.core.multiarray import array
@@ -63,48 +66,12 @@ class Results(object):
 
         self.deltas = {p['perturbation_name']: p['delta'] for p in self.periods}
 
-        #
-        # raise Exception(data)
-        # # Market names.
-        # names = sorted(set([p['market_name'] for p in periods]))
-        #
-        # # Dates.
-        # dates = sorted(set([p['delivery_date'] for p in periods]))
-        #
-        # # Periods by date.
-        # periods_by_date = defaultdict(list)
-        # [periods_by_date[p['delivery_date']].append(p) for p in self.periods]
-        #
-        # # Cash.
-        # self._cash = [sum([d['cash'] for d in periods_by_date[date]]) for date in dates]
-        #
-        # # Hedges.
-        # self._hedges = {}
-        # self.hedges_mean = {}
-        #
-        # hedges_mean = []
-        # for date in dates:
-        #     _periods = periods_by_date[date]
-        #     hedges = {name: 0 for name in names}
-        #     for p in _periods:
-        #         hedges.update({p['market_name']: p['hedge_units']})
-        #     for name, hedge_units in sorted(hedges.items()):
-        #         hedges_mean.append(hedge_units.mean())
-        #
-        # self.hedges_mean = DataFrame(hedges_mean, index=self.index)
-        # for name in names:
-        #     _hedges = [d['hedge_units'] for d in periods if d['market_name'] == name]
-        #     self._hedges[name] = _hedges
-        #     self.hedges_mean[name] = DataFrame(
-        #         data=[1, 2, 3],
-        #         # data=[hedge.mean() for hedge in _hedges],
-        #         index=self.index
-        #     )
-        #
-        # self.by_delivery_date = defaultdict(list)
-        # self.by_market_name = defaultdict(list)
-        # [self.by_delivery_date[p['delivery_date']].append(p) for p in self.periods]
-        # [self.by_market_name[p['market_name']].append(p) for p in self.periods]
+        # Old stuff, currently used by print().
+        # Todo: Change print to depend on stuff above, then remove next four lines.
+        self.by_delivery_date = defaultdict(list)
+        self.by_market_name = defaultdict(list)
+        [self.by_delivery_date[p['delivery_date']].append(p) for p in self.periods]
+        [self.by_market_name[p['market_name']].append(p) for p in self.periods]
 
     def init_dataframe_errors(self, confidence_interval):
         self.confidence_interval = confidence_interval
@@ -229,3 +196,64 @@ class Results(object):
             plt.pause(pause)
         else:
             plt.show(block=block)
+
+    def __str__(self):
+        s = ''
+        s += "\n\n"
+
+        dates = []
+        for period in self.periods:
+            date = period['delivery_date']
+            if date not in dates:
+                dates.append(date)
+
+        sqrt_path_count = math.sqrt(self.path_count)
+        if isinstance(self.fair_value, six.integer_types + (float,)):
+            fair_value_mean = self.fair_value
+            fair_value_stderr = 0
+        else:
+            fair_value_mean = self.fair_value.mean()
+            fair_value_stderr = self.fair_value.std() / sqrt_path_count
+
+        if self.periods:
+            net_hedge_cost = 0.0
+            net_hedge_units = defaultdict(int)
+
+            for delivery_date, markets_results in sorted(self.by_delivery_date.items()):
+                for market_result in sorted(markets_results, key=lambda x: x['market_name']):
+                    market_name = market_result['market_name']
+                    if delivery_date:
+                        s += "{} {}\n".format(delivery_date, market_name)
+                    else:
+                        s += market_name
+                    price_simulated = market_result['price_simulated'].mean()
+                    s += "Price: {: >8.2f}\n".format(price_simulated)
+                    delta = market_result['delta'].mean()
+                    s += "Delta: {: >8.2f}\n".format(delta)
+                    hedge_units = market_result['hedge_units']
+                    hedge_units_mean = hedge_units.mean()
+                    hedge_units_stderr = hedge_units.std() / sqrt_path_count
+                    s += "Hedge: {: >8.2f} ± {:.2f}\n".format(hedge_units_mean, hedge_units_stderr)
+                    hedge_cost = market_result['hedge_cost']
+                    hedge_cost_mean = hedge_cost.mean()
+                    hedge_cost_stderr = hedge_cost.std() / sqrt_path_count
+                    net_hedge_cost += hedge_cost
+                    s += "Cash:  {: >8.2f} ± {:.2f}\n".format(-hedge_cost_mean, 3 * hedge_cost_stderr)
+                    if len(dates) > 1:
+                        market_name = market_result['market_name']
+                        net_hedge_units[market_name] += hedge_units
+
+                    s += '\n'
+
+            for commodity in sorted(net_hedge_units.keys()):
+                units = net_hedge_units[commodity]
+                s += "Net hedge {:6} {: >8.2f} ± {: >.2f}\n".format(
+                    commodity + ':', units.mean(), 3 * units.std() / sqrt_path_count)
+
+            net_hedge_cost_mean = net_hedge_cost.mean()
+            net_hedge_cost_stderr = net_hedge_cost.std() / sqrt_path_count
+
+            s += "Net hedge cash:  {: >8.2f} ± {: >.2f}\n".format(-net_hedge_cost_mean, 3 * net_hedge_cost_stderr)
+            s += '\n'
+        s += "Fair value: {:.2f} ± {:.2f}\n".format(fair_value_mean, 3 * fair_value_stderr)
+        return s

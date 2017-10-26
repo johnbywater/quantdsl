@@ -2,30 +2,54 @@ language: python
 
 sudo: false
 
-services:
-  - rabbitmq
+# Travis whitelists the installable packages, additions can be requested
+#   https://github.com/travis-ci/apt-package-whitelist
+addons:
+  apt:
+    packages: &common_packages
+      - gfortran
+      - libatlas-dev
+      - libatlas-base-dev
+      # Speedup builds, particularly when USE_CHROOT=1
+      - eatmydata
+
+cache:
+  directories:
+    - $HOME/.cache/pip
 
 python:
-  - "2.7"
-  - "3.3"
-  - "3.4"
-  - "3.5"
-  - "3.6"
-
-before_install:
-- travis_retry wget http://repo.continuum.io/miniconda/Miniconda-3.8.3-Linux-x86_64.sh -O miniconda.sh
-- chmod +x miniconda.sh
-- bash miniconda.sh -b -p $HOME/miniconda
-- export PATH=/home/travis/miniconda/bin:$PATH
-- conda update --yes conda
-- conda install --yes atlas numpy scipy matplotlib
+  - 2.7
+  - 3.4
+  - 3.5
+  - 3.5-dev
+  - 3.6
+  - 3.6-dev
+#  - 3.7-dev
 
 install:
-- pip install -U pip
+- uname -a
+- free -m
+- df -h
+- ulimit -a
+- mkdir builds
+- pushd builds
+# Build into own virtualenv
+# We therefore control our own environment, avoid travis' numpy
+#
+- pip install -U virtualenv
+- virtualenv --python=python venv
+- source venv/bin/activate
+- python -V
+- pip install --upgrade pip setuptools
+#- pip install nose pytz cython
+- popd
+#- pip install -U pip
 - pip install .
 - pip install python-coveralls
 
 script:
+- echo "Python version:"
+- python --version
 - coverage run -m unittest discover quantdsl.tests -v
 
 after_success:
