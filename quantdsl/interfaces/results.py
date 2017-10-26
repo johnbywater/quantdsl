@@ -196,7 +196,7 @@ class Results(object):
         else:
             plt.show(block=block)
 
-    def print(self):
+    def print_(self):
         print("")
         print("")
 
