@@ -1244,7 +1244,7 @@ Fair value: 12.82 ± 0.10
 
 ## Jupyter notebooks
 
-It's easy to use Quant DSL in a Jupyter notebook. See [valuation_template.ipynb](./valuation_template.ipynb).
+It's easy to use Quant DSL in a Jupyter notebook. See [example_notebook.ipynb](./example_notebook.ipynb).
 
 Jupyter notebooks can be executed on a Jupyter hub.
 
