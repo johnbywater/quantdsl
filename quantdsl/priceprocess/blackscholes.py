@@ -173,7 +173,10 @@ def generate_calibration_params(start, end, markets, get_historical_data=get_his
             forward_month = date.month
             kwargs = market_spec.copy()
             kwargs['sym'] += quandl_month_codes[forward_month] + str(forward_year)
+
+            # Get the data.
             quotes = get_historical_data(**kwargs)
+
             all_quotes.append(quotes)
             vol = calc_historical_volatility(quotes)
             forward_vols.append(vol)
