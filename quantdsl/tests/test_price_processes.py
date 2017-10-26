@@ -319,12 +319,12 @@ class TestGetQuotes(unittest.TestCase):
         self.assertIsInstance(index[0], Timestamp)
         self.assertEqual(len(quotes), 30, str(quotes))
 
-    def test_get_yahoo_data_goog(self):
-        quotes = get_historical_data('yahoo', 'GOOG', col='Close', end=datetime.date(2017, 10, 26))
-        index = quotes.index
-        self.assertIsInstance(index[0], Timestamp)
-        self.assertEqual(len(quotes), 23)
-
+    # def test_get_yahoo_data_goog(self):
+    #     quotes = get_historical_data('yahoo', 'GOOG', col='Close', end=datetime.date(2017, 10, 26))
+    #     index = quotes.index
+    #     self.assertIsInstance(index[0], Timestamp)
+    #     self.assertEqual(len(quotes), 23)
+    #
     def test_get_quandl_data_goog(self):
         quotes = get_historical_data('quandl', 'GOOG', col='Close', end=datetime.date(2017, 10, 26))
         index = quotes.index
