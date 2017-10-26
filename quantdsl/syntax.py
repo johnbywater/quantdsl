@@ -1,7 +1,6 @@
 import ast
 
 import six
-import sys
 
 from quantdsl.exceptions import DslSyntaxError
 from quantdsl.semantics import FunctionDef, DslNamespace

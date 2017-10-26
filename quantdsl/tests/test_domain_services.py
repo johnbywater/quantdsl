@@ -8,6 +8,7 @@ from eventsourcing.infrastructure.persistence_subscriber import PersistenceSubsc
 from eventsourcing.infrastructure.stored_events.python_objects_stored_events import PythonObjectsStoredEventRepository
 from mock import MagicMock, Mock, patch
 
+from quantdsl.defaults import DEFAULT_PRICE_PROCESS_NAME
 from quantdsl.domain.model.call_dependencies import CallDependencies, CallDependenciesRepository
 from quantdsl.domain.model.call_dependents import CallDependents, CallDependentsRepository
 from quantdsl.domain.model.call_link import CallLink, CallLinkRepository
@@ -28,9 +29,7 @@ from quantdsl.infrastructure.event_sourced_repos.call_dependencies_repo import C
 from quantdsl.infrastructure.event_sourced_repos.call_dependents_repo import CallDependentsRepo
 from quantdsl.infrastructure.event_sourced_repos.call_leafs_repo import CallLeafsRepo
 from quantdsl.infrastructure.event_sourced_repos.call_requirement_repo import CallRequirementRepo
-from quantdsl.infrastructure.event_sourced_repos.perturbation_dependencies_repo import PerturbationDependenciesRepo
 from quantdsl.priceprocess.blackscholes import BlackScholesPriceProcess
-from quantdsl.services import DEFAULT_PRICE_PROCESS_NAME
 
 
 class TestUUIDs(unittest.TestCase):
@@ -177,11 +176,11 @@ class TestListMarketNamesAndFixingDates(unittest.TestCase):
     def test_list_market_names_and_fixing_dates(self):
         contract_specification = Mock(spec=ContractSpecification, id=1)
         call_requirement1 = Mock(spec=CallRequirement, dsl_source="Fixing('2011-01-01', Market('1'))",
-                    present_time=datetime.datetime(2011, 1, 1), _dsl_expr=None, id=1)
+                                 present_time=datetime.datetime(2011, 1, 1), _dsl_expr=None, id=1)
         call_requirement2 = Mock(spec=CallRequirement, dsl_source="Fixing('2012-02-02', Market('2'))",
-                    present_time=datetime.datetime(2011, 2, 2), _dsl_expr=None, id=2)
+                                 present_time=datetime.datetime(2011, 2, 2), _dsl_expr=None, id=2)
         call_requirement3 = Mock(spec=CallRequirement, dsl_source="Fixing('2013-03-03', Market('3'))",
-                    present_time=datetime.datetime(2011, 3, 3), _dsl_expr=None, id=3)
+                                 present_time=datetime.datetime(2011, 3, 3), _dsl_expr=None, id=3)
         call_requirement_repo = MagicMock(spec=CallRequirementRepository,
                                           __getitem__=lambda self, x: {
                                               1: call_requirement1,

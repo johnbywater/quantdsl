@@ -1,4 +1,0 @@
-v0.1.1
-------
-
-Added option to set observation date of an evaluation to the command line interface (quant-dsl.py).

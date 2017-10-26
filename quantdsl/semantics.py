@@ -1556,6 +1556,8 @@ class LongstaffSchwartz(object):
 
                 for subsequent_state in state.subsequent_states:
                     regression_variables = []
+                    # Todo: Perhaps this should be involved market names and delivery times,
+                    # so the same delivery is used? That would lead to a lot of variables...
                     for market_name in self.involved_market_names:
                         market_price = self.get_simulated_value(market_name, state.time)
                         regression_variables.append(market_price)

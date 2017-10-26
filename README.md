@@ -212,7 +212,7 @@ The examples below use the library function `calc()` to evaluate Quant DSL sourc
 methods of the `QuantDslApplication` mentioned above.
 
 ```python
-from quantdsl.interfaces.calcandplot import calc
+from quantdsl.calculate import calc
 ```
 
 When called, the function `calc()` returns a results object, with an attribute `fair_value` that is the
@@ -283,9 +283,6 @@ Custom DSL classes can be passed in using the `dsl_classes` argument of `calc()`
 Setting `is_verbose` will cause progress of a calculation to
 be printed to standard output.
 
-See also `calc_and_print()` which can format and print
-results. And `calc_print_plot()` which plots results using matplotlib.
-
 
 ### Settlement
 
@@ -309,7 +306,7 @@ results = calc("Settlement('2111-1-1', 1000)",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 2) == 82.08, results.fair_value
+assert round(results.fair_value, 2) == 82.08
 ```
 
 Similarly, the value of `82.085` settled in `'2011-1-1'` has a present value of `1000.00` on `'2111-1-1'` 
@@ -321,7 +318,7 @@ results = calc("Settlement('2011-1-1', 82.085)",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 2) == 1000.00, results.fair_value
+assert round(results.fair_value, 2) == 1000.00
 ```
 
 Discounting is a function of the `interest_rate` and the duration in time between the date of the `Settlement` 
@@ -353,7 +350,8 @@ results = calc("Fixing('2051-1-1', Settlement('2111-1-1', 1000))",
     interest_rate=2.5,
 )
 
-assert round(results.fair_value, 2) == 223.13, results.fair_value
+assert round(results.fair_value, 2) == 223.13
+
 ```   
 
 
@@ -587,14 +585,16 @@ assert round(results.fair_value.mean(), 2) == 82.06
 ```
 
 When the `Choice` element is evaluated, the value of each alternative is
-regressed as a random variable by least squares to the simulated value of the underlyings
-at the effective present time of the choice. The choice of alternative on each path is then
-made using the regressed value (the "conditional expected value") but the chosen
-value on each path is taken from the unregressed value of the chosen alternative for that path
-(the "expected continuation value"). The result is a new simulated value that combines the
-expected continuation value of the alternatives, according to information in the simulation
-at the time of the choice. This conditioning gives a quantitatively different result from simple
-maximisation of the alternative expected continuation values (`Max`). 
+regressed as a random variable by least squares with second order polynomial regression
+to the underlying simulated values at the effective present time of the choice.
+The choice of alternative on each path is then made using the regressed value (the
+"conditional expected value") but the chosen value on each path is taken from the
+unregressed value of the chosen alternative for that path (the "expected continuation
+value"). The result is a new simulated value that combines the expected continuation
+value of the alternatives, according to information in the simulation at the time of
+the choice. This conditioning gives a quantitatively different result from simple
+maximisation of the alternative expected continuation values (`Max`).
+
 
 ### Function definitions
 
@@ -621,7 +621,7 @@ assert results.fair_value == 20
 
 Although the function body can have only one statement, that statement can be an if-else block.
 The call args of the function definition can be used in an if-else block, to select different
-expressions according to the value of the function call arguments. This is effectively implements
+expressions according to the value of the function call arguments, which effectively implements
 a "case branch".
 
 Each function call becomes a node on a dependency graph. For efficiency, each call is cached, so if a 
@@ -934,18 +934,12 @@ gas = {
 }
 ```
 
-This example uses the library function `calc_print()` to calculate and then print results.
-
-```python
-from quantdsl.interfaces.calcandplot import calc_print
-```
-
 Because the `periodisation` argument is set to `'monthly'`, the deltas for each market in each month will be 
 calculated, and estimated risk neutral hedge positions will be printed for each market in each period, along
 with the overall fair value.
 
 ```python
-results = calc_print(
+results = calc(
     source_code=gas_storage,
     observation_date='2011-1-1',
     interest_rate=2.5,
@@ -954,11 +948,12 @@ results = calc_print(
     verbose=True,
 )
 
-assert round(results.fair_value.mean(), 2) == 20.78, results.fair_value.mean()
+assert round(results.fair_value.mean(), 2) == 20.78
+
+print(results)
 ```
 
-Below are the results printed by `calc_and_print()`, showing
-deltas for each month for each market, and the fair value.
+The results, showing deltas for each month for each market, and the fair value.
 
 ```
 Compiled 92 nodes 
@@ -1053,10 +1048,6 @@ with `path_count` of `1`.
 
 The recommended hedge positions suggest injecting gas when
 the price is low, and withdrawing when the price is high.
-
-An alternative to `calc_print()` is the function in the same module
-`calc_print_plot()` which will also plot the prices, positions, and
-cash. You will need to install matplotlib to use `calc_print_plot()`.
 
 
 ### Gas fired power station
@@ -1166,7 +1157,7 @@ calculated, and estimated risk neutral hedge positions will be printed for each 
 with the overall fair value.
 
 ```python
-results = calc_print(
+results = calc(
     source_code=power_plant,
     observation_date='2011-1-1',
     interest_rate=2.5,
@@ -1175,11 +1166,17 @@ results = calc_print(
     verbose=True
 )
 
-assert round(results.fair_value.mean(), 2) == 12.82, results.fair_value.mean()
+assert round(results.fair_value.mean(), 2) == 12.82
+
+print(results)
 ```
 
-These are the results printed by `calc_and_print()`, showing
-monthly deltas for each of the two markets.
+These are the results, showing monthly deltas for each of the two markets.
+The recommended hedge positions suggest running the plant when
+the price of power is high and the price of gas is low. The relative
+inefficiency of running the plant from `Cold()` is reflected in the delta
+for `POWER` in `2012-01-03`.
+
 
 ```
 Compiled 16 nodes 
@@ -1245,12 +1242,9 @@ Net hedge cash:     12.82 ± 0.10
 Fair value: 12.82 ± 0.10
 ```
 
-The recommended hedge positions suggest running the plant when
-the price of power is high and the price of gas is low.
-
 ## Jupyter notebooks
 
-It's easy to use Quant DSL in a Jupyter notebook. See [valuation_template.ipynb](./valuation_template.ipynb).
+It's easy to use Quant DSL in a Jupyter notebook. See [example_notebook.ipynb](./example_notebook.ipynb).
 
 Jupyter notebooks can be executed on a Jupyter hub.
 

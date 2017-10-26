@@ -1,27 +1,30 @@
 from __future__ import division
 
 import datetime
-import math
+from collections import defaultdict
 
+import numpy
+import numpy as np
 import scipy
 import scipy.linalg
-from collections import defaultdict
+from dateutil.relativedelta import relativedelta
 from scipy.linalg import LinAlgError
 
 from quantdsl.exceptions import DslError
 from quantdsl.priceprocess.base import PriceProcess, get_duration_years
+from quantdsl.priceprocess.common import get_historical_data
 from quantdsl.priceprocess.forwardcurve import ForwardCurve
 
 
 class BlackScholesPriceProcess(PriceProcess):
-
     def simulate_future_prices(self, observation_date, requirements, path_count, calibration_params):
         # Compute correlated Brownian motions for each market.
 
         if not requirements:
             return
 
-        all_brownian_motions = self.get_brownian_motions(observation_date, requirements, path_count, calibration_params)
+        all_brownian_motions = self.get_brownian_motions(observation_date, requirements, path_count,
+                                                         calibration_params)
 
         delivery_dates = defaultdict(set)
         for requirement in requirements:
@@ -74,7 +77,9 @@ class BlackScholesPriceProcess(PriceProcess):
                     draws = scipy.random.standard_normal(path_count)
                     T = get_duration_years(_start_date, fixing_date)
                     if T < 0:
-                        raise DslError("Can't really square root negative time durations: %s. Contract starts before observation time?" % T)
+                        raise DslError(
+                            "Can't really square root negative time durations: %s. Contract starts before "
+                            "observation time?" % T)
                     end_rv = start_rv + scipy.sqrt(T) * draws
                     try:
                         brownian_motions[i][j + 1] = end_rv
@@ -105,7 +110,8 @@ class BlackScholesPriceProcess(PriceProcess):
             try:
                 U = scipy.linalg.cholesky(correlation_matrix)
             except LinAlgError as e:
-                raise DslError("Cholesky decomposition failed with correlation matrix: %s: %s" % (correlation_matrix, e))
+                msg = "Cholesky decomposition failed with correlation matrix: %s: %s" % (correlation_matrix, e)
+                raise DslError(msg)
 
             # Construct correlated increments from uncorrelated increments
             # and lower triangular matrix for the correlation matrix.
@@ -150,11 +156,87 @@ class BlackScholesPriceProcess(PriceProcess):
         return correlation
 
 
-def calc_sigma(curve):
-    dates = scipy.array([i[0] for i in curve])
-    prices = scipy.array([i[1] for i in curve])
-    volatility = prices.std() / prices.mean()
-    duration = max(dates) - min(dates)
-    years = duration.total_seconds() / datetime.timedelta(365).total_seconds()
-    assert years > 0, "Can't calculate volatility for price series with zero days duration"
-    return float(volatility) / math.sqrt(years)
+def generate_calibration_params(start, end, markets, get_historical_data=get_historical_data):
+    name = 'quantdsl.priceprocess.blackscholes.BlackScholesPriceProcess'
+    all_quotes = []
+    sigmas = []
+    date = start
+    all_market_names = []
+    # Iterate over all "markets" (e.g. 'GAS').
+    all_curves = {}
+    for market_name, market_spec in markets.items():
+        all_market_names.append(market_name)
+        forward_vols = []
+        forward_curve = []
+        while date <= end:
+            forward_year = date.year
+            forward_month = date.month
+            kwargs = market_spec.copy()
+            kwargs['sym'] += quandl_month_codes[forward_month] + str(forward_year)
+
+            # Get the data.
+            quotes = get_historical_data(**kwargs)
+
+            all_quotes.append(quotes)
+            vol = calc_historical_volatility(quotes)
+            forward_vols.append(vol)
+            last = pick_last_price(quotes)
+            forward_curve.append((date, last))
+
+            # Next month.
+            date = date + relativedelta(months=1)
+        sigma = np.median(forward_vols)
+        sigmas.append(sigma)
+        all_curves[market_name] = forward_curve
+    # Todo: Align dates and drop rows that aren't full.
+    rho = calc_correlation(all_quotes)
+    return {
+        'name': name,
+        'market': all_market_names,
+        'sigma': sigmas,
+        'rho': rho,
+        'curve': all_curves,
+    }
+
+
+def calc_historical_volatility(quotes):
+    logreturns = np.log(quotes / quotes.shift(1))
+    return np.sqrt(252 * logreturns.var())
+
+
+def pick_last_price(quotes):
+    if len(quotes):
+        return quotes[-1]
+    else:
+        return None
+
+
+def calc_correlation(*args):
+    if len(args) == 1:
+        return numpy.array([[1]])
+    else:
+        raise NotImplementedError('Need to align dates. Also, which time series?')
+        return numpy.corrcoef(numpy.array(args))
+
+
+quandl_month_codes = {
+    1: 'F',
+    2: 'G',
+    3: 'H',
+    4: 'J',
+    5: 'K',
+    6: 'M',
+    7: 'N',
+    8: 'Q',
+    9: 'U',
+    10: 'V',
+    11: 'X',
+    12: 'Z',
+}
+
+
+QuandlProducts = {
+    'Endex Dutch TTF Gas Base Load Futures': 'ICE/TFM',
+    'Endex Belgian Power Base Load Futures': 'ICE/BPB',
+    'UK Natural Gas Futures': 'ICE/M'
+}
