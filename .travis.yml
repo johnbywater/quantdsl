@@ -7,7 +7,7 @@ sudo: false
 
 python:
   - "2.7"
-  - "3.3"
+#  - "3.3"  Matplotlib doesn't support this version of Python.
   - "3.4"
   - "3.5"
   - "3.6"
