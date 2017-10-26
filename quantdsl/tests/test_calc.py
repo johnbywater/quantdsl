@@ -215,7 +215,7 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
                 max_dependency_graph_size=1,
             )
 
-    def test_results_dataframes(self):
+    def test_results(self):
         source_code = """
 from quantdsl.lib.storage2 import GasStorage        
 GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m'), 1)
@@ -243,4 +243,9 @@ GasStorage(Date('2011-1-1'), Date('2011-4-1'), 'GAS', 0, 0, 50000, TimeDelta('1m
         assert isinstance(results, Results)
         # self.assertIsInstance(results.cash_mean, DataFrame)
 
+        # Check results can be plotted.
         results.plot()
+
+        string = str(results)
+        self.assertIn('Fair value', string)
+        # Todo: Check other aspects of the string.
