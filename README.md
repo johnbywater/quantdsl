@@ -1256,6 +1256,13 @@ Putting Quant DSL source code in dedicated Python files makes it much easier to 
 a Python IDE to develop and maintain Quant DSL function definitions.
 
 
+The `from` form of the import statement can be used to include function definitions from Quant DSL modules
+on your Python path.
+
+```python
+from quantdsl.lib.powerplant2 import PowerPlant
+```
+
 ## Acknowledgments
 
 The Quant DSL language was partly inspired by the paper
