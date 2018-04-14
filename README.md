@@ -203,6 +203,9 @@ Python files. Since Quant DSL syntax is a strict subset of Python, the
 full power of Python IDEs can be used to write, navigate and refactor
 Quant DSL source code.
 
+This [blog post by Uncle Bob Martin](http://blog.cleancoder.com/uncle-bob/2018/04/13/FPvsOO.html)
+describes very well the  orthogonality between object-oriented and functional programming that is
+at the heart of this software.
 
 ## Examples
 
