@@ -10,7 +10,6 @@ addons:
       - gfortran
       - libatlas-dev
       - libatlas-base-dev
-      # Speedup builds, particularly when USE_CHROOT=1
       - eatmydata
 
 cache:
@@ -19,7 +18,7 @@ cache:
 
 python:
   - 2.7
-  - 3.4
+#  - 3.4
   - 3.5
   - 3.5-dev
   - 3.6
